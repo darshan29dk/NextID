@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+pymysql
+cryptography
+pydantic
+python-dotenv
+python-multipart
+openpyxl

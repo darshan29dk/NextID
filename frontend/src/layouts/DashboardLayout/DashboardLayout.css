@@ -1,0 +1,35 @@
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main-container {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  margin-left: var(--sidebar-width);
+  min-width: 0;
+  transition: margin-left var(--transition-speed) cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-layout.sidebar-collapsed .main-container {
+  margin-left: var(--sidebar-collapsed-width);
+}
+
+.content-wrapper {
+  padding: 32px;
+  flex: 1;
+  overflow-y: auto;
+  max-width: 1600px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+@media (max-width: 768px) {
+  .main-container {
+    margin-left: 0 !important;
+  }
+  .content-wrapper {
+    padding: 20px 16px;
+  }
+}
