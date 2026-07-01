@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Bell, HelpCircle, Sun, Moon, LogOut, User as UserIcon } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import './Header.css';
 
 const Header = ({ 
@@ -11,6 +13,9 @@ const Header = ({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
   
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
   const profileRef = useRef(null);
   const notificationRef = useRef(null);
 
@@ -125,7 +130,10 @@ const Header = ({
                 <span>Help Center</span>
               </button>
               <div className="menu-divider"></div>
-              <button className="menu-item logout">
+              <button 
+                className="menu-item logout"
+                onClick={() => { logout(); navigate('/login'); }}
+              >
                 <LogOut size={14} />
                 <span>Sign Out</span>
               </button>

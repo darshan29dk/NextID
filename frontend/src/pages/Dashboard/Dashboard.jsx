@@ -23,6 +23,9 @@ import {
   CheckCircle,
   XCircle
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { useInactivityTimer } from '../../hooks/useInactivityTimer';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
 import { 
@@ -35,6 +38,16 @@ import {
 import './Dashboard.css';
 
 const Dashboard = () => {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  const { showWarning, stayActive } = useInactivityTimer(handleLogout);
+
   const [stats, setStats] = useState({
     totalUsers: 0,
     accounts: 0,
@@ -55,16 +68,14 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Connection status indicator
   const [status, setStatus] = useState({
     database: 'Checking...',
     backend: 'Checking...',
     api: 'Checking...'
   });
 
-  // Modal toggle and form state
   const [showSyncModal, setShowSyncModal] = useState(false);
-  const [modalTab, setModalTab] = useState('upload'); // 'upload' or 'api'
+  const [modalTab, setModalTab] = useState('upload');
   const [uploadFile, setUploadFile] = useState(null);
   const [apiKey, setApiKey] = useState('');
   const [syncLoading, setSyncLoading] = useState(false);
@@ -105,7 +116,6 @@ const Dashboard = () => {
     fetchData();
   }, []);
 
-  // Template download utility
   const downloadTemplate = (format) => {
     let content = '';
     let filename = '';
@@ -118,7 +128,6 @@ const Dashboard = () => {
       filename = 'ranalyzer_identities_template.csv';
       mimeType = 'text/csv';
     } else if (format === 'xlsx') {
-      // For xlsx we provide a CSV with instructions since xlsx needs a library to generate
       content = 'username,email,department,role,applications,entitlements_count,risk_level,sod_conflict\n' +
                 'john.smith,john.smith@corp.io,Finance,Finance Specialist,"Active Directory, Workday",15,High,1\n' +
                 'jane.doe,jane.doe@corp.io,Engineering,Software Engineer,"Active Directory, GitHub",8,Low,0\n';
@@ -160,8 +169,8 @@ CREATE TABLE identities (
   sod_conflict INT
 );
 
-INSERT INTO identities (username, email, department, role, applications, entitlements_count, risk_level, sod_conflict) VALUES ('john.smith', 'john.smith@corp.io', 'Finance', 'Finance Specialist', 'Active Directory,Workday', 15, 'High', 1);
-INSERT INTO identities (username, email, department, role, applications, entitlements_count, risk_level, sod_conflict) VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'Software Engineer', 'GitHub,Slack', 8, 'Low', 0);
+INSERT INTO identities VALUES ('john.smith', 'john.smith@corp.io', 'Finance', 'Finance Specialist', 'Active Directory,Workday', 15, 'High', 1);
+INSERT INTO identities VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'Software Engineer', 'GitHub,Slack', 8, 'Low', 0);
 `;
       filename = 'ranalyzer_identities_template.sql';
       mimeType = 'application/sql';
@@ -204,7 +213,6 @@ INSERT INTO identities (username, email, department, role, applications, entitle
     URL.revokeObjectURL(url);
   };
 
-  // Form handlers
   const handleFileUploadChange = (e) => {
     if (e.target.files && e.target.files.length > 0) {
       setUploadFile(e.target.files[0]);
@@ -225,11 +233,8 @@ INSERT INTO identities (username, email, department, role, applications, entitle
       setStats(updatedStats);
       setSyncSuccess(true);
       setUploadFile(null);
-      
-      // Refresh timeline logs & approvals
       const activitiesData = await getRecentActivities();
       setActivities(activitiesData);
-      
       setTimeout(() => {
         setSyncSuccess(false);
         setShowSyncModal(false);
@@ -255,11 +260,8 @@ INSERT INTO identities (username, email, department, role, applications, entitle
       setStats(updatedStats);
       setSyncSuccess(true);
       setApiKey('');
-      
-      // Refresh activities
       const activitiesData = await getRecentActivities();
       setActivities(activitiesData);
-      
       setTimeout(() => {
         setSyncSuccess(false);
         setShowSyncModal(false);
@@ -272,59 +274,30 @@ INSERT INTO identities (username, email, department, role, applications, entitle
     }
   };
 
-  // SVG Chart rendering helpers
   const renderDepartmentChart = (deptCoverage) => {
     if (!deptCoverage || deptCoverage.length === 0) return null;
     return (
       <svg viewBox="0 0 500 220" className="trend-svg" aria-label="Role Coverage by Department Double Bar Graph">
-        {/* Horizontal grid lines */}
         <line x1="50" y1="30" x2="470" y2="30" stroke="var(--border-color)" strokeWidth="0.5" strokeDasharray="4" />
         <line x1="50" y1="65" x2="470" y2="65" stroke="var(--border-color)" strokeWidth="0.5" strokeDasharray="4" />
         <line x1="50" y1="100" x2="470" y2="100" stroke="var(--border-color)" strokeWidth="0.5" strokeDasharray="4" />
         <line x1="50" y1="135" x2="470" y2="135" stroke="var(--border-color)" strokeWidth="0.5" strokeDasharray="4" />
         <line x1="50" y1="170" x2="470" y2="170" stroke="var(--border-color)" strokeWidth="0.5" />
-        
-        {/* Axis labels */}
         <text x="35" y="34" className="axis-text">100%</text>
         <text x="35" y="69" className="axis-text">75%</text>
         <text x="35" y="104" className="axis-text">50%</text>
         <text x="35" y="139" className="axis-text">25%</text>
         <text x="35" y="174" className="axis-text">0%</text>
-
         {deptCoverage.map((dept, idx) => {
           const xOffset = 50 + idx * 52 + 10;
           const coveragePct = dept.target > 0 ? (dept.coverage / dept.target) * 100 : 0;
-          
-          // Draw blue bar representing dynamic coverage, and grey bar for target/benchmark
           const bar1Height = (coveragePct / 100) * 140;
-          // Replicate height distributions in screenshot dynamically
           const bar2Height = 40 + (idx % 3) * 15;
-          
           return (
             <g key={idx}>
-              <rect 
-                x={xOffset} 
-                y={170 - bar1Height} 
-                width="8" 
-                height={Math.max(bar1Height, 2)} 
-                fill="#2563eb" 
-                rx="1.5"
-              />
-              <rect 
-                x={xOffset + 11} 
-                y={170 - bar2Height} 
-                width="8" 
-                height={bar2Height} 
-                fill="var(--border-color)" 
-                rx="1.5"
-              />
-              <text 
-                x={xOffset + 9} 
-                y="190" 
-                className="axis-text" 
-                textAnchor="middle"
-                style={{ fontSize: '8px', fontWeight: 600 }}
-              >
+              <rect x={xOffset} y={170 - bar1Height} width="8" height={Math.max(bar1Height, 2)} fill="#2563eb" rx="1.5" />
+              <rect x={xOffset + 11} y={170 - bar2Height} width="8" height={bar2Height} fill="var(--border-color)" rx="1.5" />
+              <text x={xOffset + 9} y="190" className="axis-text" textAnchor="middle" style={{ fontSize: '8px', fontWeight: 600 }}>
                 {dept.department}
               </text>
             </g>
@@ -349,52 +322,18 @@ INSERT INTO identities (username, email, department, role, applications, entitle
       );
     }
     
-    const pLow = (low / total) * 100;
-    const pMedium = (medium / total) * 100;
-    const pHigh = (high / total) * 100;
-    const pCritical = (critical / total) * 100;
-    
-    const circ = 2 * Math.PI * 35; // Circumference = ~219.91
-    
-    const lLen = (pLow / 100) * circ;
-    const mLen = (pMedium / 100) * circ;
-    const hLen = (pHigh / 100) * circ;
-    const cLen = (pCritical / 100) * circ;
+    const circ = 2 * Math.PI * 35;
+    const lLen = (low / total) * circ;
+    const mLen = (medium / total) * circ;
+    const hLen = (high / total) * circ;
+    const cLen = (critical / total) * circ;
     
     return (
       <svg viewBox="0 0 100 100" className="donut-svg" aria-label="Role Risk Donut Chart">
-        <circle 
-          cx="50" cy="50" r="35" 
-          fill="transparent" 
-          stroke="#10b981" 
-          strokeWidth="10" 
-          strokeDasharray={`${lLen} ${circ}`} 
-          strokeDashoffset="0"
-        />
-        <circle 
-          cx="50" cy="50" r="35" 
-          fill="transparent" 
-          stroke="#f59e0b" 
-          strokeWidth="10" 
-          strokeDasharray={`${mLen} ${circ}`} 
-          strokeDashoffset={-lLen}
-        />
-        <circle 
-          cx="50" cy="50" r="35" 
-          fill="transparent" 
-          stroke="#f97316" 
-          strokeWidth="10" 
-          strokeDasharray={`${hLen} ${circ}`} 
-          strokeDashoffset={-(lLen + mLen)}
-        />
-        <circle 
-          cx="50" cy="50" r="35" 
-          fill="transparent" 
-          stroke="#ef4444" 
-          strokeWidth="10" 
-          strokeDasharray={`${cLen} ${circ}`} 
-          strokeDashoffset={-(lLen + mLen + hLen)}
-        />
+        <circle cx="50" cy="50" r="35" fill="transparent" stroke="#10b981" strokeWidth="10" strokeDasharray={`${lLen} ${circ}`} strokeDashoffset="0" />
+        <circle cx="50" cy="50" r="35" fill="transparent" stroke="#f59e0b" strokeWidth="10" strokeDasharray={`${mLen} ${circ}`} strokeDashoffset={-lLen} />
+        <circle cx="50" cy="50" r="35" fill="transparent" stroke="#f97316" strokeWidth="10" strokeDasharray={`${hLen} ${circ}`} strokeDashoffset={-(lLen + mLen)} />
+        <circle cx="50" cy="50" r="35" fill="transparent" stroke="#ef4444" strokeWidth="10" strokeDasharray={`${cLen} ${circ}`} strokeDashoffset={-(lLen + mLen + hLen)} />
         <circle cx="50" cy="50" r="30" fill="var(--bg-card)" />
       </svg>
     );
@@ -428,75 +367,18 @@ INSERT INTO identities (username, email, department, role, applications, entitle
 
       {/* 8 Card Metric Grid */}
       <div className="kpi-grid-premium">
-        <DashboardCard 
-          title="Identities" 
-          value={stats.totalUsers} 
-          icon={Users} 
-          color="blue"
-          trend="+12"
-          loading={loading}
-        />
-        <DashboardCard 
-          title="Accounts" 
-          value={stats.accounts} 
-          icon={Monitor} 
-          color="teal"
-          trend="+34"
-          loading={loading}
-        />
-        <DashboardCard 
-          title="Applications" 
-          value={stats.applications} 
-          icon={Layers} 
-          color="violet"
-          trend=""
-          loading={loading}
-        />
-        <DashboardCard 
-          title="Entitlements" 
-          value={stats.entitlements} 
-          icon={Key} 
-          color="purple"
-          trend="+28"
-          loading={loading}
-        />
-        <DashboardCard 
-          title="Candidate Roles" 
-          value={stats.candidateRoles} 
-          icon={Target} 
-          color="yellow"
-          trend="+5"
-          loading={loading}
-        />
-        <DashboardCard 
-          title="Published Roles" 
-          value={stats.publishedRoles} 
-          icon={BookOpen} 
-          color="green"
-          trend="+2"
-          loading={loading}
-        />
-        <DashboardCard 
-          title="Birthright Roles" 
-          value={stats.birthrightRoles} 
-          icon={Shield} 
-          color="cyan"
-          trend=""
-          loading={loading}
-        />
-        <DashboardCard 
-          title="SoD Violations" 
-          value={stats.sodConflicts} 
-          icon={AlertTriangle} 
-          color="red"
-          trend="-3"
-          loading={loading}
-        />
+        <DashboardCard title="Identities" value={stats.totalUsers} icon={Users} color="blue" trend="+12" loading={loading} />
+        <DashboardCard title="Accounts" value={stats.accounts} icon={Monitor} color="teal" trend="+34" loading={loading} />
+        <DashboardCard title="Applications" value={stats.applications} icon={Layers} color="violet" trend="" loading={loading} />
+        <DashboardCard title="Entitlements" value={stats.entitlements} icon={Key} color="purple" trend="+28" loading={loading} />
+        <DashboardCard title="Candidate Roles" value={stats.candidateRoles} icon={Target} color="yellow" trend="+5" loading={loading} />
+        <DashboardCard title="Published Roles" value={stats.publishedRoles} icon={BookOpen} color="green" trend="+2" loading={loading} />
+        <DashboardCard title="Birthright Roles" value={stats.birthrightRoles} icon={Shield} color="cyan" trend="" loading={loading} />
+        <DashboardCard title="SoD Violations" value={stats.sodConflicts} icon={AlertTriangle} color="red" trend="-3" loading={loading} />
       </div>
 
       {/* Charts Grid */}
       <div className="dashboard-visuals-grid">
-        {/* Coverage Chart */}
         <div className="visual-card">
           <div className="card-header">
             <div>
@@ -518,7 +400,6 @@ INSERT INTO identities (username, email, department, role, applications, entitle
           </div>
         </div>
 
-        {/* Risk Distribution Chart */}
         <div className="visual-card">
           <div className="card-header">
             <div>
@@ -560,7 +441,6 @@ INSERT INTO identities (username, email, department, role, applications, entitle
           </div>
         </div>
 
-        {/* Horizontal Bar Chart (Application Distribution) */}
         <div className="visual-card">
           <div className="card-header">
             <div>
@@ -583,13 +463,7 @@ INSERT INTO identities (username, email, department, role, applications, entitle
                     <strong>{app.accounts}</strong>
                   </div>
                   <div className="bar-container">
-                    <div 
-                      className="bar-fill" 
-                      style={{ 
-                        width: `${widthPct}%`,
-                        backgroundColor: app.color
-                      }}
-                    ></div>
+                    <div className="bar-fill" style={{ width: `${widthPct}%`, backgroundColor: app.color }}></div>
                   </div>
                 </div>
               );
@@ -598,9 +472,8 @@ INSERT INTO identities (username, email, department, role, applications, entitle
         </div>
       </div>
 
-      {/* Discovered / Lifecycle & Approvals Row */}
+      {/* Secondary Charts */}
       <div className="dashboard-visuals-grid secondary-charts-grid">
-        {/* Role Mining Trend */}
         <div className="visual-card">
           <div className="card-header">
             <div>
@@ -650,7 +523,6 @@ INSERT INTO identities (username, email, department, role, applications, entitle
           </div>
         </div>
 
-        {/* Role Lifecycle */}
         <div className="visual-card">
           <div className="card-header">
             <div>
@@ -674,13 +546,7 @@ INSERT INTO identities (username, email, department, role, applications, entitle
                       <span className="lifecycle-count">{role.count}</span>
                     </div>
                     <div className="lifecycle-progress-bg">
-                      <div 
-                        className="lifecycle-progress-fill" 
-                        style={{ 
-                          width: `${widthPct}%`,
-                          backgroundColor: role.color 
-                        }}
-                      ></div>
+                      <div className="lifecycle-progress-fill" style={{ width: `${widthPct}%`, backgroundColor: role.color }}></div>
                     </div>
                   </div>
                 );
@@ -688,9 +554,7 @@ INSERT INTO identities (username, email, department, role, applications, entitle
             </div>
             <div className="lifecycle-summary">
               <div className="summary-stat">
-                <span className="summary-number">
-                  {stats.roleLifecycle.reduce((sum, item) => sum + item.count, 0)}
-                </span>
+                <span className="summary-number">{stats.roleLifecycle.reduce((sum, item) => sum + item.count, 0)}</span>
                 <span className="summary-lbl">Total Roles</span>
               </div>
               <div className="summary-stat">
@@ -706,9 +570,8 @@ INSERT INTO identities (username, email, department, role, applications, entitle
         </div>
       </div>
 
-      {/* Bottom Grid: Recent Activity & Approval Queue */}
+      {/* Bottom Grid */}
       <div className="dashboard-bottom-grid">
-        {/* Timeline Log */}
         <div className="visual-card activities-card">
           <div className="card-header">
             <h3>Recent Activity</h3>
@@ -737,7 +600,6 @@ INSERT INTO identities (username, email, department, role, applications, entitle
                   if (act.status === 'warning') badgeClass = 'yellow';
                   if (act.status === 'danger') badgeClass = 'red';
                   if (act.status === 'info') badgeClass = 'blue';
-
                   return (
                     <div key={act.id} className="timeline-item">
                       <span className={`timeline-dot dot-${badgeClass}`}></span>
@@ -758,7 +620,6 @@ INSERT INTO identities (username, email, department, role, applications, entitle
           </div>
         </div>
 
-        {/* Approval Queue Widget */}
         <div className="visual-card approvals-card">
           <div className="card-header">
             <h3>Approval Queue</h3>
@@ -788,7 +649,6 @@ INSERT INTO identities (username, email, department, role, applications, entitle
                 ))
               )}
             </div>
-            
             <div className="approvals-footer-bar">
               <div className="approvals-summary-pills">
                 <span className="pill-dot critical"></span>
@@ -809,7 +669,7 @@ INSERT INTO identities (username, email, department, role, applications, entitle
         </div>
       </div>
 
-      {/* Control Center / Quick Action Widget */}
+      {/* Control Center */}
       <div className="visual-card control-center-card">
         <div className="card-header">
           <h3>Control Center</h3>
@@ -837,9 +697,7 @@ INSERT INTO identities (username, email, department, role, applications, entitle
               </button>
             </div>
           </div>
-
           <div className="actions-divider"></div>
-
           <div className="status-section">
             <h4>System Status</h4>
             <div className="status-list">
@@ -857,9 +715,7 @@ INSERT INTO identities (username, email, department, role, applications, entitle
                   <Activity size={15} className="status-icon" />
                   <span>Backend Server</span>
                 </div>
-                <span className="status-indicator status-running">
-                  {status.backend}
-                </span>
+                <span className="status-indicator status-running">{status.backend}</span>
               </div>
               <div className="status-row">
                 <div className="status-left">
@@ -875,7 +731,7 @@ INSERT INTO identities (username, email, department, role, applications, entitle
         </div>
       </div>
 
-      {/* Sync / Upload Modal */}
+      {/* Sync Modal */}
       {showSyncModal && (
         <div className="modal-backdrop-portal">
           <div className="modal-content-portal">
@@ -885,22 +741,14 @@ INSERT INTO identities (username, email, department, role, applications, entitle
                 <XCircle size={18} />
               </button>
             </div>
-
             <div className="modal-tabs-portal">
-              <button 
-                className={`tab-btn-portal ${modalTab === 'upload' ? 'active' : ''}`}
-                onClick={() => { setModalTab('upload'); setSyncError(null); }}
-              >
+              <button className={`tab-btn-portal ${modalTab === 'upload' ? 'active' : ''}`} onClick={() => { setModalTab('upload'); setSyncError(null); }}>
                 Upload File (.csv / .json)
               </button>
-              <button 
-                className={`tab-btn-portal ${modalTab === 'api' ? 'active' : ''}`}
-                onClick={() => { setModalTab('api'); setSyncError(null); }}
-              >
+              <button className={`tab-btn-portal ${modalTab === 'api' ? 'active' : ''}`} onClick={() => { setModalTab('api'); setSyncError(null); }}>
                 API Key Integration
               </button>
             </div>
-
             <div className="modal-body-portal">
               {syncError && <div className="modal-error-banner">{syncError}</div>}
               {syncSuccess && (
@@ -909,57 +757,33 @@ INSERT INTO identities (username, email, department, role, applications, entitle
                   <span>Analysis complete! Refreshing dashboard metrics...</span>
                 </div>
               )}
-
               {modalTab === 'upload' && (
                 <form onSubmit={handleUploadSubmit} className="upload-form-portal">
                   <div className="upload-dropzone">
                     <Upload size={32} className="dropzone-icon" />
                     <p className="dropzone-text">Drop your identity data file here</p>
                     <span className="dropzone-sub">CSV · JSON · Excel (.xlsx) · LDIF · SQL — enterprise import formats supported</span>
-                    
-                    <input 
-                      type="file" 
-                      accept=".csv,.xlsx,.json,.ldif,.sql"
-                      onChange={handleFileUploadChange}
-                      className="dropzone-file-input"
-                      id="identity-file-upload"
-                    />
-                    <label htmlFor="identity-file-upload" className="dropzone-select-btn">
-                      Choose File
-                    </label>
+                    <input type="file" accept=".csv,.xlsx,.json,.ldif,.sql" onChange={handleFileUploadChange} className="dropzone-file-input" id="identity-file-upload" />
+                    <label htmlFor="identity-file-upload" className="dropzone-select-btn">Choose File</label>
                     {uploadFile && <div className="selected-filename">Selected: {uploadFile.name}</div>}
                   </div>
-
                   <div className="modal-actions-portal">
-                    <button type="button" className="cancel-btn" onClick={() => setShowSyncModal(false)}>
-                      Cancel
-                    </button>
+                    <button type="button" className="cancel-btn" onClick={() => setShowSyncModal(false)}>Cancel</button>
                     <button type="submit" className="submit-btn" disabled={syncLoading || !uploadFile}>
                       {syncLoading ? 'Analyzing...' : 'Upload & Analyze Data'}
                     </button>
                   </div>
                 </form>
               )}
-
               {modalTab === 'api' && (
                 <form onSubmit={handleApiSyncSubmit} className="api-form-portal">
                   <div className="form-group-portal">
                     <label htmlFor="api-key-input">API Token / Access Key</label>
-                    <input 
-                      type="password"
-                      id="api-key-input"
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="Paste your API token here..."
-                      className="portal-input"
-                    />
+                    <input type="password" id="api-key-input" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="Paste your API token here..." className="portal-input" />
                     <p className="field-hint">Your token is used securely to fetch and analyse identity data.</p>
                   </div>
-
                   <div className="modal-actions-portal">
-                    <button type="button" className="cancel-btn" onClick={() => setShowSyncModal(false)}>
-                      Cancel
-                    </button>
+                    <button type="button" className="cancel-btn" onClick={() => setShowSyncModal(false)}>Cancel</button>
                     <button type="submit" className="submit-btn" disabled={syncLoading || !apiKey.trim()}>
                       {syncLoading ? 'Connecting...' : 'Connect & Import Stats'}
                     </button>
@@ -970,6 +794,86 @@ INSERT INTO identities (username, email, department, role, applications, entitle
           </div>
         </div>
       )}
+
+      {/* Inactivity Warning Modal */}
+      {showWarning && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999
+        }}>
+          <div style={{
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '12px',
+            padding: '28px',
+            maxWidth: '380px',
+            width: '100%',
+            margin: '0 16px',
+            boxShadow: 'var(--shadow-lg)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0
+              }}>
+                <AlertTriangle size={20} color="#f59e0b" />
+              </div>
+              <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-main)', margin: 0 }}>
+                Session About to Expire
+              </h3>
+            </div>
+            <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '20px', lineHeight: 1.5 }}>
+              You've been inactive for a while. You'll be logged out automatically unless you stay active.
+            </p>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={stayActive}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  backgroundColor: 'var(--primary)',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Stay Logged In
+              </button>
+              <button
+                onClick={handleLogout}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  backgroundColor: 'transparent',
+                  color: 'var(--text-muted)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Logout Now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

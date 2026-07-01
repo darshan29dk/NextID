@@ -2,6 +2,9 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import DashboardLayout from './layouts/DashboardLayout/DashboardLayout';
 import Dashboard from './pages/Dashboard/Dashboard';
+import Login from './pages/Login/Login';
+import ForgotPassword from './pages/ForgotPassword/ForgotPassword';
+import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
 
 // Elegant under-construction fallback component
 const UnderConstruction = ({ title }) => {
@@ -38,21 +41,38 @@ const UnderConstruction = ({ title }) => {
 function App() {
   return (
     <Router>
-      <DashboardLayout>
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/data-foundation" element={<UnderConstruction title="Data Foundation" />} />
-          <Route path="/role-discovery" element={<UnderConstruction title="Role Discovery" />} />
-          <Route path="/role-engineering" element={<UnderConstruction title="Role Engineering" />} />
-          <Route path="/role-catalog" element={<UnderConstruction title="Role Catalog" />} />
-          <Route path="/governance" element={<UnderConstruction title="Governance" />} />
-          <Route path="/role-lifecycle" element={<UnderConstruction title="Role Lifecycle" />} />
-          <Route path="/analytics" element={<UnderConstruction title="Analytics" />} />
-          <Route path="/administration" element={<UnderConstruction title="Administration" />} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </DashboardLayout>
+      <Routes>
+        {/* Public routes — no layout needed */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+
+        {/* Protected routes — wrapped in DashboardLayout */}
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <DashboardLayout>
+                <Routes>
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/data-foundation" element={<UnderConstruction title="Data Foundation" />} />
+                  <Route path="/role-discovery" element={<UnderConstruction title="Role Discovery" />} />
+                  <Route path="/role-engineering" element={<UnderConstruction title="Role Engineering" />} />
+                  <Route path="/role-catalog" element={<UnderConstruction title="Role Catalog" />} />
+                  <Route path="/governance" element={<UnderConstruction title="Governance" />} />
+                  <Route path="/role-lifecycle" element={<UnderConstruction title="Role Lifecycle" />} />
+                  <Route path="/analytics" element={<UnderConstruction title="Analytics" />} />
+                  <Route path="/administration" element={<UnderConstruction title="Administration" />} />
+                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                </Routes>
+              </DashboardLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Default redirect to login */}
+        <Route path="/" element={<Navigate to="/login" replace />} />
+      </Routes>
     </Router>
   );
 }
