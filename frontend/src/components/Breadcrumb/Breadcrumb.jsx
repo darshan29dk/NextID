@@ -20,7 +20,15 @@ const Breadcrumb = ({ items = [] }) => {
                 {item.label}
               </span>
             ) : (
-              <a href="#" onClick={(e) => e.preventDefault()} className="breadcrumb-link">
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (item.onClick) item.onClick();
+                }}
+                className="breadcrumb-link"
+                style={item.onClick ? { cursor: 'pointer' } : {}}
+              >
                 {item.label}
               </a>
             )}
