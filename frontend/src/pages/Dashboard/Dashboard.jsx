@@ -362,13 +362,7 @@ INSERT INTO identities VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'S
             <Upload size={14} />
             <span>Sync Data / Upload</span>
           </button>
-          <div className="welcome-badge">
-            <Activity size={26} className="welcome-badge-icon" />
-            <div className="welcome-badge-text">
-              <span>Identity Trust Index</span>
-              <strong>98.4%</strong>
-            </div>
-          </div>
+
         </div>
       </div>
 
@@ -510,18 +504,7 @@ INSERT INTO identities VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'S
               <text x="35" y="124" className="axis-text">16</text>
               <text x="35" y="164" className="axis-text">8</text>
               <text x="35" y="200" className="axis-text">0</text>
-              <path d="M 50 130 C 120 70, 200 110, 280 50 S 380 40, 450 35 L 450 200 L 50 200 Z" fill="url(#blueGradient)" />
-              <path d="M 50 130 C 120 70, 200 110, 280 50 S 380 40, 450 35" fill="none" stroke="#2563eb" strokeWidth="2.5" />
-              <path d="M 50 170 C 120 145, 200 140, 280 120 S 380 110, 450 95 L 450 200 L 50 200 Z" fill="url(#greenGradient)" />
-              <path d="M 50 170 C 120 145, 200 140, 280 120 S 380 110, 450 95" fill="none" stroke="#10b981" strokeWidth="2" />
-              <circle cx="280" cy="50" r="4" fill="#2563eb" stroke="#ffffff" strokeWidth="1.5" />
-              <circle cx="280" cy="120" r="4" fill="#10b981" stroke="#ffffff" strokeWidth="1.5" />
-              <text x="50" y="215" className="axis-text" textAnchor="middle">Jul</text>
-              <text x="130" y="215" className="axis-text" textAnchor="middle">Aug</text>
-              <text x="210" y="215" className="axis-text" textAnchor="middle">Sep</text>
-              <text x="290" y="215" className="axis-text" textAnchor="middle">Oct</text>
-              <text x="370" y="215" className="axis-text" textAnchor="middle">Nov</text>
-              <text x="450" y="215" className="axis-text" textAnchor="middle">Dec</text>
+              <text x="50%" y="110" textAnchor="middle" className="axis-text" style={{fontSize: '11px', fill: 'var(--text-muted)'}}>No mining data yet. Upload identity data to begin.</text>
             </svg>
             <div className="chart-legend">
               <span className="legend-item"><span className="legend-dot blue"></span>Candidates</span>
@@ -659,17 +642,17 @@ INSERT INTO identities VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'S
             <div className="approvals-footer-bar">
               <div className="approvals-summary-pills">
                 <span className="pill-dot critical"></span>
-                <span>3 Critical</span>
+                <span>{approvalQueue.filter(i => i.risk_level === 'critical').length} Critical</span>
                 <span className="pill-divider">•</span>
                 <span className="pill-dot high"></span>
-                <span>7 High</span>
+                <span>{approvalQueue.filter(i => i.risk_level === 'high').length} High</span>
                 <span className="pill-divider">•</span>
                 <span className="pill-dot medium"></span>
-                <span>8 Medium</span>
+                <span>{approvalQueue.filter(i => i.risk_level === 'medium').length} Medium</span>
               </div>
               <div className="approvals-clock-warning">
                 <Clock size={12} className="clock-red-icon" />
-                <span>2 overdue today</span>
+                <span>{approvalQueue.filter(i => i.due_in_days <= 0).length} overdue today</span>
               </div>
             </div>
           </div>
