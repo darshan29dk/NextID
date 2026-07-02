@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Network, CheckCircle2 } from 'lucide-react'
 import './ForgotPassword.css'
 
+const API_BASE = 'http://127.0.0.1:8000/api'
+
 function ForgotPassword() {
   const navigate = useNavigate()
   const [step, setStep] = useState('EMAIL') // EMAIL -> OTP -> RESET -> SUCCESS
@@ -44,20 +46,39 @@ function ForgotPassword() {
   const validateEmail = (val) =>
     /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(val)
 
-  const handleEmailSubmit = (e) => {
+  // Step 1: Send OTP via real backend
+  const handleEmailSubmit = async (e) => {
     e.preventDefault()
     if (!email.trim()) { setError('Email is required.'); return }
     if (!validateEmail(email.trim())) { setError('Please enter a valid email address.'); return }
     setError('')
     setIsLoading(true)
-    // Mocked — replace with real FastAPI call later
-    setTimeout(() => {
+
+    try {
+      const response = await fetch(`${API_BASE}/auth/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.detail || 'Failed to send OTP. Please try again.')
+        setIsLoading(false)
+        return
+      }
+
       setIsLoading(false)
       setStep('OTP')
       setTimer(60)
-    }, 700)
+    } catch (err) {
+      setError('Could not connect to server. Please try again.')
+      setIsLoading(false)
+    }
   }
 
+  // OTP input handlers
   const handleOtpChange = (value, index) => {
     if (value && isNaN(value)) return
     const newOtp = [...otp]
@@ -85,23 +106,96 @@ function ForgotPassword() {
     }
   }
 
-  const handleOtpSubmit = (e) => {
+  // Step 2: Verify OTP via real backend
+  const handleOtpSubmit = async (e) => {
     e.preventDefault()
     const otpValue = otp.join('')
     if (otpValue.length < 6) { setError('Please enter the full 6-digit code.'); return }
-    // Mocked — replace with real backend OTP verification later
-    if (otpValue !== '123456') { setError('Invalid OTP. Use 123456 for testing.'); return }
     setError('')
-    setStep('RESET')
+    setIsLoading(true)
+
+    try {
+      const response = await fetch(`${API_BASE}/auth/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), otp: otpValue })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.detail || 'Invalid OTP. Please try again.')
+        setIsLoading(false)
+        return
+      }
+
+      setIsLoading(false)
+      setStep('RESET')
+    } catch (err) {
+      setError('Could not connect to server. Please try again.')
+      setIsLoading(false)
+    }
   }
 
-  const handleResetSubmit = (e) => {
+  // Step 3: Reset password via real backend
+  const handleResetSubmit = async (e) => {
     e.preventDefault()
     if (!password) { setError('Password is required.'); return }
     if (password.length < 8) { setError('Password must be at least 8 characters.'); return }
     if (password !== confirmPassword) { setError('Passwords do not match.'); return }
     setError('')
-    setStep('SUCCESS')
+    setIsLoading(true)
+
+    try {
+      const response = await fetch(`${API_BASE}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim(),
+          otp: otp.join(''),
+          new_password: password
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.detail || 'Failed to reset password. Please try again.')
+        setIsLoading(false)
+        return
+      }
+
+      setIsLoading(false)
+      setStep('SUCCESS')
+    } catch (err) {
+      setError('Could not connect to server. Please try again.')
+      setIsLoading(false)
+    }
+  }
+
+  // Resend OTP
+  const handleResendOtp = async () => {
+    setOtp(['', '', '', '', '', ''])
+    setError('')
+    setIsLoading(true)
+
+    try {
+      const response = await fetch(`${API_BASE}/auth/send-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() })
+      })
+
+      if (response.ok) {
+        setTimer(60)
+      } else {
+        setError('Failed to resend OTP. Please try again.')
+      }
+    } catch (err) {
+      setError('Could not connect to server.')
+    }
+
+    setIsLoading(false)
   }
 
   return (
@@ -156,12 +250,12 @@ function ForgotPassword() {
                     type="email"
                     value={email}
                     onChange={(e) => { setEmail(e.target.value); if (error) setError('') }}
-                    placeholder="you@company.com"
+                    placeholder="you@ilantus.com"
                   />
                 </div>
 
                 <button type="submit" className="forgot-btn" disabled={isLoading}>
-                  {isLoading ? 'Sending...' : 'Send OTP'}
+                  {isLoading ? 'Sending OTP...' : 'Send OTP'}
                 </button>
               </form>
 
@@ -184,7 +278,7 @@ function ForgotPassword() {
               <h1>Enter OTP</h1>
               <p className="forgot-subtitle">
                 We've sent a 6-digit code to <strong className="forgot-highlight">{email}</strong>.
-                <br />Use <strong className="forgot-highlight">123456</strong> for testing.
+                <br />Please check your inbox.
               </p>
 
               {error && <div className="forgot-error">{error}</div>}
@@ -207,8 +301,8 @@ function ForgotPassword() {
                   ))}
                 </div>
 
-                <button type="submit" className="forgot-btn">
-                  Verify OTP
+                <button type="submit" className="forgot-btn" disabled={isLoading}>
+                  {isLoading ? 'Verifying...' : 'Verify OTP'}
                 </button>
               </form>
 
@@ -216,7 +310,7 @@ function ForgotPassword() {
                 {timer > 0 ? (
                   <span>Resend code in <strong className="forgot-highlight">{timer}s</strong></span>
                 ) : (
-                  <button onClick={() => { setOtp(['', '', '', '', '', '']); setError(''); setTimer(60) }}>
+                  <button onClick={handleResendOtp} disabled={isLoading}>
                     Resend OTP
                   </button>
                 )}
@@ -278,8 +372,8 @@ function ForgotPassword() {
                   </div>
                 </div>
 
-                <button type="submit" className="forgot-btn">
-                  Reset Password
+                <button type="submit" className="forgot-btn" disabled={isLoading}>
+                  {isLoading ? 'Resetting...' : 'Reset Password'}
                 </button>
               </form>
             </>

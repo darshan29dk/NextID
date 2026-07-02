@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, SessionLocal
-from app.routes import dashboard, notification, profile, theme, platform_user, platform_role
+from app.routes import dashboard, notification, profile, theme, platform_user, platform_role, auth
 from app.models.user import User
 from app.models.notification import Notification
 from app.models.dashboard import RecentActivity, IdentityRecord, ApprovalQueueItem, RoleRecord, RoleMiningTrendPoint
@@ -93,6 +93,7 @@ app.include_router(profile.router, prefix="/api")
 app.include_router(theme.router, prefix="/api")
 app.include_router(platform_user.router, prefix="/api")
 app.include_router(platform_role.router, prefix="/api")
+app.include_router(auth.router, prefix="/api")
 
 @app.get("/")
 def read_root():
