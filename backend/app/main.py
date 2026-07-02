@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, SessionLocal
-from app.routes import dashboard, notification, profile, theme, platform_user
+from app.routes import dashboard, notification, profile, theme, platform_user, platform_role
 from app.models.user import User
 from app.models.notification import Notification
 from app.models.dashboard import RecentActivity, IdentityRecord, ApprovalQueueItem, RoleRecord, RoleMiningTrendPoint
@@ -177,10 +177,66 @@ try:
     # 8. Seed platform roles if empty
     if db.query(PlatformRole).count() == 0:
         p_roles = [
-            PlatformRole(name="Platform Administrator", description="Full administrative control over all rAnalyzer settings and data."),
-            PlatformRole(name="Compliance Manager", description="Manage application identity lifecycle and role engineering catalog."),
-            PlatformRole(name="Security Auditor", description="Read-only access to audit logs, certs, and configurations."),
-            PlatformRole(name="Read-Only Viewer", description="Basic dashboard access to view compliance metrics and charts.")
+            PlatformRole(
+                role_code="PLAT_ADMIN",
+                role_name="Platform Administrator",
+                description="Full administrative control over all rAnalyzer settings and data.",
+                role_type="System",
+                risk_level="Critical",
+                status="Active",
+                approval_required=True,
+                is_system_role=True,
+                created_by="System",
+                modified_by="System"
+            ),
+            PlatformRole(
+                role_code="SEC_ADMIN",
+                role_name="Security Administrator",
+                description="Manage all system security configs, users, roles, and authorization policies.",
+                role_type="System",
+                risk_level="High",
+                status="Active",
+                approval_required=True,
+                is_system_role=True,
+                created_by="System",
+                modified_by="System"
+            ),
+            PlatformRole(
+                role_code="COMP_OFFICER",
+                role_name="Compliance Officer",
+                description="Perform SoD checks, view risk assessments, and publish candidate roles.",
+                role_type="Business",
+                risk_level="Medium",
+                status="Active",
+                approval_required=False,
+                is_system_role=True,
+                created_by="System",
+                modified_by="System"
+            ),
+            PlatformRole(
+                role_code="SEC_AUDITOR",
+                role_name="Security Auditor",
+                description="Read-only access to system configurations, logs, identity catalog, and reports.",
+                role_type="System",
+                risk_level="Low",
+                status="Active",
+                approval_required=False,
+                is_system_role=True,
+                created_by="System",
+                modified_by="System"
+            ),
+            PlatformRole(
+                role_code="READ_ONLY",
+                role_name="Read Only User",
+                description="Basic compliance metrics dashboard viewer access. No edits allowed.",
+                role_type="Shared",
+                risk_level="Low",
+                status="Active",
+                approval_required=False,
+                is_system_role=True,
+                created_by="System",
+                modified_by="System"
+            )
         ]
         db.add_all(p_roles)
         db.commit()
@@ -208,6 +264,7 @@ app.include_router(notification.router, prefix="/api")
 app.include_router(profile.router, prefix="/api")
 app.include_router(theme.router, prefix="/api")
 app.include_router(platform_user.router, prefix="/api")
+app.include_router(platform_role.router, prefix="/api")
 
 @app.get("/")
 def read_root():
