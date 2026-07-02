@@ -1,39 +1,40 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { 
-  Search, 
-  Plus, 
-  Download, 
-  Edit, 
-  Trash2, 
-  RotateCcw, 
-  ChevronLeft, 
-  ChevronRight, 
-  AlertTriangle, 
-  X, 
-  Users, 
+import {
+  Search,
+  Plus,
+  Download,
+  Edit,
+  Trash2,
+  RotateCcw,
+  ChevronLeft,
+  ChevronRight,
+  AlertTriangle,
+  X,
   Key,
   ShieldAlert,
-  Calendar,
   CheckCircle,
   XCircle,
-  Eye,
   ArrowUpDown,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Shield,
+  Users,
+  ArrowLeft,
+  Clock,
+  Info
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
-import DashboardCard from '../../components/DashboardCard/DashboardCard';
-import { 
-  getPlatformRoles, 
+import {
+  getPlatformRoles,
   getPlatformRole,
-  createPlatformRole, 
-  updatePlatformRole, 
-  deletePlatformRole 
+  createPlatformRole,
+  updatePlatformRole,
+  deletePlatformRole
 } from '../../services/dashboardService';
 import './PlatformRoles.css';
 
-const ROLE_TYPES = ["System", "Business", "Application", "Technical", "Shared"];
-const RISK_LEVELS = ["Low", "Medium", "High", "Critical"];
-const STATUSES = ["Draft", "Active", "Inactive", "Deprecated"];
+const ROLE_TYPES = ['System', 'Business', 'Application', 'Technical', 'Shared'];
+const RISK_LEVELS = ['Low', 'Medium', 'High', 'Critical'];
+const STATUSES = ['Draft', 'Active', 'Inactive', 'Deprecated'];
 
 const INITIAL_FORM_STATE = {
   role_code: '',
@@ -46,15 +47,84 @@ const INITIAL_FORM_STATE = {
   is_system_role: false
 };
 
+// Risk level to icon color mapping
+const getRiskClass = (risk) => {
+  if (!risk) return 'low';
+  return risk.toLowerCase();
+};
+
+const getRiskIcon = (risk) => {
+  switch ((risk || '').toLowerCase()) {
+    case 'critical': return <ShieldAlert size={20} />;
+    case 'high':     return <ShieldAlert size={20} />;
+    case 'medium':   return <Shield size={20} />;
+    default:         return <Shield size={20} />;
+  }
+};
+
+const getAuditDotClass = (action) => {
+  const a = (action || '').toLowerCase();
+  if (a === 'delete' || a === 'deactivate') return 'danger';
+  if (a === 'update') return 'warn';
+  return '';
+};
+
+// Render readable audit diff from JSON strings
+const renderAuditDiff = (log) => {
+  try {
+    if (!log.old_value && log.new_value) {
+      const val = JSON.parse(log.new_value);
+      return (
+        <div className="audit-diff-block">
+          Role created — Code: <span className="audit-diff-field">{val.role_code}</span>
+          {val.role_type ? `, Type: ${val.role_type}` : ''}
+        </div>
+      );
+    }
+    if (log.old_value && !log.new_value) {
+      const val = JSON.parse(log.old_value);
+      return (
+        <div className="audit-diff-block">
+          Role deleted — Code: <span className="audit-diff-field">{val.role_code}</span>
+        </div>
+      );
+    }
+    if (log.old_value && log.new_value) {
+      const oldVal = JSON.parse(log.old_value);
+      const newVal = JSON.parse(log.new_value);
+      const diffs = [];
+      Object.keys(newVal).forEach((k) => {
+        if (oldVal[k] !== newVal[k]) {
+          diffs.push(
+            <div key={k}>
+              <span className="audit-diff-field">{k.replace(/_/g, ' ').toUpperCase()}</span>
+              : "{String(oldVal[k])}" → "{String(newVal[k])}"
+            </div>
+          );
+        }
+      });
+      if (diffs.length === 0) return <div className="audit-diff-block">No field changes recorded.</div>;
+      return <div className="audit-diff-block">{diffs}</div>;
+    }
+  } catch (e) {
+    // Parsing failed — show raw
+  }
+  return null;
+};
+
 const PlatformRoles = () => {
-  // Query state
+  // View state: 'list' | 'detail'
+  const [view, setView] = useState('list');
+  const [selectedRoleId, setSelectedRoleId] = useState(null);
+
+  // List state
   const [roles, setRoles] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [limit, setLimit] = useState(25);
   const [totalPages, setTotalPages] = useState(1);
-  
-  // Sort and Filters state
+
+  // Filters
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -63,39 +133,28 @@ const PlatformRoles = () => {
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('desc');
 
-  // UI state
+  // UI
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [formBannerError, setFormBannerError] = useState(null);
-  
-  // Modal states
+
+  // Modals
   const [showModal, setShowModal] = useState(false);
   const [editRoleId, setEditRoleId] = useState(null);
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [formErrors, setFormErrors] = useState({});
-  
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteRoleId, setDeleteRoleId] = useState(null);
   const [deleteRoleCode, setDeleteRoleCode] = useState('');
   const [showExportDropdown, setShowExportDropdown] = useState(false);
-  
-  // Detail Drawer state
-  const [showDrawer, setShowDrawer] = useState(false);
-  const [drawerData, setDrawerData] = useState(null);
-  const [drawerLoading, setDrawerLoading] = useState(false);
 
-  // Statistics state
-  const [kpiStats, setKpiStats] = useState({
-    total: 0,
-    active: 0,
-    inactive: 0,
-    critical: 0
-  });
+  // Detail view state
+  const [detailData, setDetailData] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
 
   const exportDropdownRef = useRef(null);
 
-  // Handle click outside export dropdown
   useEffect(() => {
     const handleOutsideClick = (e) => {
       if (exportDropdownRef.current && !exportDropdownRef.current.contains(e.target)) {
@@ -106,13 +165,15 @@ const PlatformRoles = () => {
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  // Fetch Roles and calculate KPIs
+  // ============================================================
+  // Fetch roles list
+  // ============================================================
   const fetchRolesData = useCallback(async () => {
     try {
       setLoading(true);
       setErrorMsg(null);
 
-      const queryParams = {
+      const params = {
         page,
         limit,
         search: search.trim() || undefined,
@@ -123,47 +184,62 @@ const PlatformRoles = () => {
         sortOrder
       };
 
-      const response = await getPlatformRoles(queryParams);
+      const response = await getPlatformRoles(params);
       setRoles(response.roles);
       setTotal(response.total);
       setTotalPages(response.total_pages);
-
-      // Fetch all roles to compute KPIs accurately
-      const statsRes = await getPlatformRoles({ limit: 1000 });
-      const activeCount = statsRes.roles.filter(r => r.status === 'Active').length;
-      const inactiveCount = statsRes.roles.filter(r => r.status === 'Inactive').length;
-      const criticalCount = statsRes.roles.filter(r => r.risk_level === 'Critical').length;
-
-      setKpiStats({
-        total: statsRes.total,
-        active: activeCount,
-        inactive: inactiveCount,
-        critical: criticalCount
-      });
-
     } catch (err) {
       console.error(err);
-      setErrorMsg("Failed to load platform roles. Please check backend server.");
+      setErrorMsg('Failed to load platform roles. Please check backend server.');
     } finally {
       setLoading(false);
     }
   }, [page, limit, search, statusFilter, riskFilter, typeFilter, sortBy, sortOrder]);
 
   useEffect(() => {
-    fetchRolesData();
-  }, [fetchRolesData]);
+    if (view === 'list') fetchRolesData();
+  }, [fetchRolesData, view]);
 
-  // Debounce search input
+  // Debounce search
   useEffect(() => {
-    const delayDebounce = setTimeout(() => {
+    const t = setTimeout(() => {
       setSearch(searchInput);
       setPage(1);
     }, 400);
-
-    return () => clearTimeout(delayDebounce);
+    return () => clearTimeout(t);
   }, [searchInput]);
 
-  // Handle Sort Change
+  // ============================================================
+  // Open role detail view
+  // ============================================================
+  const handleOpenDetail = async (id) => {
+    try {
+      setDetailLoading(true);
+      setDetailData(null);
+      setView('detail');
+      setSelectedRoleId(id);
+
+      const data = await getPlatformRole(id);
+      setDetailData(data);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to load role details.');
+      setView('list');
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const handleBackToList = () => {
+    setView('list');
+    setDetailData(null);
+    setSelectedRoleId(null);
+    fetchRolesData();
+  };
+
+  // ============================================================
+  // Sort
+  // ============================================================
   const handleSort = (field) => {
     if (sortBy === field) {
       setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
@@ -174,7 +250,6 @@ const PlatformRoles = () => {
     setPage(1);
   };
 
-  // Reset Filters
   const handleResetFilters = () => {
     setSearchInput('');
     setSearch('');
@@ -186,50 +261,31 @@ const PlatformRoles = () => {
     setPage(1);
   };
 
-  // Form input validations
+  // ============================================================
+  // Form handlers
+  // ============================================================
   const validateForm = () => {
     const errors = {};
     if (!formData.role_code || !formData.role_code.trim()) {
       errors.role_code = 'Role Code is required';
     } else if (!/^[A-Z0-9_]{3,30}$/.test(formData.role_code.trim())) {
-      errors.role_code = 'Role Code must be uppercase alphanumeric and underscores only (3-30 chars)';
+      errors.role_code = 'Must be uppercase alphanumeric & underscores only (3–30 chars)';
     }
-    
-    if (!formData.role_name || !formData.role_name.trim()) {
-      errors.role_name = 'Role Name is required';
-    }
-    if (!formData.description || !formData.description.trim()) {
-      errors.description = 'Description is required';
-    }
-    if (!formData.role_type) {
-      errors.role_type = 'Role Type is required';
-    }
-    if (!formData.risk_level) {
-      errors.risk_level = 'Risk Level is required';
-    }
-
+    if (!formData.role_name || !formData.role_name.trim()) errors.role_name = 'Role Name is required';
+    if (!formData.description || !formData.description.trim()) errors.description = 'Description is required';
+    if (!formData.role_type) errors.role_type = 'Role Type is required';
+    if (!formData.risk_level) errors.risk_level = 'Risk Level is required';
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  // Input change handler
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
-    
-    if (formErrors[name]) {
-      setFormErrors(prev => ({
-        ...prev,
-        [name]: null
-      }));
-    }
+    setFormData((prev) => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    if (formErrors[name]) setFormErrors((prev) => ({ ...prev, [name]: null }));
     setFormBannerError(null);
   };
 
-  // Open Add modal
   const handleOpenAddModal = () => {
     setEditRoleId(null);
     setFormData(INITIAL_FORM_STATE);
@@ -238,9 +294,8 @@ const PlatformRoles = () => {
     setShowModal(true);
   };
 
-  // Open Edit modal
   const handleOpenEditModal = (e, role) => {
-    e.stopPropagation(); // Avoid opening detail drawer
+    e.stopPropagation();
     setEditRoleId(role.id);
     setFormData({
       role_code: role.role_code,
@@ -257,59 +312,48 @@ const PlatformRoles = () => {
     setShowModal(true);
   };
 
-  // Form Submit Handler
   const handleFormSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) return;
-
     try {
       setSubmitting(true);
       setFormBannerError(null);
-
-      const payload = {
-        ...formData,
-        role_code: formData.role_code.toUpperCase().trim()
-      };
-
+      const payload = { ...formData, role_code: formData.role_code.toUpperCase().trim() };
       if (editRoleId) {
         await updatePlatformRole(editRoleId, payload);
       } else {
         await createPlatformRole(payload);
       }
-      
       setShowModal(false);
-      fetchRolesData();
-      
-      // Update drawer if it is open for this role
-      if (showDrawer && drawerData?.role?.id === editRoleId) {
-        handleOpenDrawer(editRoleId);
+      // Refresh detail view if we edited the currently viewed role
+      if (view === 'detail' && editRoleId === selectedRoleId) {
+        handleOpenDetail(selectedRoleId);
+      } else {
+        fetchRolesData();
       }
     } catch (err) {
       console.error(err);
-      setFormBannerError(err.response?.data?.detail || "An error occurred while saving the platform role.");
+      setFormBannerError(err.response?.data?.detail || 'An error occurred while saving the role.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Toggle Role Status (Activate / Deactivate)
   const handleToggleStatus = async (e, role) => {
     e.stopPropagation();
     try {
       const nextStatus = role.status === 'Active' ? 'Inactive' : 'Active';
       await updatePlatformRole(role.id, { status: nextStatus });
-      fetchRolesData();
-      
-      if (showDrawer && drawerData?.role?.id === role.id) {
-        handleOpenDrawer(role.id);
+      if (view === 'detail' && selectedRoleId === role.id) {
+        handleOpenDetail(role.id);
+      } else {
+        fetchRolesData();
       }
     } catch (err) {
-      console.error(err);
-      alert("Failed to update status.");
+      alert('Failed to update status.');
     }
   };
 
-  // Delete Handlers
   const handleOpenDeleteConfirm = (e, role) => {
     e.stopPropagation();
     setDeleteRoleId(role.id);
@@ -322,121 +366,70 @@ const PlatformRoles = () => {
       setSubmitting(true);
       await deletePlatformRole(deleteRoleId);
       setShowDeleteConfirm(false);
-      
-      if (showDrawer && drawerData?.role?.id === deleteRoleId) {
-        setShowDrawer(false);
-      }
-      
-      if (roles.length === 1 && page > 1) {
+      if (view === 'detail' && selectedRoleId === deleteRoleId) {
+        handleBackToList();
+      } else if (roles.length === 1 && page > 1) {
         setPage(page - 1);
       } else {
         fetchRolesData();
       }
     } catch (err) {
-      console.error(err);
-      alert("Failed to delete role.");
+      alert('Failed to delete role.');
       setShowDeleteConfirm(false);
     } finally {
       setSubmitting(false);
     }
   };
 
-  // Open Drawer Details Panel
-  const handleOpenDrawer = async (id) => {
-    try {
-      setDrawerLoading(true);
-      setShowDrawer(true);
-      setDrawerData(null);
-      
-      const detail = await getPlatformRole(id);
-      setDrawerData(detail);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to load platform role details.");
-      setShowDrawer(false);
-    } finally {
-      setDrawerLoading(false);
-    }
-  };
-
-  // Export Exporters
-  const getFilteredExportList = async () => {
-    const queryParams = {
+  // ============================================================
+  // Export helpers
+  // ============================================================
+  const getExportList = async () => {
+    const response = await getPlatformRoles({
       limit: 1000,
       search: search.trim() || undefined,
       status: statusFilter || undefined,
       risk_level: riskFilter || undefined,
-      role_type: typeFilter || undefined,
-      sortBy,
-      sortOrder
-    };
-    const response = await getPlatformRoles(queryParams);
+      role_type: typeFilter || undefined
+    });
     return response.roles;
   };
 
   const handleExportCSV = async () => {
     try {
-      const exportList = await getFilteredExportList();
-      if (exportList.length === 0) {
-        alert("No roles to export.");
-        return;
-      }
-
-      const headers = ["Role Code", "Role Name", "Role Type", "Risk Level", "Status", "Users Assigned", "Approval Required", "System Role", "Created By", "Created Date"];
-      const csvRows = [headers.join(",")];
-
-      exportList.forEach(r => {
-        const row = [
-          `"${r.role_code}"`,
-          `"${r.role_name}"`,
-          `"${r.role_type}"`,
-          `"${r.risk_level}"`,
-          `"${r.status}"`,
-          r.users_assigned,
-          `"${r.approval_required ? 'Yes' : 'No'}"`,
-          `"${r.is_system_role ? 'Yes' : 'No'}"`,
-          `"${r.created_by}"`,
+      const list = await getExportList();
+      if (!list.length) { alert('No roles to export.'); return; }
+      const headers = ['Role Code', 'Role Name', 'Role Type', 'Risk Level', 'Status', 'Users Assigned', 'Approval Required', 'System Role', 'Created By', 'Created Date'];
+      const rows = [headers.join(',')];
+      list.forEach((r) => {
+        rows.push([
+          `"${r.role_code}"`, `"${r.role_name}"`, `"${r.role_type}"`, `"${r.risk_level}"`,
+          `"${r.status}"`, r.users_assigned, `"${r.approval_required ? 'Yes' : 'No'}"`,
+          `"${r.is_system_role ? 'Yes' : 'No'}"`, `"${r.created_by}"`,
           `"${new Date(r.created_at).toLocaleDateString()}"`
-        ];
-        csvRows.push(row.join(","));
+        ].join(','));
       });
-
-      const csvString = csvRows.join("\n");
-      const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+      const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
+      const link = document.createElement('a');
       link.href = url;
       link.download = `platform_roles_${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to export CSV.");
-    } finally {
-      setShowExportDropdown(false);
-    }
+    } catch (err) { alert('Failed to export CSV.'); }
+    finally { setShowExportDropdown(false); }
   };
 
   const handleExportExcel = async () => {
     try {
-      const exportList = await getFilteredExportList();
-      if (exportList.length === 0) {
-        alert("No roles to export.");
-        return;
-      }
-
-      // XML schema format opened perfectly in MS Excel!
-      let xml = '<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:o="urn:schemas-microsoft-com:office:mesh" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Platform Roles"><Table>';
-      xml += '<Row>';
-      const columns = ["Role Code", "Role Name", "Role Type", "Risk Level", "Status", "Users Assigned", "Approval Required", "System Role", "Created By", "Created Date"];
-      columns.forEach(col => {
-        xml += `<Cell><Data ss:Type="String">${col}</Data></Cell>`;
-      });
-      xml += '</Row>';
-
-      exportList.forEach(r => {
+      const list = await getExportList();
+      if (!list.length) { alert('No roles to export.'); return; }
+      const cols = ['Role Code', 'Role Name', 'Role Type', 'Risk Level', 'Status', 'Users Assigned', 'Approval Required', 'System Role', 'Created By', 'Created Date'];
+      let xml = '<?xml version="1.0"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Worksheet ss:Name="Platform Roles"><Table>';
+      xml += '<Row>' + cols.map((c) => `<Cell><Data ss:Type="String">${c}</Data></Cell>`).join('') + '</Row>';
+      list.forEach((r) => {
         xml += '<Row>';
         xml += `<Cell><Data ss:Type="String">${r.role_code}</Data></Cell>`;
         xml += `<Cell><Data ss:Type="String">${r.role_name}</Data></Cell>`;
@@ -450,74 +443,411 @@ const PlatformRoles = () => {
         xml += `<Cell><Data ss:Type="String">${new Date(r.created_at).toLocaleDateString()}</Data></Cell>`;
         xml += '</Row>';
       });
-
       xml += '</Table></Worksheet></Workbook>';
       const blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
       const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
+      const link = document.createElement('a');
       link.href = url;
       link.download = `platform_roles_${new Date().toISOString().slice(0, 10)}.xls`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to export Excel sheet.");
-    } finally {
-      setShowExportDropdown(false);
-    }
+    } catch (err) { alert('Failed to export Excel.'); }
+    finally { setShowExportDropdown(false); }
   };
 
-  // Helper to render Audit JSON Diffs
-  const renderAuditDiff = (log) => {
-    if (!log.old_value && log.new_value) {
-      try {
-        const val = JSON.parse(log.new_value);
-        return <div className="audit-change-diff">Role created. (Code: <span className="audit-field-diff-badge">{val.role_code}</span>, Type: {val.role_type})</div>;
-      } catch (e) {
-        return <div className="audit-change-diff">Role created.</div>;
-      }
-    }
-    if (log.old_value && !log.new_value) {
-      try {
-        const val = JSON.parse(log.old_value);
-        return <div className="audit-change-diff">Role deleted. (Code: <span className="audit-field-diff-badge">{val.role_code}</span>)</div>;
-      } catch (e) {
-        return <div className="audit-change-diff">Role deleted.</div>;
-      }
-    }
-    if (log.old_value && log.new_value) {
-      try {
-        const oldVal = JSON.parse(log.old_value);
-        const newVal = JSON.parse(log.new_value);
-        const diffs = [];
-        Object.keys(newVal).forEach(k => {
-          if (oldVal[k] !== newVal[k]) {
-            diffs.push(
-              <div key={k}>
-                <span className="audit-field-diff-badge">{k.replace('_', ' ').toUpperCase()}</span>: "{String(oldVal[k])}" ➜ "{String(newVal[k])}"
+  // ============================================================
+  // RENDER — DETAIL VIEW
+  // ============================================================
+  if (view === 'detail') {
+    const role = detailData?.role;
+    const assignedUsers = detailData?.assigned_users || [];
+    const auditHistory = detailData?.audit_history || [];
+
+    return (
+      <div className="platform-roles-page">
+        <Breadcrumb items={[
+          { label: 'Administration', active: false },
+          { label: 'Platform Roles', active: false, onClick: handleBackToList },
+          { label: role?.role_name || 'Loading...', active: true }
+        ]} />
+
+        {/* Back button */}
+        <button className="detail-back-btn" onClick={handleBackToList}>
+          <ArrowLeft size={14} />
+          Back to Platform Roles
+        </button>
+
+        {detailLoading ? (
+          <div className="table-loading-container">
+            <div className="spinner-element"></div>
+            <p className="text-muted" style={{ fontSize: '13px' }}>Loading role details...</p>
+          </div>
+        ) : role ? (
+          <>
+            {/* Hero Card */}
+            <div className="detail-hero-card">
+              <div className="detail-hero-left">
+                <div className={`detail-hero-icon role-icon-circle ${getRiskClass(role.risk_level)}`}>
+                  {getRiskIcon(role.risk_level)}
+                </div>
+                <div className="detail-hero-info">
+                  <h2>{role.role_name}</h2>
+                  <p>{role.description}</p>
+                  <div className="detail-hero-meta">
+                    <span className="role-code-small">{role.role_code}</span>
+                    <span className="role-type-badge">{role.role_type}</span>
+                    <span className={`risk-badge ${getRiskClass(role.risk_level)}`}>{role.risk_level}</span>
+                    <span className={`status-badge ${role.status.toLowerCase()}`}>{role.status}</span>
+                    {role.is_system_role && (
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: '600' }}>
+                        🔒 System Role
+                      </span>
+                    )}
+                  </div>
+                </div>
               </div>
-            );
-          }
-        });
-        return <div className="audit-change-diff">{diffs.length > 0 ? diffs : "Updated fields."}</div>;
-      } catch (e) {
-        return <div className="audit-change-diff">Role values updated.</div>;
-      }
-    }
-    return null;
-  };
+
+              <div className="detail-hero-right">
+                <div className="detail-hero-stat">
+                  <div className="stat-num">{role.users_assigned}</div>
+                  <div className="stat-label">Assigned Users</div>
+                </div>
+                <div className="detail-action-btns">
+                  <button className="btn-row-action" onClick={(e) => handleOpenEditModal(e, role)} title="Edit Role">
+                    <Edit size={13} />
+                  </button>
+                  <button
+                    className="btn-row-action"
+                    onClick={(e) => handleToggleStatus(e, role)}
+                    title={role.status === 'Active' ? 'Deactivate' : 'Activate'}
+                  >
+                    {role.status === 'Active' ? <XCircle size={13} /> : <CheckCircle size={13} />}
+                  </button>
+                  {!role.is_system_role && (
+                    <button className="btn-row-action delete" onClick={(e) => handleOpenDeleteConfirm(e, role)} title="Delete">
+                      <Trash2 size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Details & Users */}
+            <div className="detail-grid-2">
+              {/* Role Properties */}
+              <div className="detail-section-card">
+                <div className="detail-section-header">
+                  <h4><Info size={14} /> Role Properties</h4>
+                </div>
+                <div className="detail-section-body">
+                  <div className="detail-meta-grid">
+                    <div className="detail-meta-item">
+                      <span className="detail-meta-label">Role Code</span>
+                      <span className="detail-meta-value" style={{ fontFamily: 'var(--font-mono)', color: 'var(--primary)' }}>
+                        {role.role_code}
+                      </span>
+                    </div>
+                    <div className="detail-meta-item">
+                      <span className="detail-meta-label">Role Type</span>
+                      <span className="detail-meta-value">{role.role_type}</span>
+                    </div>
+                    <div className="detail-meta-item">
+                      <span className="detail-meta-label">Risk Level</span>
+                      <span className="detail-meta-value">
+                        <span className={`risk-badge ${getRiskClass(role.risk_level)}`}>{role.risk_level}</span>
+                      </span>
+                    </div>
+                    <div className="detail-meta-item">
+                      <span className="detail-meta-label">Status</span>
+                      <span className="detail-meta-value">
+                        <span className={`status-badge ${role.status.toLowerCase()}`}>{role.status}</span>
+                      </span>
+                    </div>
+                    <div className="detail-meta-item">
+                      <span className="detail-meta-label">Approval Required</span>
+                      <span className="detail-meta-value">{role.approval_required ? 'Yes' : 'No'}</span>
+                    </div>
+                    <div className="detail-meta-item">
+                      <span className="detail-meta-label">System Role</span>
+                      <span className="detail-meta-value">{role.is_system_role ? 'Yes' : 'No'}</span>
+                    </div>
+                    <div className="detail-meta-item">
+                      <span className="detail-meta-label">Created By</span>
+                      <span className="detail-meta-value">{role.created_by}</span>
+                    </div>
+                    <div className="detail-meta-item">
+                      <span className="detail-meta-label">Created Date</span>
+                      <span className="detail-meta-value">{new Date(role.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <div className="detail-meta-item full-width">
+                      <span className="detail-meta-label">Description</span>
+                      <span className="detail-meta-value" style={{ fontWeight: '500', lineHeight: 1.5 }}>
+                        {role.description}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Assigned Users */}
+              <div className="detail-section-card">
+                <div className="detail-section-header">
+                  <h4><Users size={14} /> Assigned Users</h4>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>
+                    {assignedUsers.length} user{assignedUsers.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <div style={{ overflow: 'auto', maxHeight: '320px' }}>
+                  {assignedUsers.length === 0 ? (
+                    <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                      No users are currently assigned to this role.
+                    </div>
+                  ) : (
+                    <table className="detail-inner-table">
+                      <thead>
+                        <tr>
+                          <th>Employee ID</th>
+                          <th>Name</th>
+                          <th>Department</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {assignedUsers.map((u) => (
+                          <tr key={u.id}>
+                            <td style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--primary)' }}>
+                              {u.employee_id}
+                            </td>
+                            <td style={{ fontWeight: '600' }}>{u.first_name} {u.last_name}</td>
+                            <td style={{ color: 'var(--text-muted)' }}>{u.department || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Audit Timeline */}
+            <div className="detail-section-card">
+              <div className="detail-section-header">
+                <h4><Clock size={14} /> Audit History</h4>
+                <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '600' }}>
+                  {auditHistory.length} event{auditHistory.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              <div className="detail-section-body">
+                {auditHistory.length === 0 ? (
+                  <p style={{ fontSize: '13px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    No audit records found for this role.
+                  </p>
+                ) : (
+                  <div className="audit-timeline">
+                    {auditHistory.map((log) => (
+                      <div className="audit-timeline-item" key={log.id}>
+                        <div className={`audit-dot ${getAuditDotClass(log.action)}`}></div>
+                        <div className="audit-content">
+                          <div className="audit-title">{log.action}</div>
+                          <div className="audit-by">by {log.performed_by}</div>
+                          {renderAuditDiff(log)}
+                        </div>
+                        <div className="audit-time">
+                          {new Date(log.timestamp).toLocaleDateString()}
+                          <br />
+                          <span style={{ opacity: 0.7 }}>
+                            {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        ) : null}
+
+        {/* Modals */}
+        {renderModals()}
+      </div>
+    );
+  }
+
+  // ============================================================
+  // RENDER — LIST VIEW
+  // ============================================================
+  function renderModals() {
+    return (
+      <>
+        {/* Add / Edit Modal */}
+        {showModal && (
+          <div className="modal-overlay-custom">
+            <div className="modal-content-custom">
+              <div className="modal-header-custom">
+                <h3>{editRoleId ? 'Edit Platform Role' : 'Add New Platform Role'}</h3>
+                <button className="modal-close-btn-custom" onClick={() => setShowModal(false)}>
+                  <X size={18} />
+                </button>
+              </div>
+              <form onSubmit={handleFormSubmit} className="modal-form-custom">
+                <div className="modal-scrollable-body">
+                  {formBannerError && <div className="modal-form-banner-error">{formBannerError}</div>}
+
+                  <div className="form-row-grid-2">
+                    <div className="input-group-custom">
+                      <label className="required">Role Code</label>
+                      <input
+                        type="text"
+                        name="role_code"
+                        value={formData.role_code}
+                        onChange={handleInputChange}
+                        disabled={!!editRoleId}
+                        placeholder="e.g. COMP_OFFICER"
+                      />
+                      {formErrors.role_code && <span className="form-error-text">{formErrors.role_code}</span>}
+                    </div>
+                    <div className="input-group-custom">
+                      <label className="required">Role Name</label>
+                      <input
+                        type="text"
+                        name="role_name"
+                        value={formData.role_name}
+                        onChange={handleInputChange}
+                        placeholder="e.g. Compliance Officer"
+                      />
+                      {formErrors.role_name && <span className="form-error-text">{formErrors.role_name}</span>}
+                    </div>
+                  </div>
+
+                  <div className="input-group-custom">
+                    <label className="required">Description</label>
+                    <textarea
+                      name="description"
+                      value={formData.description}
+                      onChange={handleInputChange}
+                      rows={3}
+                      placeholder="Describe this role's access and permissions..."
+                      style={{
+                        backgroundColor: 'var(--bg-hover)',
+                        border: '1px solid var(--border-color)',
+                        color: 'var(--text-main)',
+                        borderRadius: '8px',
+                        padding: '10px 12px',
+                        outline: 'none',
+                        fontSize: '13.5px',
+                        fontFamily: 'inherit',
+                        resize: 'vertical',
+                        width: '100%'
+                      }}
+                    />
+                    {formErrors.description && <span className="form-error-text">{formErrors.description}</span>}
+                  </div>
+
+                  <div className="form-row-grid-2">
+                    <div className="input-group-custom">
+                      <label className="required">Role Type</label>
+                      <select name="role_type" value={formData.role_type} onChange={handleInputChange}>
+                        {ROLE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+                    <div className="input-group-custom">
+                      <label className="required">Risk Level</label>
+                      <select name="risk_level" value={formData.risk_level} onChange={handleInputChange}>
+                        {RISK_LEVELS.map((r) => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="form-row-grid-2">
+                    <div className="input-group-custom">
+                      <label>Status</label>
+                      <select name="status" value={formData.status} onChange={handleInputChange}>
+                        {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div className="input-group-custom" style={{ justifyContent: 'flex-end', paddingTop: '24px' }}>
+                      <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', userSelect: 'none' }}>
+                        <input
+                          type="checkbox"
+                          name="approval_required"
+                          checked={formData.approval_required}
+                          onChange={handleInputChange}
+                          style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
+                        />
+                        Approval Required
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="input-group-custom">
+                    <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', userSelect: 'none' }}>
+                      <input
+                        type="checkbox"
+                        name="is_system_role"
+                        checked={formData.is_system_role}
+                        onChange={handleInputChange}
+                        style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
+                      />
+                      Mark as System Role
+                    </label>
+                  </div>
+                </div>
+
+                <div className="modal-footer-custom">
+                  <button type="button" className="btn-modal-cancel" onClick={() => setShowModal(false)}>
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn-modal-submit" disabled={submitting}>
+                    {submitting ? 'Saving...' : 'Save Role'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirm */}
+        {showDeleteConfirm && (
+          <div className="modal-overlay-custom">
+            <div className="modal-content-custom delete-dialog-content">
+              <div className="delete-dialog-body">
+                <div className="delete-dialog-icon">
+                  <AlertTriangle size={24} />
+                </div>
+                <div className="delete-dialog-text">
+                  <h4>Delete Platform Role</h4>
+                  <p>
+                    Are you sure you want to delete role <b>{deleteRoleCode}</b>? This is a soft delete —
+                    the role will be hidden but data will remain for audit compliance.
+                  </p>
+                </div>
+              </div>
+              <div className="modal-footer-custom">
+                <button className="btn-modal-cancel" onClick={() => setShowDeleteConfirm(false)}>
+                  Cancel
+                </button>
+                <button className="btn-modal-delete" onClick={handleDeleteSubmit} disabled={submitting}>
+                  {submitting ? 'Deleting...' : 'Delete Role'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
 
   return (
     <div className="platform-roles-page">
       <Breadcrumb items={[{ label: 'Administration', active: false }, { label: 'Platform Roles', active: true }]} />
 
-      {/* Header section */}
+      {/* Page Header */}
       <div className="page-header-actions">
         <div className="header-title-section">
           <h2>Platform Roles</h2>
-          <p>Configure access control models, assign roles, enforce risk ratings, and review compliance audits.</p>
+          <p>Define and manage platform authorization roles. Click a role to view its full details.</p>
         </div>
         <div className="header-buttons-section">
           <div className="btn-export-dropdown-wrapper" ref={exportDropdownRef}>
@@ -543,39 +873,7 @@ const PlatformRoles = () => {
         </div>
       </div>
 
-      {/* Statistics dashboard cards */}
-      <div className="stats-grid">
-        <DashboardCard 
-          title="Total Roles" 
-          value={kpiStats.total} 
-          icon={Key} 
-          color="blue"
-          loading={loading}
-        />
-        <DashboardCard 
-          title="Active Roles" 
-          value={kpiStats.active} 
-          icon={CheckCircle} 
-          color="green"
-          loading={loading}
-        />
-        <DashboardCard 
-          title="Inactive Roles" 
-          value={kpiStats.inactive} 
-          icon={XCircle} 
-          color="red"
-          loading={loading}
-        />
-        <DashboardCard 
-          title="Critical Roles" 
-          value={kpiStats.critical} 
-          icon={ShieldAlert} 
-          color="purple"
-          loading={loading}
-        />
-      </div>
-
-      {/* Search and Filterscontrols */}
+      {/* Search & Filters */}
       <div className="controls-card">
         <div className="search-input-wrapper">
           <Search size={16} className="text-muted" />
@@ -587,46 +885,45 @@ const PlatformRoles = () => {
             placeholder="Search by code, name, description..."
           />
         </div>
-
-        <select
-          className="filter-select"
-          value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-        >
+        <select className="filter-select" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}>
           <option value="">All Statuses</option>
-          {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+          {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-
-        <select
-          className="filter-select"
-          value={riskFilter}
-          onChange={(e) => { setRiskFilter(e.target.value); setPage(1); }}
-        >
+        <select className="filter-select" value={riskFilter} onChange={(e) => { setRiskFilter(e.target.value); setPage(1); }}>
           <option value="">All Risks</option>
-          {RISK_LEVELS.map(r => <option key={r} value={r}>{r}</option>)}
+          {RISK_LEVELS.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
-
-        <select
-          className="filter-select"
-          value={typeFilter}
-          onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
-        >
+        <select className="filter-select" value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}>
           <option value="">All Types</option>
-          {ROLE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+          {ROLE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
         </select>
-
         {(searchInput || statusFilter || riskFilter || typeFilter || sortBy !== 'created_at' || sortOrder !== 'desc') && (
           <button className="btn-reset-filters" onClick={handleResetFilters}>
             <RotateCcw size={13} style={{ marginRight: '4px' }} />
-            Reset Filters
+            Reset
           </button>
         )}
       </div>
 
-      {/* Main Table view */}
-      <div className="table-card">
-        {errorMsg && <div className="error-banner" style={{ margin: '16px 24px' }}>{errorMsg}</div>}
-        
+      {/* Roles List */}
+      <div className="roles-list-grid">
+        {/* Header Row */}
+        <div className="roles-list-header">
+          <div onClick={() => handleSort('role_name')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            Name <ArrowUpDown size={11} />
+          </div>
+          <div>Type</div>
+          <div onClick={() => handleSort('risk_level')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            Risk <ArrowUpDown size={11} />
+          </div>
+          <div>Status</div>
+          <div style={{ textAlign: 'right' }}>Actions</div>
+        </div>
+
+        {errorMsg && (
+          <div className="error-banner" style={{ margin: '16px 24px' }}>{errorMsg}</div>
+        )}
+
         {loading ? (
           <div className="table-loading-container">
             <div className="spinner-element"></div>
@@ -639,452 +936,99 @@ const PlatformRoles = () => {
             </div>
             <div className="empty-state-text">
               <h4>No platform roles found</h4>
-              <p>Configure new authorization profiles by clicking 'Add Role'.</p>
+              <p>Click 'Add Role' to create a new platform authorization role.</p>
             </div>
           </div>
         ) : (
-          <>
-            <div className="table-wrapper">
-              <table className="roles-table">
-                <thead>
-                  <tr>
-                    <th onClick={() => handleSort('role_code')}>
-                      Role Code <ArrowUpDown size={12} style={{ marginLeft: '4px', display: 'inline-block' }} />
-                    </th>
-                    <th onClick={() => handleSort('role_name')}>
-                      Role Name <ArrowUpDown size={12} style={{ marginLeft: '4px', display: 'inline-block' }} />
-                    </th>
-                    <th>Role Type</th>
-                    <th onClick={() => handleSort('risk_level')}>
-                      Risk Level <ArrowUpDown size={12} style={{ marginLeft: '4px', display: 'inline-block' }} />
-                    </th>
-                    <th>Status</th>
-                    <th>Users Assigned</th>
-                    <th>Approval Required</th>
-                    <th onClick={() => handleSort('created_at')}>
-                      Created Date <ArrowUpDown size={12} style={{ marginLeft: '4px', display: 'inline-block' }} />
-                    </th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {roles.map((role) => (
-                    <tr key={role.id} style={{ cursor: 'pointer' }} onClick={() => handleOpenDrawer(role.id)}>
-                      <td>
-                        <span className="role-code-badge">{role.role_code}</span>
-                      </td>
-                      <td style={{ fontWeight: '600' }}>{role.role_name}</td>
-                      <td>
-                        <span className="type-badge">{role.role_type}</span>
-                      </td>
-                      <td>
-                        <span className={`risk-badge ${role.risk_level.toLowerCase()}`}>
-                          {role.risk_level}
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`status-badge ${role.status.toLowerCase()}`}>
-                          {role.status}
-                        </span>
-                      </td>
-                      <td style={{ fontWeight: '600', paddingLeft: '32px' }}>{role.users_assigned}</td>
-                      <td>{role.approval_required ? 'Yes' : 'No'}</td>
-                      <td>{new Date(role.created_at).toLocaleDateString()}</td>
-                      <td>
-                        <div className="actions-cell-menu" onClick={(e) => e.stopPropagation()}>
-                          <button className="btn-row-action" onClick={(e) => handleOpenEditModal(e, role)} title="Edit Role">
-                            <Edit size={13} />
-                          </button>
-                          <button 
-                            className="btn-row-action" 
-                            onClick={(e) => handleToggleStatus(e, role)}
-                            title={role.status === 'Active' ? 'Deactivate' : 'Activate'}
-                          >
-                            {role.status === 'Active' ? <XCircle size={13} /> : <CheckCircle size={13} />}
-                          </button>
-                          {!role.is_system_role && (
-                            <button className="btn-row-action delete" onClick={(e) => handleOpenDeleteConfirm(e, role)} title="Delete Role">
-                              <Trash2 size={13} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination Controls */}
-            <div className="pagination-footer">
-              <div className="pagination-size-selector">
-                <span>Show</span>
-                <select
-                  className="page-size-select"
-                  value={limit}
-                  onChange={(e) => { setLimit(parseInt(e.target.value)); setPage(1); }}
-                >
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-                <span>entries</span>
+          roles.map((role) => (
+            <div
+              key={role.id}
+              className="roles-list-row"
+              onClick={() => handleOpenDetail(role.id)}
+              title="Click to view role details"
+            >
+              {/* Name + Code */}
+              <div className="role-name-cell">
+                <div className={`role-icon-circle ${getRiskClass(role.risk_level)}`}>
+                  {getRiskIcon(role.risk_level)}
+                </div>
+                <div className="role-name-info">
+                  <span className="role-name-label">{role.role_name}</span>
+                  <span className="role-code-small">{role.role_code}</span>
+                </div>
               </div>
 
-              <span className="pagination-info" style={{ marginLeft: 'auto', marginRight: '24px' }}>
-                Showing <b>{Math.min(total, (page - 1) * limit + 1)}</b> to <b>{Math.min(total, page * limit)}</b> of <b>{total}</b> platform roles
-              </span>
-              
-              <div className="pagination-controls">
-                <button
-                  className="btn-page-step"
-                  disabled={page === 1}
-                  onClick={() => setPage(page - 1)}
-                  aria-label="Previous Page"
-                >
-                  <ChevronLeft size={14} />
+              {/* Type */}
+              <div>
+                <span className="role-type-badge">{role.role_type}</span>
+              </div>
+
+              {/* Risk */}
+              <div>
+                <span className={`risk-badge ${getRiskClass(role.risk_level)}`}>{role.risk_level}</span>
+              </div>
+
+              {/* Status */}
+              <div>
+                <span className={`status-badge ${role.status.toLowerCase()}`}>{role.status}</span>
+              </div>
+
+              {/* Actions */}
+              <div className="row-actions-col" onClick={(e) => e.stopPropagation()}>
+                <button className="btn-row-action" onClick={(e) => handleOpenEditModal(e, role)} title="Edit">
+                  <Edit size={13} />
                 </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(i => (
-                  <button
-                    key={i}
-                    className={`btn-page-step ${page === i ? 'active' : ''}`}
-                    onClick={() => setPage(i)}
-                  >
-                    {i}
+                <button
+                  className="btn-row-action"
+                  onClick={(e) => handleToggleStatus(e, role)}
+                  title={role.status === 'Active' ? 'Deactivate' : 'Activate'}
+                >
+                  {role.status === 'Active' ? <XCircle size={13} /> : <CheckCircle size={13} />}
+                </button>
+                {!role.is_system_role && (
+                  <button className="btn-row-action delete" onClick={(e) => handleOpenDeleteConfirm(e, role)} title="Delete">
+                    <Trash2 size={13} />
                   </button>
-                ))}
-                <button
-                  className="btn-page-step"
-                  disabled={page === totalPages}
-                  onClick={() => setPage(page + 1)}
-                  aria-label="Next Page"
-                >
-                  <ChevronRight size={14} />
-                </button>
+                )}
               </div>
             </div>
-          </>
+          ))
+        )}
+
+        {/* Pagination */}
+        {!loading && roles.length > 0 && (
+          <div className="pagination-footer">
+            <div className="pagination-size-selector">
+              <span>Show</span>
+              <select className="page-size-select" value={limit} onChange={(e) => { setLimit(parseInt(e.target.value)); setPage(1); }}>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+              <span>entries</span>
+            </div>
+            <span className="pagination-info">
+              Showing <b>{Math.min(total, (page - 1) * limit + 1)}</b> to <b>{Math.min(total, page * limit)}</b> of <b>{total}</b> roles
+            </span>
+            <div className="pagination-controls">
+              <button className="btn-page-step" disabled={page === 1} onClick={() => setPage(page - 1)}>
+                <ChevronLeft size={14} />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((i) => (
+                <button key={i} className={`btn-page-step ${page === i ? 'active' : ''}`} onClick={() => setPage(i)}>
+                  {i}
+                </button>
+              ))}
+              <button className="btn-page-step" disabled={page === totalPages} onClick={() => setPage(page + 1)}>
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
         )}
       </div>
 
-      {/* Sliding Sidebar Drawer for Details */}
-      {showDrawer && (
-        <div className="drawer-backdrop-custom" onClick={() => setShowDrawer(false)}>
-          <div className="drawer-panel-custom" onClick={(e) => e.stopPropagation()}>
-            <div className="drawer-header-custom">
-              <div className="drawer-header-title">
-                <h3>{drawerLoading ? 'Loading Details...' : drawerData?.role?.role_name}</h3>
-                {!drawerLoading && <span>{drawerData?.role?.role_code}</span>}
-              </div>
-              <button className="modal-close-btn-custom" onClick={() => setShowDrawer(false)} aria-label="Close drawer">
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="drawer-body-custom">
-              {drawerLoading ? (
-                <div className="table-loading-container" style={{ margin: 'auto' }}>
-                  <div className="spinner-element"></div>
-                  <p className="text-muted">Loading role details...</p>
-                </div>
-              ) : drawerData && (
-                <>
-                  {/* Role Information Metadata */}
-                  <div>
-                    <div className="drawer-section-title">Role Information</div>
-                    <div className="drawer-meta-grid">
-                      <div className="drawer-meta-item">
-                        <span className="drawer-meta-label">Role Code</span>
-                        <span className="drawer-meta-value" style={{ fontFamily: 'var(--font-mono)' }}>
-                          {drawerData.role.role_code}
-                        </span>
-                      </div>
-                      <div className="drawer-meta-item">
-                        <span className="drawer-meta-label">Role Name</span>
-                        <span className="drawer-meta-value">{drawerData.role.role_name}</span>
-                      </div>
-                      <div className="drawer-meta-item">
-                        <span className="drawer-meta-label">Role Type</span>
-                        <span className="drawer-meta-value">
-                          <span className="type-badge">{drawerData.role.role_type}</span>
-                        </span>
-                      </div>
-                      <div className="drawer-meta-item">
-                        <span className="drawer-meta-label">Risk Level</span>
-                        <span className="drawer-meta-value">
-                          <span className={`risk-badge ${drawerData.role.risk_level.toLowerCase()}`}>
-                            {drawerData.role.risk_level}
-                          </span>
-                        </span>
-                      </div>
-                      <div className="drawer-meta-item">
-                        <span className="drawer-meta-label">Status</span>
-                        <span className="drawer-meta-value">
-                          <span className={`status-badge ${drawerData.role.status.toLowerCase()}`}>
-                            {drawerData.role.status}
-                          </span>
-                        </span>
-                      </div>
-                      <div className="drawer-meta-item">
-                        <span className="drawer-meta-label">Approval Required</span>
-                        <span className="drawer-meta-value">{drawerData.role.approval_required ? 'Yes' : 'No'}</span>
-                      </div>
-                      <div className="drawer-meta-item">
-                        <span className="drawer-meta-label">System Role</span>
-                        <span className="drawer-meta-value">{drawerData.role.is_system_role ? 'Yes' : 'No'}</span>
-                      </div>
-                      <div className="drawer-meta-item">
-                        <span className="drawer-meta-label">Created By</span>
-                        <span className="drawer-meta-value">{drawerData.role.created_by}</span>
-                      </div>
-                      <div className="drawer-meta-item full-width">
-                        <span className="drawer-meta-label">Description</span>
-                        <span className="drawer-meta-value" style={{ fontWeight: '500' }}>
-                          {drawerData.role.description}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Assigned Users list */}
-                  <div>
-                    <div className="drawer-section-title">Assigned Users ({drawerData.assigned_users.length})</div>
-                    {drawerData.assigned_users.length === 0 ? (
-                      <p className="text-muted" style={{ fontSize: '12px', fontStyle: 'italic' }}>No users currently assigned to this role.</p>
-                    ) : (
-                      <div className="drawer-small-table-wrapper">
-                        <table className="drawer-small-table">
-                          <thead>
-                            <tr>
-                              <th>ID</th>
-                              <th>Name</th>
-                              <th>Department</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {drawerData.assigned_users.map(u => (
-                              <tr key={u.id}>
-                                <td style={{ fontFamily: 'var(--font-mono)' }}>{u.employee_id}</td>
-                                <td style={{ fontWeight: '600' }}>{u.first_name} {u.last_name}</td>
-                                <td>{u.department || '-'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Audit History logs */}
-                  <div>
-                    <div className="drawer-section-title">Audit History ({drawerData.audit_history.length})</div>
-                    {drawerData.audit_history.length === 0 ? (
-                      <p className="text-muted" style={{ fontSize: '12px', fontStyle: 'italic' }}>No audit trail recorded for this role.</p>
-                    ) : (
-                      <div className="drawer-small-table-wrapper" style={{ maxHeight: '250px' }}>
-                        <table className="drawer-small-table">
-                          <thead>
-                            <tr>
-                              <th>Action / Performed By</th>
-                              <th>Details</th>
-                              <th>Time</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {drawerData.audit_history.map(log => (
-                              <tr key={log.id}>
-                                <td>
-                                  <div style={{ fontWeight: '600', color: 'var(--text-main)' }}>{log.action}</div>
-                                  <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>by {log.performed_by}</div>
-                                </td>
-                                <td>
-                                  {renderAuditDiff(log)}
-                                </td>
-                                <td>
-                                  {new Date(log.timestamp).toLocaleDateString()}<br />
-                                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                                    {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add / Edit Modal Form */}
-      {showModal && (
-        <div className="modal-overlay-custom">
-          <div className="modal-content-custom">
-            <div className="modal-header-custom">
-              <h3>{editRoleId ? 'Edit Platform Role' : 'Add New Platform Role'}</h3>
-              <button className="modal-close-btn-custom" onClick={() => setShowModal(false)} aria-label="Close modal">
-                <X size={18} />
-              </button>
-            </div>
-            
-            <form onSubmit={handleFormSubmit} className="modal-form-custom">
-              <div className="modal-scrollable-body">
-                {formBannerError && <div className="modal-form-banner-error">{formBannerError}</div>}
-                
-                <div className="form-row-grid-2">
-                  <div className="input-group-custom">
-                    <label className="required">Role Code</label>
-                    <input
-                      type="text"
-                      name="role_code"
-                      value={formData.role_code}
-                      onChange={handleInputChange}
-                      disabled={!!editRoleId} // Disable code edits
-                      placeholder="e.g. COMP_OFFICER"
-                    />
-                    {formErrors.role_code && <span className="form-error-text">{formErrors.role_code}</span>}
-                  </div>
-                  <div className="input-group-custom">
-                    <label className="required">Role Name</label>
-                    <input
-                      type="text"
-                      name="role_name"
-                      value={formData.role_name}
-                      onChange={handleInputChange}
-                      placeholder="e.g. Compliance Officer"
-                    />
-                    {formErrors.role_name && <span className="form-error-text">{formErrors.role_name}</span>}
-                  </div>
-                </div>
-
-                <div className="input-group-custom">
-                  <label className="required">Description</label>
-                  <textarea
-                    name="description"
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    rows={3}
-                    placeholder="Provide a detailed explanation of this role's access levels..."
-                    style={{
-                      backgroundColor: 'var(--bg-hover)',
-                      border: '1px solid var(--border-color)',
-                      color: 'var(--text-main)',
-                      borderRadius: '8px',
-                      padding: '10px 12px',
-                      outline: 'none',
-                      fontSize: '13.5px',
-                      fontFamily: 'inherit',
-                      resize: 'vertical'
-                    }}
-                  />
-                  {formErrors.description && <span className="form-error-text">{formErrors.description}</span>}
-                </div>
-
-                <div className="form-row-grid-2">
-                  <div className="input-group-custom">
-                    <label className="required">Role Type</label>
-                    <select
-                      name="role_type"
-                      value={formData.role_type}
-                      onChange={handleInputChange}
-                    >
-                      {ROLE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div className="input-group-custom">
-                    <label className="required">Risk Level</label>
-                    <select
-                      name="risk_level"
-                      value={formData.risk_level}
-                      onChange={handleInputChange}
-                    >
-                      {RISK_LEVELS.map(rl => <option key={rl} value={rl}>{rl}</option>)}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="form-row-grid-2">
-                  <div className="input-group-custom">
-                    <label>Status</label>
-                    <select
-                      name="status"
-                      value={formData.status}
-                      onChange={handleInputChange}
-                    >
-                      {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                  <div className="input-group-custom" style={{ flexDirection: 'row', alignItems: 'center', gap: '10px', marginTop: '24px' }}>
-                    <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', userSelect: 'none' }}>
-                      <input
-                        type="checkbox"
-                        name="approval_required"
-                        checked={formData.approval_required}
-                        onChange={handleInputChange}
-                        style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
-                      />
-                      Approval Required
-                    </label>
-                  </div>
-                </div>
-
-                <div className="form-row-grid-2">
-                  <div className="input-group-custom" style={{ flexDirection: 'row', alignItems: 'center', gap: '10px' }}>
-                    <label style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', userSelect: 'none' }}>
-                      <input
-                        type="checkbox"
-                        name="is_system_role"
-                        checked={formData.is_system_role}
-                        onChange={handleInputChange}
-                        style={{ width: '16px', height: '16px', accentColor: 'var(--primary)' }}
-                      />
-                      Is System Role
-                    </label>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="modal-footer-custom">
-                <button type="button" className="btn-modal-cancel" onClick={() => setShowModal(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn-modal-submit" disabled={submitting}>
-                  {submitting ? 'Saving...' : 'Save Role'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Delete Confirmation Alert Dialog */}
-      {showDeleteConfirm && (
-        <div className="modal-overlay-custom">
-          <div className="modal-content-custom delete-dialog-content">
-            <div className="delete-dialog-body">
-              <div className="delete-dialog-icon">
-                <AlertTriangle size={24} />
-              </div>
-              <div className="delete-dialog-text">
-                <h4>Delete Platform Role</h4>
-                <p>Are you sure you want to delete role <b>{deleteRoleCode}</b>? This will soft delete the role. Active users linked to this role will lose their platform reference, but their records will remain intact.</p>
-              </div>
-            </div>
-            <div className="modal-footer-custom">
-              <button className="btn-modal-cancel" onClick={() => setShowDeleteConfirm(false)}>
-                Cancel
-              </button>
-              <button className="btn-modal-delete" onClick={handleDeleteSubmit} disabled={submitting}>
-                {submitting ? 'Deleting...' : 'Delete Role'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Modals */}
+      {renderModals()}
     </div>
   );
 };
