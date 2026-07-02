@@ -85,8 +85,28 @@ export const deletePlatformUser = async (id) => {
   return response.data;
 };
 
-export const getPlatformRoles = async () => {
-  const response = await apiClient.get('/platform-roles');
+export const getPlatformRoles = async (params) => {
+  const response = await apiClient.get('/platform-roles', { params });
+  return response.data;
+};
+
+export const getPlatformRole = async (id) => {
+  const response = await apiClient.get(`/platform-roles/${id}`);
+  return response.data;
+};
+
+export const createPlatformRole = async (roleData) => {
+  const response = await apiClient.post('/platform-roles', roleData);
+  return response.data;
+};
+
+export const updatePlatformRole = async (id, roleData) => {
+  const response = await apiClient.put(`/platform-roles/${id}`, roleData);
+  return response.data;
+};
+
+export const deletePlatformRole = async (id) => {
+  const response = await apiClient.delete(`/platform-roles/${id}`);
   return response.data;
 };
 
