@@ -19,7 +19,6 @@ const Header = ({
   const profileRef = useRef(null);
   const notificationRef = useRef(null);
 
-  // Close menus on click outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (profileRef.current && !profileRef.current.contains(event.target)) {
@@ -118,7 +117,7 @@ const Header = ({
             <div className="dropdown-menu profile-menu">
               <div className="profile-menu-header">
                 <p className="menu-username">{profile.name}</p>
-                <p className="menu-useremail">darshan.kumar@ranalyzer.io</p>
+                <p className="menu-useremail">{profile.email}</p>
               </div>
               <div className="menu-divider"></div>
               <button className="menu-item">

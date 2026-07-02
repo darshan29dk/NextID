@@ -1,13 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/Sidebar/Sidebar';
 import Header from '../../components/Header/Header';
+import { useAuth } from '../../context/AuthContext';
 import { getProfile, getNotifications, getTheme, updateTheme } from '../../services/dashboardService';
 import './DashboardLayout.css';
 
 const DashboardLayout = ({ children }) => {
+  const { currentUser } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [theme, setTheme] = useState('light');
-  const [profile, setProfile] = useState({ name: 'Darshan Kumar', role: 'Platform Administrator', avatar: 'DA' });
+  const [profile, setProfile] = useState(() => {
+  const saved = localStorage.getItem('ranalyzer_user')
+  return saved ? JSON.parse(saved) : { name: 'User', role: 'Platform Administrator', avatar: 'U', email: '' }
+});
   const [notifications, setNotifications] = useState([]);
 
   const applyTheme = (newTheme) => {
@@ -63,10 +68,20 @@ const DashboardLayout = ({ children }) => {
       } catch (err) {
         console.error('Could not load notifications:', err);
       }
+
+      // Set profile from logged in user
+      if (currentUser) {
+        setProfile({
+          name: currentUser.name,
+          role: currentUser.role,
+          avatar: currentUser.avatar,
+          email: currentUser.email
+        });
+      }
     };
 
     loadAppData();
-  }, []);
+  }, [currentUser]);
 
   return (
     <div className={`app-layout ${isCollapsed ? 'sidebar-collapsed' : ''}`}>

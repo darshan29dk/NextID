@@ -39,7 +39,14 @@ import './Dashboard.css';
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+const { logout, currentUser } = useAuth();
+
+const getGreeting = () => {
+  const hour = new Date().getHours()
+  if (hour >= 0 && hour < 12) return 'Good Morning'
+  if (hour >= 12 && hour < 17) return 'Good Afternoon'
+  return 'Good Evening'
+}
 
   const handleLogout = () => {
     logout();
@@ -346,8 +353,8 @@ INSERT INTO identities VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'S
       {/* Welcome Banner */}
       <div className="welcome-banner">
         <div className="welcome-content">
-          <span className="welcome-greet">Good Morning,</span>
-          <h2 className="welcome-name">Darshan Kumar</h2>
+          <span className="welcome-greet">{getGreeting()},</span>
+          <h2 className="welcome-name">{currentUser?.name || 'User'}</h2>
           <p className="welcome-sub">Welcome back to rAnalyzer Role Governance dashboard.</p>
         </div>
         <div className="welcome-banner-actions">

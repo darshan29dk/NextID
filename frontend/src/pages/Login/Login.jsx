@@ -34,8 +34,8 @@ function Login() {
 
     // Mocked auth — replace with real FastAPI call later
     setTimeout(() => {
-      if (email === 'demo@ranalyzer.io' && password === 'Demo@1234') {
-        login()
+      const success = login(email, password)
+      if (success) {
         navigate('/dashboard')
       } else {
         setError('Invalid email or password.')
@@ -81,11 +81,6 @@ function Login() {
           <h1>Welcome Back</h1>
           <p className="login-subtitle">Sign in to the Role Intelligence Platform</p>
 
-          <div className="login-demo-box">
-            <span>Demo:</span> Register with any email to explore, or use{' '}
-            <span>demo@ranalyzer.io / Demo@1234</span>
-          </div>
-
           <form onSubmit={handleSubmit} className="login-form">
             <div className="login-form-group">
               <label>Email address</label>
@@ -93,7 +88,7 @@ function Login() {
                 type="email"
                 value={email}
                 onChange={(e) => { setEmail(e.target.value); if (error) setError('') }}
-                placeholder="you@company.com"
+                placeholder="you@ilantus.com"
               />
             </div>
 
