@@ -60,3 +60,34 @@ export const syncApiKey = async (provider, apiKey) => {
   return response.data;
 };
 
+export const getPlatformUsers = async (params) => {
+  const response = await apiClient.get('/platform-users', { params });
+  return response.data;
+};
+
+export const getPlatformUser = async (id) => {
+  const response = await apiClient.get(`/platform-users/${id}`);
+  return response.data;
+};
+
+export const createPlatformUser = async (userData) => {
+  const response = await apiClient.post('/platform-users', userData);
+  return response.data;
+};
+
+export const updatePlatformUser = async (id, userData) => {
+  const response = await apiClient.put(`/platform-users/${id}`, userData);
+  return response.data;
+};
+
+export const deletePlatformUser = async (id) => {
+  const response = await apiClient.delete(`/platform-users/${id}`);
+  return response.data;
+};
+
+export const getPlatformRoles = async () => {
+  const response = await apiClient.get('/platform-roles');
+  return response.data;
+};
+
+
