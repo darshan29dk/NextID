@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard/Dashboard';
 import Login from './pages/Login/Login';
 import ForgotPassword from './pages/ForgotPassword/ForgotPassword';
 import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
+import PlatformUsers from './pages/Administration/PlatformUsers';
 
 // Elegant under-construction fallback component
 const UnderConstruction = ({ title }) => {
@@ -62,7 +63,7 @@ function App() {
                   <Route path="/governance" element={<UnderConstruction title="Governance" />} />
                   <Route path="/role-lifecycle" element={<UnderConstruction title="Role Lifecycle" />} />
                   <Route path="/analytics" element={<UnderConstruction title="Analytics" />} />
-                  <Route path="/administration" element={<UnderConstruction title="Administration" />} />
+                  <Route path="/administration" element={<PlatformUsers />} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
               </DashboardLayout>
