@@ -8,7 +8,7 @@ from app.models.dashboard import RecentActivity, IdentityRecord, ApprovalQueueIt
 from app.models.platform_role import PlatformRole
 from app.models.platform_user import PlatformUser
 from app.models.audit_log import AuditLog
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # Create database tables if they do not exist
 Base.metadata.create_all(bind=engine)
