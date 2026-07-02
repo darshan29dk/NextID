@@ -1,10 +1,13 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, SessionLocal
-from app.routes import dashboard, notification, profile, theme
+from app.routes import dashboard, notification, profile, theme, platform_user
 from app.models.user import User
 from app.models.notification import Notification
 from app.models.dashboard import RecentActivity, IdentityRecord, ApprovalQueueItem, RoleRecord, RoleMiningTrendPoint
+from app.models.platform_role import PlatformRole
+from app.models.platform_user import PlatformUser
+from app.models.audit_log import AuditLog
 from datetime import datetime, timedelta
 
 # Create database tables if they do not exist
@@ -171,6 +174,18 @@ try:
         db.commit()
         print("Seeded mining trend points.")
 
+    # 8. Seed platform roles if empty
+    if db.query(PlatformRole).count() == 0:
+        p_roles = [
+            PlatformRole(name="Platform Administrator", description="Full administrative control over all rAnalyzer settings and data."),
+            PlatformRole(name="Compliance Manager", description="Manage application identity lifecycle and role engineering catalog."),
+            PlatformRole(name="Security Auditor", description="Read-only access to audit logs, certs, and configurations."),
+            PlatformRole(name="Read-Only Viewer", description="Basic dashboard access to view compliance metrics and charts.")
+        ]
+        db.add_all(p_roles)
+        db.commit()
+        print("Seeded default platform roles.")
+
 except Exception as e:
     print(f"Error seeding database: {e}")
 finally:
@@ -192,6 +207,7 @@ app.include_router(dashboard.router, prefix="/api")
 app.include_router(notification.router, prefix="/api")
 app.include_router(profile.router, prefix="/api")
 app.include_router(theme.router, prefix="/api")
+app.include_router(platform_user.router, prefix="/api")
 
 @app.get("/")
 def read_root():
