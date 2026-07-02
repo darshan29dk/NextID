@@ -8,8 +8,12 @@ PHONE_REGEX = re.compile(r"^\+?[\d\s\-\(\)\.]{7,20}$")
 
 class PlatformRoleResponse(BaseModel):
     id: int
-    name: str
-    description: Optional[str] = None
+    role_code: str
+    role_name: str
+    description: str
+    role_type: str
+    risk_level: str
+    status: str
     created_at: datetime
     updated_at: datetime
 
