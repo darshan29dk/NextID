@@ -47,7 +47,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         if r.sod_conflict == 1:
             sod_conflicts += 1
             
-    applications = len(apps_set) if len(apps_set) > 0 else 25
+    applications = len(apps_set)
     
     # Scaling factor for administrative/discovered roles based on user count
     candidate_roles = max(5, int(total_users * 0.064))
