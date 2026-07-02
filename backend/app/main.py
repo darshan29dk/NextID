@@ -174,73 +174,46 @@ try:
         db.commit()
         print("Seeded mining trend points.")
 
-    # 8. Seed platform roles if empty
+    # 8. Seed platform roles if empty, or update descriptions if they differ
+    default_platform_roles = [
+        ("PLAT_ADMIN", "Platform Administrator", "Full access to the application", "System", "Critical", True, True),
+        ("SEC_ADMIN", "Security Administrator", "Manages users, roles, and security settings", "System", "High", True, True),
+        ("COMP_OFFICER", "Compliance Officer", "Reviews governance and compliance", "Business", "Medium", False, True),
+        ("SEC_AUDITOR", "Security Auditor", "Read-only access to reports and audit logs", "System", "Low", False, True),
+        ("READ_ONLY", "Read Only User", "Can only view dashboards", "Shared", "Low", False, True)
+    ]
+
     if db.query(PlatformRole).count() == 0:
-        p_roles = [
-            PlatformRole(
-                role_code="PLAT_ADMIN",
-                role_name="Platform Administrator",
-                description="Full administrative control over all rAnalyzer settings and data.",
-                role_type="System",
-                risk_level="Critical",
+        p_roles = []
+        for code, name, desc, r_type, risk, approval, is_sys in default_platform_roles:
+            p_roles.append(PlatformRole(
+                role_code=code,
+                role_name=name,
+                description=desc,
+                role_type=r_type,
+                risk_level=risk,
                 status="Active",
-                approval_required=True,
-                is_system_role=True,
+                approval_required=approval,
+                is_system_role=is_sys,
                 created_by="System",
                 modified_by="System"
-            ),
-            PlatformRole(
-                role_code="SEC_ADMIN",
-                role_name="Security Administrator",
-                description="Manage all system security configs, users, roles, and authorization policies.",
-                role_type="System",
-                risk_level="High",
-                status="Active",
-                approval_required=True,
-                is_system_role=True,
-                created_by="System",
-                modified_by="System"
-            ),
-            PlatformRole(
-                role_code="COMP_OFFICER",
-                role_name="Compliance Officer",
-                description="Perform SoD checks, view risk assessments, and publish candidate roles.",
-                role_type="Business",
-                risk_level="Medium",
-                status="Active",
-                approval_required=False,
-                is_system_role=True,
-                created_by="System",
-                modified_by="System"
-            ),
-            PlatformRole(
-                role_code="SEC_AUDITOR",
-                role_name="Security Auditor",
-                description="Read-only access to system configurations, logs, identity catalog, and reports.",
-                role_type="System",
-                risk_level="Low",
-                status="Active",
-                approval_required=False,
-                is_system_role=True,
-                created_by="System",
-                modified_by="System"
-            ),
-            PlatformRole(
-                role_code="READ_ONLY",
-                role_name="Read Only User",
-                description="Basic compliance metrics dashboard viewer access. No edits allowed.",
-                role_type="Shared",
-                risk_level="Low",
-                status="Active",
-                approval_required=False,
-                is_system_role=True,
-                created_by="System",
-                modified_by="System"
-            )
-        ]
+            ))
         db.add_all(p_roles)
         db.commit()
         print("Seeded default platform roles.")
+    else:
+        for code, name, desc, r_type, risk, approval, is_sys in default_platform_roles:
+            role = db.query(PlatformRole).filter(PlatformRole.role_code == code).first()
+            if role:
+                if role.description != desc or role.role_name != name:
+                    role.role_name = name
+                    role.description = desc
+                    role.role_type = r_type
+                    role.risk_level = risk
+                    role.approval_required = approval
+                    role.is_system_role = is_sys
+                    db.commit()
+                    print(f"Updated default platform role: {code}")
 
 except Exception as e:
     print(f"Error seeding database: {e}")
