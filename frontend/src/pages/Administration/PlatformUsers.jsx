@@ -482,7 +482,7 @@ const PlatformUsers = () => {
         >
           <option value="">All Platform Roles</option>
           {roles.map(r => (
-            <option key={r.id} value={r.id}>{r.name}</option>
+            <option key={r.id} value={r.id}>{r.role_name}</option>
           ))}
         </select>
 
@@ -547,7 +547,7 @@ const PlatformUsers = () => {
                         <td>{user.employee_id}</td>
                         <td>{user.department || '-'}</td>
                         <td>{user.job_title || '-'}</td>
-                        <td>{user.platform_role ? user.platform_role.name : '-'}</td>
+                        <td>{user.platform_role ? user.platform_role.role_name : '-'}</td>
                         <td>
                           <span className={`status-badge ${user.status.toLowerCase() === 'active' ? 'active' : 'inactive'}`}>
                             {user.status}
@@ -725,7 +725,7 @@ const PlatformUsers = () => {
                     >
                       <option value="">Select Platform Role</option>
                       {roles.map(r => (
-                        <option key={r.id} value={r.id}>{r.name}</option>
+                        <option key={r.id} value={r.id}>{r.role_name}</option>
                       ))}
                     </select>
                   </div>
