@@ -6,7 +6,9 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    user = Column(String(100), nullable=False)
+    module = Column(String(100), default="Platform Roles", nullable=False)
     action = Column(String(100), nullable=False)
-    details = Column(Text, nullable=True) # Storing JSON details or descriptions
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    performed_by = Column(String(100), nullable=False)
+    old_value = Column(Text, nullable=True) # Storing JSON representation of old state
+    new_value = Column(Text, nullable=True) # Storing JSON representation of new state
+    timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
