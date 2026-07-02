@@ -12,7 +12,9 @@ import {
   Settings, 
   ChevronRight, 
   ChevronLeft,
-  Server
+  Server,
+  Users,
+  Key
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -37,7 +39,8 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     { type: 'heading', label: 'ANALYTICS' },
     { type: 'item', label: 'Analytics', icon: BarChart3, path: 'analytics', hasSub: true },
     { type: 'heading', label: 'ADMINISTRATION' },
-    { type: 'item', label: 'Administration', icon: Settings, path: 'administration', hasSub: true }
+    { type: 'item', label: 'Platform Users', icon: Users, path: 'administration/users' },
+    { type: 'item', label: 'Platform Roles', icon: Key, path: 'administration/roles' }
   ];
 
   return (
