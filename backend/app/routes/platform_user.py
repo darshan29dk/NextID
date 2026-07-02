@@ -256,7 +256,4 @@ def delete_platform_user(id: int, db: Session = Depends(get_db)):
 
     return {"detail": "Platform user deleted successfully"}
 
-@router.get("/platform-roles", response_model=List[PlatformRoleResponse])
-def get_platform_roles(db: Session = Depends(get_db)):
-    roles = db.query(PlatformRole).order_by(PlatformRole.id.asc()).all()
-    return roles
+
