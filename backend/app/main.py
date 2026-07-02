@@ -4,7 +4,7 @@ from app.database import engine, Base, SessionLocal
 from app.routes import dashboard, notification, profile, theme
 from app.models.user import User
 from app.models.notification import Notification
-from app.models.dashboard import RecentActivity, IdentityRecord, ApprovalQueueItem
+from app.models.dashboard import RecentActivity, IdentityRecord, ApprovalQueueItem, RoleRecord, RoleMiningTrendPoint
 from datetime import datetime, timedelta
 
 # Create database tables if they do not exist
@@ -103,6 +103,73 @@ try:
         db.add_all(notifications)
         db.commit()
         print("Seeded notifications.")
+
+    # 5. Seed identity records if empty
+    if db.query(IdentityRecord).count() == 0:
+        identities = [
+            IdentityRecord(username="john.smith", email="john.smith@ranalyzer.io", department="Finance", role="Finance Specialist", applications="Active Directory,Workday,Slack", entitlements_count=15, risk_level="High", sod_conflict=1),
+            IdentityRecord(username="jane.doe", email="jane.doe@ranalyzer.io", department="Engineering", role="Software Engineer", applications="Active Directory,GitHub,Slack", entitlements_count=8, risk_level="Low", sod_conflict=0),
+            IdentityRecord(username="bob.johnson", email="bob.johnson@ranalyzer.io", department="Sales", role="Sales Specialist", applications="Active Directory,Salesforce,Slack", entitlements_count=10, risk_level="Medium", sod_conflict=0),
+            IdentityRecord(username="alice.williams", email="alice.williams@ranalyzer.io", department="HR", role="HR Specialist", applications="Active Directory,Workday,Slack", entitlements_count=6, risk_level="Low", sod_conflict=0),
+            IdentityRecord(username="charlie.brown", email="charlie.brown@ranalyzer.io", department="Operations", role="Ops Specialist", applications="Active Directory,Workday,Slack", entitlements_count=7, risk_level="Medium", sod_conflict=0),
+            IdentityRecord(username="david.miller", email="david.miller@ranalyzer.io", department="IT", role="IT Support", applications="Active Directory,Okta,Slack,Jira", entitlements_count=18, risk_level="High", sod_conflict=0),
+            IdentityRecord(username="emily.davis", email="emily.davis@ranalyzer.io", department="Security", role="Security Analyst", applications="Active Directory,Okta,Slack,Splunk", entitlements_count=22, risk_level="Critical", sod_conflict=1),
+            IdentityRecord(username="frank.wilson", email="frank.wilson@ranalyzer.io", department="Marketing", role="Marketer", applications="Active Directory,Slack,Google Analytics", entitlements_count=5, risk_level="Low", sod_conflict=0),
+            IdentityRecord(username="grace.lee", email="grace.lee@ranalyzer.io", department="Engineering", role="DevOps Engineer", applications="Active Directory,GitHub,AWS,Slack", entitlements_count=14, risk_level="High", sod_conflict=0),
+            IdentityRecord(username="henry.jones", email="henry.jones@ranalyzer.io", department="Finance", role="Accountant", applications="Active Directory,Workday,Slack", entitlements_count=12, risk_level="Medium", sod_conflict=0),
+            IdentityRecord(username="ian.taylor", email="ian.taylor@ranalyzer.io", department="Engineering", role="Software Engineer", applications="Active Directory,GitHub,Slack", entitlements_count=9, risk_level="Low", sod_conflict=0),
+            IdentityRecord(username="julia.moore", email="julia.moore@ranalyzer.io", department="Sales", role="Sales Specialist", applications="Active Directory,Salesforce,Slack", entitlements_count=11, risk_level="Medium", sod_conflict=0),
+            IdentityRecord(username="kevin.thomas", email="kevin.thomas@ranalyzer.io", department="IT", role="Sysadmin", applications="Active Directory,Okta,AWS,Slack", entitlements_count=25, risk_level="Critical", sod_conflict=1),
+            IdentityRecord(username="laura.jackson", email="laura.jackson@ranalyzer.io", department="HR", role="HR Specialist", applications="Active Directory,Workday,Slack", entitlements_count=5, risk_level="Low", sod_conflict=0),
+            IdentityRecord(username="michael.white", email="michael.white@ranalyzer.io", department="Operations", role="Ops Manager", applications="Active Directory,Workday,Slack", entitlements_count=14, risk_level="High", sod_conflict=0),
+            IdentityRecord(username="sarah.harris", email="sarah.harris@ranalyzer.io", department="Security", role="Security Engineer", applications="Active Directory,Okta,AWS,Slack,Splunk", entitlements_count=20, risk_level="High", sod_conflict=0),
+        ]
+        db.add_all(identities)
+        db.commit()
+        print("Seeded identities.")
+
+    # 6. Seed roles if empty
+    if db.query(RoleRecord).count() == 0:
+        roles = [
+            RoleRecord(name="Candidate: Jr. DevOps Developer", type="candidate", status="Draft", risk_level="Medium", department="Engineering"),
+            RoleRecord(name="Candidate: Senior Accountant", type="candidate", status="Under Review", risk_level="High", department="Finance"),
+            RoleRecord(name="Candidate: Inside Sales Lead", type="candidate", status="Draft", risk_level="Low", department="Sales"),
+            RoleRecord(name="Candidate: Remote IT Analyst", type="candidate", status="Under Review", risk_level="Medium", department="IT"),
+            RoleRecord(name="Candidate: Lead Security Auditor", type="candidate", status="Draft", risk_level="High", department="Security"),
+            RoleRecord(name="Software Engineer", type="published", status="Active", risk_level="Low", department="Engineering"),
+            RoleRecord(name="Finance Specialist", type="published", status="Active", risk_level="High", department="Finance"),
+            RoleRecord(name="Sales Specialist", type="published", status="Active", risk_level="Medium", department="Sales"),
+            RoleRecord(name="HR Specialist", type="published", status="Active", risk_level="Low", department="HR"),
+            RoleRecord(name="Ops Specialist", type="published", status="Active", risk_level="Medium", department="Operations"),
+            RoleRecord(name="IT Support", type="published", status="Active", risk_level="High", department="IT"),
+            RoleRecord(name="Security Analyst", type="published", status="Active", risk_level="Critical", department="Security"),
+            RoleRecord(name="Marketer", type="published", status="Active", risk_level="Low", department="Marketing"),
+            RoleRecord(name="DevOps Engineer", type="published", status="Active", risk_level="High", department="Engineering"),
+            RoleRecord(name="Accountant", type="published", status="Active", risk_level="Medium", department="Finance"),
+            RoleRecord(name="Sysadmin", type="published", status="Active", risk_level="Critical", department="IT"),
+            RoleRecord(name="Ops Manager", type="published", status="Active", risk_level="High", department="Operations"),
+            RoleRecord(name="Security Engineer", type="published", status="Active", risk_level="High", department="Security"),
+            RoleRecord(name="Old Software Engineer v1", type="published", status="Deprecated", risk_level="Low", department="Engineering"),
+            RoleRecord(name="Default Domain User", type="birthright", status="Active", risk_level="Low", department="All"),
+            RoleRecord(name="Basic Slack Access", type="birthright", status="Active", risk_level="Low", department="All")
+        ]
+        db.add_all(roles)
+        db.commit()
+        print("Seeded roles.")
+
+    # 7. Seed trend points if empty
+    if db.query(RoleMiningTrendPoint).count() == 0:
+        trends = [
+            RoleMiningTrendPoint(month="Jul", candidates=10, published=5),
+            RoleMiningTrendPoint(month="Aug", candidates=15, published=7),
+            RoleMiningTrendPoint(month="Sep", candidates=12, published=9),
+            RoleMiningTrendPoint(month="Oct", candidates=22, published=12),
+            RoleMiningTrendPoint(month="Nov", candidates=28, published=15),
+            RoleMiningTrendPoint(month="Dec", candidates=32, published=18)
+        ]
+        db.add_all(trends)
+        db.commit()
+        print("Seeded mining trend points.")
 
 except Exception as e:
     print(f"Error seeding database: {e}")

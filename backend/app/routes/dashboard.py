@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
-from app.models.dashboard import DashboardStats, RecentActivity, IdentityRecord, ApprovalQueueItem
+from app.models.dashboard import DashboardStats, RecentActivity, IdentityRecord, ApprovalQueueItem, RoleMiningTrendPoint
 from app.models.notification import Notification
 from app.schemas.dashboard import (
     DashboardStatsResponse, RecentActivityResponse, ApprovalQueueResponse, SyncApiRequest,
@@ -127,6 +127,8 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         RoleLifecycleData(label="Deprecated", count=deprecated_val, total=total_roles, color="#ef4444")
     ]
     
+    trend_points = db.query(RoleMiningTrendPoint).order_by(RoleMiningTrendPoint.id.asc()).all()
+    
     return DashboardStatsResponse(
         totalUsers=total_users,
         accounts=accounts,
@@ -140,7 +142,8 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         departmentCoverage=department_coverage,
         riskDistribution=risk_distribution,
         applicationDistribution=application_distribution,
-        roleLifecycle=role_lifecycle
+        roleLifecycle=role_lifecycle,
+        miningTrend=trend_points
     )
 
 @router.get("/recent-activities", response_model=List[RecentActivityResponse])

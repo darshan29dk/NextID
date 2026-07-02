@@ -47,3 +47,21 @@ class ApprovalQueueItem(Base):
     due_in_days = Column(Integer, nullable=False)
     risk_level = Column(String(50), nullable=False)  # low, medium, high, critical
 
+class RoleRecord(Base):
+    __tablename__ = "roles"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), nullable=False)
+    type = Column(String(50), nullable=False)  # "candidate", "published", "birthright"
+    status = Column(String(50), nullable=False)  # "Draft", "Under Review", "Active", "Deprecated"
+    risk_level = Column(String(50), nullable=False)  # "Low", "Medium", "High", "Critical"
+    department = Column(String(100), nullable=False)
+
+class RoleMiningTrendPoint(Base):
+    __tablename__ = "role_mining_trend"
+
+    id = Column(Integer, primary_key=True, index=True)
+    month = Column(String(20), nullable=False)
+    candidates = Column(Integer, default=0)
+    published = Column(Integer, default=0)
+

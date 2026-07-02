@@ -19,6 +19,14 @@ class RoleLifecycleData(BaseModel):
     total: int
     color: str
 
+class MiningTrendPoint(BaseModel):
+    month: str
+    candidates: int
+    published: int
+
+    class Config:
+        from_attributes = True
+
 class DashboardStatsResponse(BaseModel):
     totalUsers: int
     accounts: int
@@ -33,6 +41,7 @@ class DashboardStatsResponse(BaseModel):
     riskDistribution: Dict[str, int]
     applicationDistribution: List[ApplicationDistributionData]
     roleLifecycle: List[RoleLifecycleData]
+    miningTrend: List[MiningTrendPoint]
 
     class Config:
         from_attributes = True
