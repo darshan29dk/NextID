@@ -995,36 +995,7 @@ const PlatformRoles = () => {
           ))
         )}
 
-        {/* Pagination */}
-        {!loading && roles.length > 0 && (
-          <div className="pagination-footer">
-            <div className="pagination-size-selector">
-              <span>Show</span>
-              <select className="page-size-select" value={limit} onChange={(e) => { setLimit(parseInt(e.target.value)); setPage(1); }}>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-              </select>
-              <span>entries</span>
-            </div>
-            <span className="pagination-info">
-              Showing <b>{Math.min(total, (page - 1) * limit + 1)}</b> to <b>{Math.min(total, page * limit)}</b> of <b>{total}</b> roles
-            </span>
-            <div className="pagination-controls">
-              <button className="btn-page-step" disabled={page === 1} onClick={() => setPage(page - 1)}>
-                <ChevronLeft size={14} />
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((i) => (
-                <button key={i} className={`btn-page-step ${page === i ? 'active' : ''}`} onClick={() => setPage(i)}>
-                  {i}
-                </button>
-              ))}
-              <button className="btn-page-step" disabled={page === totalPages} onClick={() => setPage(page + 1)}>
-                <ChevronRight size={14} />
-              </button>
-            </div>
-          </div>
-        )}
+
       </div>
 
       {/* Modals */}
