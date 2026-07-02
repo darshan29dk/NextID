@@ -94,24 +94,21 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     
     # 3. Application Distribution (top 6 apps by account count)
     sorted_apps = sorted(app_counts.items(), key=lambda x: x[1], reverse=True)[:6]
-    # Default fallback in case no records are loaded
+
     if not sorted_apps:
-        sorted_apps = [
-            ("Active Directory", 480), ("Workday", 460), ("Slack", 440),
-            ("Salesforce", 320), ("GitHub", 290), ("Okta", 180)
+        application_distribution = []
+    else:
+        colors = ['#3b82f6', '#38bdf8', '#0ea5e9', '#0284c7', '#0369a1', '#1e3a8a']
+        max_val = max(count for name, count in sorted_apps)
+        application_distribution = [
+            ApplicationDistributionData(
+                name=name,
+                accounts=count,
+                max=int(max_val * 1.25),
+                color=colors[i % len(colors)]
+            )
+            for i, (name, count) in enumerate(sorted_apps)
         ]
-    
-    colors = ['#3b82f6', '#38bdf8', '#0ea5e9', '#0284c7', '#0369a1', '#1e3a8a']
-    max_val = max(count for name, count in sorted_apps) if sorted_apps else 600
-    
-    application_distribution = []
-    for i, (name, count) in enumerate(sorted_apps):
-        application_distribution.append(ApplicationDistributionData(
-            name=name,
-            accounts=count,
-            max=int(max_val * 1.25),
-            color=colors[i % len(colors)]
-        ))
         
     # 4. Role Lifecycle (Draft, Under Review, Active, Deprecated)
     draft_val = max(1, int(total_users * 0.004))
