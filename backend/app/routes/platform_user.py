@@ -18,14 +18,28 @@ from app.schemas.platform_user import (
 router = APIRouter()
 
 # Audit Log helper
-def write_audit_record(db: Session, user: str, action: str, details_dict: dict):
+def write_audit_record(db: Session, user: str, action: str, details_dict: dict, old_val_dict: dict = None):
     try:
-        details_str = json.dumps(details_dict, default=str)
+        old_val_str = json.dumps(old_val_dict, default=str) if old_val_dict else None
+        new_val_str = json.dumps(details_dict, default=str) if details_dict else None
+        
+        if action == "DELETE_USER":
+            old_val_str = json.dumps(details_dict, default=str)
+            new_val_str = None
+        elif action == "UPDATE_USER":
+            changes = details_dict.get("changes", {})
+            old_state = {k: v["old"] for k, v in changes.items()}
+            new_state = {k: v["new"] for k, v in changes.items()}
+            old_val_str = json.dumps(old_state, default=str)
+            new_val_str = json.dumps(new_state, default=str)
+
         audit = AuditLog(
-            user=user,
-            action=action,
-            details=details_str,
-            created_at=datetime.utcnow()
+            module="Platform Users",
+            action=action.replace("_USER", "").title(), # "Create", "Update", "Delete"
+            performed_by=user,
+            old_value=old_val_str,
+            new_value=new_val_str,
+            timestamp=datetime.utcnow()
         )
         db.add(audit)
         
