@@ -89,8 +89,8 @@ const PlatformUsers = () => {
   useEffect(() => {
     const fetchRoles = async () => {
       try {
-        const rolesData = await getPlatformRoles();
-        setRoles(rolesData);
+        const response = await getPlatformRoles({ limit: 1000 });
+        setRoles(response.roles || []);
       } catch (err) {
         console.error("Failed to load platform roles:", err);
       }
