@@ -14,5 +14,5 @@ backend/.env
 .idea/
 .DS_Store
 *.log
-git_watcher.ps1
 **/__pycache__/
+.agents/
