@@ -5,7 +5,6 @@ import pymysql
 import os
 import ssl
 from urllib.parse import urlparse, unquote
-from sshtunnel import SSHTunnelForwarder
 from app.config import DATABASE_URL
 
 # Parse connection URL to check and create database if not exists
