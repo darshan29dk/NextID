@@ -29,37 +29,22 @@ if db_ssl:
         else:
             ssl_context.set_ciphers(db_ssl_cipher)
 
-# 1. Start SSH Tunnel if configured
-use_ssh_tunnel = os.getenv("USE_SSH_TUNNEL", "false").lower() == "true"
-tunnel = None
-
-if use_ssh_tunnel:
-    ssh_host = os.getenv("SSH_HOST")
-    ssh_port = int(os.getenv("SSH_PORT", "22"))
-    ssh_user = os.getenv("SSH_USER")
-    ssh_password = os.getenv("SSH_PASSWORD")
-    
-    print(f"Database Config: Starting SSH Tunnel to {ssh_host}:{ssh_port}...")
-    try:
-        tunnel = SSHTunnelForwarder(
-            (ssh_host, ssh_port),
-            ssh_username=ssh_user,
-            ssh_password=ssh_password,
-            remote_bind_address=('127.0.0.1', 3306),
-            local_bind_address=('127.0.0.1', 3307)
-        )
-        tunnel.start()
-        print("Database Config: SSH Tunnel active on port 3307.")
-    except Exception as e:
-        print(f"Database Config: Error starting SSH Tunnel: {e}")
-
 try:
     # URL format: mysql+pymysql://root:root@localhost:3306/ranalyzer
     # We parse the connection parameters to connect to MySQL server directly
     url = DATABASE_URL
     if url.startswith("mysql+pymysql://"):
         cleaned_url = url.replace("mysql+pymysql://", "")
-        auth, host_path = cleaned_url.split("@")
+        
+        # Check if password contains '@' (split from the last '@')
+        parts = cleaned_url.split("@")
+        if len(parts) > 2:
+            auth = "@".join(parts[:-1])
+            host_path = parts[-1]
+        else:
+            auth = parts[0]
+            host_path = parts[1]
+            
         username, password = auth.split(":") if ":" in auth else (auth, "")
         
         host_port, db_path = host_path.split("/")
