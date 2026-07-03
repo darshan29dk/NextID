@@ -1,11 +1,16 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr
+from sqlalchemy.orm import Session
+from passlib.context import CryptContext
 import random
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import os
 from datetime import datetime, timedelta
+
+from app.database import get_db
+from app.models.user import User
 
 router = APIRouter()
 
@@ -16,6 +21,13 @@ otp_store = {}
 GMAIL_USER = "saniagupta2280@gmail.com"
 GMAIL_APP_PASSWORD = "zzejcvoduvnbciwh"
 OTP_EXPIRE_MINUTES = 10
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
 
 class SendOTPRequest(BaseModel):
     email: str
@@ -58,6 +70,36 @@ def send_otp_email(to_email: str, otp: str):
         server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
         server.sendmail(GMAIL_USER, to_email, msg.as_string())
 
+
+# ---------------- LOGIN ----------------
+
+@router.post("/auth/login")
+def login(request: LoginRequest, db: Session = Depends(get_db)):
+    email = request.email.strip().lower()
+
+    user = db.query(User).filter(User.email == email).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    if not user.password_hash or not pwd_context.verify(request.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    return {
+        "message": "Login successful",
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "email": user.email,
+            "role": user.role,
+            "profile_image": user.profile_image,
+            "theme": user.theme,
+        },
+    }
+
+
+# ---------------- FORGOT PASSWORD FLOW ----------------
+
 @router.post("/auth/send-otp")
 def send_otp(request: SendOTPRequest):
     email = request.email.strip().lower()
@@ -97,7 +139,7 @@ def verify_otp(request: VerifyOTPRequest):
     return {"message": "OTP verified successfully"}
 
 @router.post("/auth/reset-password")
-def reset_password(request: ResetPasswordRequest):
+def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db)):
     email = request.email.strip().lower()
 
     if email not in otp_store:
@@ -112,9 +154,16 @@ def reset_password(request: ResetPasswordRequest):
     if request.otp != stored["otp"]:
         raise HTTPException(status_code=400, detail="Invalid OTP.")
 
+    # Look up the user
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found for this email.")
+
+    # Actually update the password in the database
+    user.password_hash = pwd_context.hash(request.new_password)
+    db.commit()
+
     # Clear OTP after successful reset
     del otp_store[email]
 
-    # Later: update password in database here
-    # For now we just confirm success
     return {"message": "Password reset successfully"}

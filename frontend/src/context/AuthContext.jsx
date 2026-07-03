@@ -2,11 +2,7 @@ import { createContext, useContext, useState } from 'react'
 
 const AuthContext = createContext(null)
 
-// Two users — mocked until real backend is ready
-const USERS = [
-  { email: 'sania.gupta@ilantus.com', password: 'saniagupta', name: 'Sania Gupta', avatar: 'SG', role: 'Platform Administrator' },
-  { email: 'darshankumar.kg@ilantus.com', password: 'darshankumar', name: 'Darshan Kumar', avatar: 'DK', role: 'Platform Administrator' },
-]
+const API_BASE = 'http://127.0.0.1:8000/api'
 
 export function AuthProvider({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(
@@ -19,16 +15,45 @@ export function AuthProvider({ children }) {
     }
   )
 
-  const login = (email, password) => {
-    const user = USERS.find(u => u.email === email && u.password === password)
-    if (user) {
+  const login = async (email, password) => {
+    try {
+      const response = await fetch(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      })
+
+      if (!response.ok) {
+        return false
+      }
+
+      const data = await response.json()
+      const backendUser = data.user
+
+      const user = {
+        id: backendUser.id,
+        email: backendUser.email,
+        name: backendUser.name,
+        role: backendUser.role,
+        avatar: backendUser.profile_image
+          ? backendUser.profile_image
+          : backendUser.name
+              .split(' ')
+              .map((part) => part[0])
+              .join('')
+              .toUpperCase(),
+        theme: backendUser.theme,
+      }
+
       localStorage.setItem('ranalyzer_auth', 'true')
       localStorage.setItem('ranalyzer_user', JSON.stringify(user))
       setIsAuthenticated(true)
       setCurrentUser(user)
       return true
+    } catch (err) {
+      console.error('Login request failed:', err)
+      return false
     }
-    return false
   }
 
   const logout = () => {

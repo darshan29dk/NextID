@@ -15,13 +15,12 @@ function Login() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
-  // Apply saved theme on login page
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') || 'dark'
     document.body.className = `theme-${savedTheme}`
   }, [])
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
 
@@ -32,21 +31,18 @@ function Login() {
 
     setIsLoading(true)
 
-    // Mocked auth — replace with real FastAPI call later
-    setTimeout(() => {
-      const success = login(email, password)
-      if (success) {
-        navigate('/dashboard')
-      } else {
-        setError('Invalid email or password.')
-        setIsLoading(false)
-      }
-    }, 800)
+    const success = await login(email, password)
+
+    if (success) {
+      navigate('/dashboard')
+    } else {
+      setError('Invalid email or password.')
+      setIsLoading(false)
+    }
   }
 
   return (
     <div className="login-container">
-      {/* Left Branding Panel */}
       <div className="login-left">
         <div className="login-grid-pattern" />
         <div className="login-glow" />
@@ -75,7 +71,6 @@ function Login() {
         </div>
       </div>
 
-      {/* Right Form Panel */}
       <div className="login-right">
         <div className="login-form-box">
           <h1>Welcome Back</h1>
