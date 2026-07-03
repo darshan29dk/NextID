@@ -10,3 +10,4 @@ class User(Base):
     role = Column(String(100), nullable=False)
     profile_image = Column(String(255), nullable=True)
     theme = Column(String(20), default="light")
+    password_hash = Column(String(255), nullable=False, default="")
