@@ -4,7 +4,8 @@ from sqlalchemy.orm import sessionmaker
 import pymysql
 import os
 import ssl
-from urllib.parse import urlparse
+from urllib.parse import urlparse, unquote
+from sshtunnel import SSHTunnelForwarder
 from app.config import DATABASE_URL
 
 # Parse connection URL to check and create database if not exists
@@ -28,6 +29,30 @@ if db_ssl:
         else:
             ssl_context.set_ciphers(db_ssl_cipher)
 
+# 1. Start SSH Tunnel if configured
+use_ssh_tunnel = os.getenv("USE_SSH_TUNNEL", "false").lower() == "true"
+tunnel = None
+
+if use_ssh_tunnel:
+    ssh_host = os.getenv("SSH_HOST")
+    ssh_port = int(os.getenv("SSH_PORT", "22"))
+    ssh_user = os.getenv("SSH_USER")
+    ssh_password = os.getenv("SSH_PASSWORD")
+    
+    print(f"Database Config: Starting SSH Tunnel to {ssh_host}:{ssh_port}...")
+    try:
+        tunnel = SSHTunnelForwarder(
+            (ssh_host, ssh_port),
+            ssh_username=ssh_user,
+            ssh_password=ssh_password,
+            remote_bind_address=('127.0.0.1', 3306),
+            local_bind_address=('127.0.0.1', 3307)
+        )
+        tunnel.start()
+        print("Database Config: SSH Tunnel active on port 3307.")
+    except Exception as e:
+        print(f"Database Config: Error starting SSH Tunnel: {e}")
+
 try:
     # URL format: mysql+pymysql://root:root@localhost:3306/ranalyzer
     # We parse the connection parameters to connect to MySQL server directly
@@ -46,7 +71,7 @@ try:
         connect_params = {
             "host": host,
             "user": username,
-            "password": password,
+            "password": unquote(password),  # Decode url-encoded special characters like '@'
             "port": port
         }
         if ssl_context:
