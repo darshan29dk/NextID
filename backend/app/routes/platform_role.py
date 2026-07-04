@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func, desc, asc
 from typing import List, Optional
@@ -200,7 +200,11 @@ def get_platform_role_detail(id: int, db: Session = Depends(get_db)):
     )
 
 @router.post("/platform-roles", response_model=PlatformRoleResponse, status_code=status.HTTP_201_CREATED)
-def create_platform_role(payload: PlatformRoleCreate, db: Session = Depends(get_db)):
+def create_platform_role(
+    payload: PlatformRoleCreate,
+    db: Session = Depends(get_db),
+    x_user_name: str = Header(default="Unknown User")
+):
     # Uniqueness checks
     if db.query(PlatformRole).filter(PlatformRole.role_code == payload.role_code, PlatformRole.is_deleted == False).first():
         raise HTTPException(status_code=400, detail="A Platform Role with this Role Code already exists.")
@@ -218,8 +222,8 @@ def create_platform_role(payload: PlatformRoleCreate, db: Session = Depends(get_
         approval_required=payload.approval_required,
         is_system_role=payload.is_system_role,
         is_deleted=False,
-        created_by="Darshan Kumar",
-        modified_by="Darshan Kumar"
+        created_by=x_user_name,
+        modified_by=x_user_name
     )
     db.add(role)
     db.commit()
@@ -235,7 +239,7 @@ def create_platform_role(payload: PlatformRoleCreate, db: Session = Depends(get_
         "risk_level": role.risk_level,
         "status": role.status
     }
-    write_role_audit(db=db, user="Darshan Kumar", action="Create", old_val=None, new_val=role_dict)
+    write_role_audit(db=db, user=x_user_name, action="Create", old_val=None, new_val=role_dict)
 
     return PlatformRoleResponse(
         id=role.id,
@@ -256,7 +260,12 @@ def create_platform_role(payload: PlatformRoleCreate, db: Session = Depends(get_
     )
 
 @router.put("/platform-roles/{id}", response_model=PlatformRoleResponse)
-def update_platform_role(id: int, payload: PlatformRoleUpdate, db: Session = Depends(get_db)):
+def update_platform_role(
+    id: int,
+    payload: PlatformRoleUpdate,
+    db: Session = Depends(get_db),
+    x_user_name: str = Header(default="Unknown User")
+):
     role = db.query(PlatformRole).filter(PlatformRole.id == id, PlatformRole.is_deleted == False).first()
     if not role:
         raise HTTPException(status_code=404, detail="Platform role not found")
@@ -297,7 +306,7 @@ def update_platform_role(id: int, payload: PlatformRoleUpdate, db: Session = Dep
 
     if changes:
         role.updated_at = datetime.utcnow()
-        role.modified_by = "Darshan Kumar"
+        role.modified_by = x_user_name
         db.commit()
         db.refresh(role)
 
@@ -313,7 +322,7 @@ def update_platform_role(id: int, payload: PlatformRoleUpdate, db: Session = Dep
         # Log update details
         write_role_audit(
             db=db,
-            user="Darshan Kumar",
+            user=x_user_name,
             action=action_type,
             old_val=old_role_dict,
             new_val=new_role_dict
@@ -344,7 +353,11 @@ def update_platform_role(id: int, payload: PlatformRoleUpdate, db: Session = Dep
     )
 
 @router.delete("/platform-roles/{id}")
-def delete_platform_role(id: int, db: Session = Depends(get_db)):
+def delete_platform_role(
+    id: int,
+    db: Session = Depends(get_db),
+    x_user_name: str = Header(default="Unknown User")
+):
     role = db.query(PlatformRole).filter(PlatformRole.id == id, PlatformRole.is_deleted == False).first()
     if not role:
         raise HTTPException(status_code=404, detail="Platform role not found")
@@ -352,7 +365,7 @@ def delete_platform_role(id: int, db: Session = Depends(get_db)):
     # Soft delete
     role.is_deleted = True
     role.updated_at = datetime.utcnow()
-    role.modified_by = "Darshan Kumar"
+    role.modified_by = x_user_name
     db.commit()
 
     role_dict = {
@@ -360,6 +373,6 @@ def delete_platform_role(id: int, db: Session = Depends(get_db)):
         "role_code": role.role_code,
         "role_name": role.role_name
     }
-    write_role_audit(db=db, user="Darshan Kumar", action="Delete", old_val=role_dict, new_val=None)
+    write_role_audit(db=db, user=x_user_name, action="Delete", old_val=role_dict, new_val=None)
 
     return {"detail": "Platform role deleted successfully"}

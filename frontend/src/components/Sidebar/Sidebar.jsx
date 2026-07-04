@@ -9,12 +9,13 @@ import {
   Shield, 
   History, 
   BarChart3, 
-  Settings, 
+  Settings as SettingsIcon, 
   ChevronRight, 
   ChevronLeft,
   Server,
   Users,
-  Key
+  Key,
+  FileText
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -40,7 +41,10 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     { type: 'item', label: 'Analytics', icon: BarChart3, path: 'analytics', hasSub: true },
     { type: 'heading', label: 'ADMINISTRATION' },
     { type: 'item', label: 'Platform Users', icon: Users, path: 'administration/users' },
-    { type: 'item', label: 'Platform Roles', icon: Key, path: 'administration/roles' }
+    { type: 'item', label: 'Platform Roles', icon: Key, path: 'administration/roles' },
+    { type: 'item', label: 'Audit Logs', icon: FileText, path: 'administration/audit-logs' },
+    { type: 'heading', label: 'SYSTEM' },
+    { type: 'item', label: 'Settings', icon: SettingsIcon, path: 'system/settings' }
   ];
 
   return (

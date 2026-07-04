@@ -11,16 +11,15 @@ from datetime import datetime, timedelta
 
 from app.database import get_db
 from app.models.user import User
+from app.models.audit_log import AuditLog
+from app.models.platform_settings import PlatformSettings
 
 router = APIRouter()
 
-# Temporary in-memory OTP store
-# Format: { email: { otp: "123456", expires_at: datetime } }
 otp_store = {}
 
 GMAIL_USER = "saniagupta2280@gmail.com"
 GMAIL_APP_PASSWORD = "zzejcvoduvnbciwh"
-OTP_EXPIRE_MINUTES = 10
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -28,6 +27,9 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+class LogoutRequest(BaseModel):
+    email: str
 
 class SendOTPRequest(BaseModel):
     email: str
@@ -41,7 +43,24 @@ class ResetPasswordRequest(BaseModel):
     otp: str
     new_password: str
 
-def send_otp_email(to_email: str, otp: str):
+
+def write_auth_audit(db: Session, user: str, action: str, detail: str = None):
+    try:
+        audit = AuditLog(
+            module="Authentication",
+            action=action,
+            performed_by=user,
+            old_value=None,
+            new_value=detail,
+            timestamp=datetime.utcnow()
+        )
+        db.add(audit)
+        db.commit()
+    except Exception as e:
+        print(f"Warning: Failed to write auth audit record: {e}")
+
+
+def send_otp_email(to_email: str, otp: str, expiry_minutes: int):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = "rAnalyzer - Your OTP for Password Reset"
     msg["From"] = GMAIL_USER
@@ -52,7 +71,7 @@ def send_otp_email(to_email: str, otp: str):
       <body style="font-family: Arial, sans-serif; background-color: #f4f6f9; padding: 40px;">
         <div style="max-width: 480px; margin: auto; background: #ffffff; border-radius: 12px; padding: 40px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
           <h2 style="color: #1e293b; margin-bottom: 8px;">Password Reset OTP</h2>
-          <p style="color: #64748b; margin-bottom: 24px;">Use the OTP below to reset your rAnalyzer password. It expires in {OTP_EXPIRE_MINUTES} minutes.</p>
+          <p style="color: #64748b; margin-bottom: 24px;">Use the OTP below to reset your rAnalyzer password. It expires in {expiry_minutes} minutes.</p>
           <div style="background: #f0f4ff; border: 1px solid #c7d7fe; border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 24px;">
             <span style="font-size: 36px; font-weight: 800; letter-spacing: 8px; color: #2563eb;">{otp}</span>
           </div>
@@ -71,19 +90,17 @@ def send_otp_email(to_email: str, otp: str):
         server.sendmail(GMAIL_USER, to_email, msg.as_string())
 
 
-# ---------------- LOGIN ----------------
-
 @router.post("/auth/login")
 def login(request: LoginRequest, db: Session = Depends(get_db)):
     email = request.email.strip().lower()
 
     user = db.query(User).filter(User.email == email).first()
 
-    if not user:
+    if not user or not user.password_hash or not pwd_context.verify(request.password, user.password_hash):
+        write_auth_audit(db, user=email, action="Failed Login", detail="Invalid email or password")
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    if not user.password_hash or not pwd_context.verify(request.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+    write_auth_audit(db, user=user.name, action="Login", detail=f"Logged in as {user.email}")
 
     return {
         "message": "Login successful",
@@ -98,23 +115,32 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     }
 
 
-# ---------------- FORGOT PASSWORD FLOW ----------------
+@router.post("/auth/logout")
+def logout(request: LogoutRequest, db: Session = Depends(get_db)):
+    email = request.email.strip().lower()
+    user = db.query(User).filter(User.email == email).first()
+    display_name = user.name if user else email
+
+    write_auth_audit(db, user=display_name, action="Logout", detail=f"Logged out ({email})")
+
+    return {"message": "Logout recorded"}
+
 
 @router.post("/auth/send-otp")
-def send_otp(request: SendOTPRequest):
+def send_otp(request: SendOTPRequest, db: Session = Depends(get_db)):
     email = request.email.strip().lower()
-
-    # Generate 6-digit OTP
     otp = str(random.randint(100000, 999999))
 
-    # Store OTP with expiry
+    settings = db.query(PlatformSettings).first()
+    expiry_minutes = settings.otp_expiry_minutes if settings else 10
+
     otp_store[email] = {
         "otp": otp,
-        "expires_at": datetime.utcnow() + timedelta(minutes=OTP_EXPIRE_MINUTES)
+        "expires_at": datetime.utcnow() + timedelta(minutes=expiry_minutes)
     }
 
     try:
-        send_otp_email(email, otp)
+        send_otp_email(email, otp, expiry_minutes)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to send OTP email: {str(e)}")
 
@@ -154,16 +180,13 @@ def reset_password(request: ResetPasswordRequest, db: Session = Depends(get_db))
     if request.otp != stored["otp"]:
         raise HTTPException(status_code=400, detail="Invalid OTP.")
 
-    # Look up the user
     user = db.query(User).filter(User.email == email).first()
     if not user:
         raise HTTPException(status_code=404, detail="No account found for this email.")
 
-    # Actually update the password in the database
     user.password_hash = pwd_context.hash(request.new_password)
     db.commit()
 
-    # Clear OTP after successful reset
     del otp_store[email]
 
     return {"message": "Password reset successfully"}

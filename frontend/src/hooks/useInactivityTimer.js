@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 
-const WARNING_AFTER = 15000  // 15 seconds for testing
-const LOGOUT_AFTER = 25000   // 25 seconds for testing
+const DEFAULT_WARNING_AFTER = 14 * 60 * 1000  // 14 minutes
+const DEFAULT_LOGOUT_AFTER = 15 * 60 * 1000   // 15 minutes
 
-export function useInactivityTimer(onLogout) {
+export function useInactivityTimer(onLogout, warningAfterMs = DEFAULT_WARNING_AFTER, logoutAfterMs = DEFAULT_LOGOUT_AFTER) {
   const [showWarning, setShowWarning] = useState(false)
   const warningTimerRef = useRef(null)
   const logoutTimerRef = useRef(null)
@@ -15,11 +15,11 @@ export function useInactivityTimer(onLogout) {
 
     warningTimerRef.current = setTimeout(() => {
       setShowWarning(true)
-    }, WARNING_AFTER)
+    }, warningAfterMs)
 
     logoutTimerRef.current = setTimeout(() => {
       onLogout()
-    }, LOGOUT_AFTER)
+    }, logoutAfterMs)
   }
 
   useEffect(() => {
@@ -35,7 +35,9 @@ export function useInactivityTimer(onLogout) {
       clearTimeout(warningTimerRef.current)
       clearTimeout(logoutTimerRef.current)
     }
-  }, [])
+    // Re-initialize timers whenever the configured durations change
+    // (e.g. once real settings load from the backend)
+  }, [warningAfterMs, logoutAfterMs])
 
   const stayActive = () => resetTimers()
 

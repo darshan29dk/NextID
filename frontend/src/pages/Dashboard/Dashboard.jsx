@@ -33,7 +33,8 @@ import {
   getRecentActivities, 
   getApprovalQueue, 
   uploadIdentityData, 
-  syncApiKey 
+  syncApiKey,
+  getSettings
 } from '../../services/dashboardService';
 import './Dashboard.css';
 
@@ -53,7 +54,25 @@ const getGreeting = () => {
     navigate('/login');
   };
 
-  const { showWarning, stayActive } = useInactivityTimer(handleLogout);
+  const [sessionTimeoutMinutes, setSessionTimeoutMinutes] = useState(15);
+
+  useEffect(() => {
+    const fetchSessionSetting = async () => {
+      try {
+        const settings = await getSettings();
+        if (settings?.session_timeout_minutes) {
+          setSessionTimeoutMinutes(settings.session_timeout_minutes);
+        }
+      } catch (err) {
+        console.error('Could not load session timeout setting, using default:', err);
+      }
+    };
+    fetchSessionSetting();
+  }, []);
+
+  const logoutAfterMs = sessionTimeoutMinutes * 60 * 1000;
+  const warningAfterMs = Math.max(logoutAfterMs - 60 * 1000, 0);
+  const { showWarning, stayActive } = useInactivityTimer(handleLogout, warningAfterMs, logoutAfterMs);
 
   const [stats, setStats] = useState({
     totalUsers: 0,

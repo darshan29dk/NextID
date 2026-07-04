@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, func
 from typing import List, Optional
@@ -121,7 +121,11 @@ def get_platform_user(id: int, db: Session = Depends(get_db)):
     return user
 
 @router.post("/platform-users", response_model=PlatformUserResponse, status_code=status.HTTP_201_CREATED)
-def create_platform_user(payload: PlatformUserCreate, db: Session = Depends(get_db)):
+def create_platform_user(
+    payload: PlatformUserCreate,
+    db: Session = Depends(get_db),
+    x_user_name: str = Header(default="Unknown User")
+):
     # Verify email uniqueness
     if db.query(PlatformUser).filter(PlatformUser.email == payload.email, PlatformUser.is_deleted == False).first():
         raise HTTPException(status_code=400, detail="A user with this email already exists.")
@@ -150,8 +154,8 @@ def create_platform_user(payload: PlatformUserCreate, db: Session = Depends(get_
         status=payload.status or "Active",
         manager=payload.manager,
         is_deleted=False,
-        created_by="Darshan Kumar", # Logged-in admin
-        modified_by="Darshan Kumar"
+        created_by=x_user_name,
+        modified_by=x_user_name
     )
     db.add(user)
     db.commit()
@@ -160,7 +164,7 @@ def create_platform_user(payload: PlatformUserCreate, db: Session = Depends(get_
     # Log action
     write_audit_record(
         db=db,
-        user="Darshan Kumar",
+        user=x_user_name,
         action="CREATE_USER",
         details_dict={
             "id": user.id,
@@ -176,7 +180,12 @@ def create_platform_user(payload: PlatformUserCreate, db: Session = Depends(get_
     return user
 
 @router.put("/platform-users/{id}", response_model=PlatformUserResponse)
-def update_platform_user(id: int, payload: PlatformUserUpdate, db: Session = Depends(get_db)):
+def update_platform_user(
+    id: int,
+    payload: PlatformUserUpdate,
+    db: Session = Depends(get_db),
+    x_user_name: str = Header(default="Unknown User")
+):
     user = db.query(PlatformUser).filter(PlatformUser.id == id, PlatformUser.is_deleted == False).first()
     if not user:
         raise HTTPException(status_code=404, detail="Platform user not found")
@@ -209,14 +218,14 @@ def update_platform_user(id: int, payload: PlatformUserUpdate, db: Session = Dep
 
     if changes:
         user.updated_at = datetime.utcnow()
-        user.modified_by = "Darshan Kumar"
+        user.modified_by = x_user_name
         db.commit()
         db.refresh(user)
 
         # Log action
         write_audit_record(
             db=db,
-            user="Darshan Kumar",
+            user=x_user_name,
             action="UPDATE_USER",
             details_dict={
                 "id": user.id,
@@ -230,7 +239,11 @@ def update_platform_user(id: int, payload: PlatformUserUpdate, db: Session = Dep
     return user
 
 @router.delete("/platform-users/{id}")
-def delete_platform_user(id: int, db: Session = Depends(get_db)):
+def delete_platform_user(
+    id: int,
+    db: Session = Depends(get_db),
+    x_user_name: str = Header(default="Unknown User")
+):
     user = db.query(PlatformUser).filter(PlatformUser.id == id, PlatformUser.is_deleted == False).first()
     if not user:
         raise HTTPException(status_code=404, detail="Platform user not found")
@@ -238,13 +251,13 @@ def delete_platform_user(id: int, db: Session = Depends(get_db)):
     # Perform soft delete
     user.is_deleted = True
     user.updated_at = datetime.utcnow()
-    user.modified_by = "Darshan Kumar"
+    user.modified_by = x_user_name
     db.commit()
 
     # Log action
     write_audit_record(
         db=db,
-        user="Darshan Kumar",
+        user=x_user_name,
         action="DELETE_USER",
         details_dict={
             "id": user.id,
@@ -255,5 +268,3 @@ def delete_platform_user(id: int, db: Session = Depends(get_db)):
     )
 
     return {"detail": "Platform user deleted successfully"}
-
-

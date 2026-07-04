@@ -7,8 +7,9 @@ import ForgotPassword from './pages/ForgotPassword/ForgotPassword';
 import ProtectedRoute from './components/ProtectedRoute/ProtectedRoute';
 import PlatformUsers from './pages/Administration/PlatformUsers';
 import PlatformRoles from './pages/Administration/PlatformRoles';
+import AuditLogs from './pages/Administration/AuditLogs/AuditLogs';
+import Settings from './pages/Administration/Settings/Settings';
 
-// Elegant under-construction fallback component
 const UnderConstruction = ({ title }) => {
   return (
     <div style={{
@@ -44,11 +45,9 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Public routes — no layout needed */}
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        {/* Protected routes — wrapped in DashboardLayout */}
         <Route
           path="/*"
           element={
@@ -67,14 +66,15 @@ function App() {
                   <Route path="/administration" element={<Navigate to="/administration/users" replace />} />
                   <Route path="/administration/users" element={<PlatformUsers />} />
                   <Route path="/administration/roles" element={<PlatformRoles />} />
+                  <Route path="/administration/audit-logs" element={<AuditLogs />} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/system/settings" element={<Settings />} />
                 </Routes>
               </DashboardLayout>
             </ProtectedRoute>
           }
         />
 
-        {/* Default redirect to login */}
         <Route path="/" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>

@@ -56,11 +56,23 @@ export function AuthProvider({ children }) {
     }
   }
 
-  const logout = () => {
-    localStorage.removeItem('ranalyzer_auth')
-    localStorage.removeItem('ranalyzer_user')
-    setIsAuthenticated(false)
-    setCurrentUser(null)
+  const logout = async () => {
+    try {
+      if (currentUser?.email) {
+        await fetch(`${API_BASE}/auth/logout`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: currentUser.email }),
+        })
+      }
+    } catch (err) {
+      console.error('Logout logging failed:', err)
+    } finally {
+      localStorage.removeItem('ranalyzer_auth')
+      localStorage.removeItem('ranalyzer_user')
+      setIsAuthenticated(false)
+      setCurrentUser(null)
+    }
   }
 
   return (

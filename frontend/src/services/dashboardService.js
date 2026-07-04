@@ -9,6 +9,24 @@ const apiClient = axios.create({
   },
 });
 
+// Attach the currently logged-in user's name to every outgoing request,
+// so the backend can record who actually performed each action
+// (used for audit logging instead of a hardcoded name).
+apiClient.interceptors.request.use((config) => {
+  try {
+    const saved = localStorage.getItem('ranalyzer_user');
+    if (saved) {
+      const user = JSON.parse(saved);
+      if (user?.name) {
+        config.headers['X-User-Name'] = user.name;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not attach user header:', err);
+  }
+  return config;
+});
+
 export const getDashboardStats = async () => {
   const response = await apiClient.get('/dashboard');
   return response.data;
@@ -110,4 +128,27 @@ export const deletePlatformRole = async (id) => {
   return response.data;
 };
 
+export const getAuditLogs = async (params) => {
+  const response = await apiClient.get('/audit-logs', { params });
+  return response.data;
+};
 
+export const getAuditLogModules = async () => {
+  const response = await apiClient.get('/audit-logs/modules');
+  return response.data;
+};
+
+export const getAuditLogActions = async () => {
+  const response = await apiClient.get('/audit-logs/actions');
+  return response.data;
+};
+
+export const getSettings = async () => {
+  const response = await apiClient.get('/settings');
+  return response.data;
+};
+
+export const updateSettings = async (settingsData) => {
+  const response = await apiClient.put('/settings', settingsData);
+  return response.data;
+};
