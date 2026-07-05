@@ -34,6 +34,11 @@ const Header = ({
 
   const unreadCount = notifications.filter(n => n.status === 'unread').length;
 
+  const handleGoToProfile = () => {
+    setShowProfileMenu(false);
+    navigate('/profile');
+  };
+
   return (
     <header className="header">
       <div className="search-container">
@@ -120,7 +125,7 @@ const Header = ({
                 <p className="menu-useremail">{profile.email}</p>
               </div>
               <div className="menu-divider"></div>
-              <button className="menu-item">
+              <button className="menu-item" onClick={handleGoToProfile}>
                 <UserIcon size={14} />
                 <span>My Profile</span>
               </button>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Save } from 'lucide-react';
+import { Save, Lock } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import Breadcrumb from '../../../components/Breadcrumb/Breadcrumb';
 import { getSettings, updateSettings } from '../../../services/dashboardService';
 import './Settings.css';
@@ -14,7 +15,10 @@ const TIMEZONES = [
   'Asia/Tokyo',
 ];
 
+const APP_NAME = 'rAnalyzer';
+
 const Settings = () => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -63,7 +67,7 @@ const Settings = () => {
       setSuccessMsg(null);
 
       const payload = {
-        app_name: formData.app_name,
+        app_name: APP_NAME,
         support_email: formData.support_email,
         default_timezone: formData.default_timezone,
         session_timeout_minutes: formData.session_timeout_minutes,
@@ -121,14 +125,23 @@ const Settings = () => {
           <h4>General</h4>
           <div className="form-row-grid-2">
             <div className="input-group-custom">
-              <label>App Name</label>
-              <input
-                type="text"
-                name="app_name"
-                value={formData.app_name || ''}
-                onChange={handleChange}
-                placeholder="e.g. rAnalyzer"
-              />
+              <label>Tool Name</label>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontWeight: 700,
+                  fontSize: '15px',
+                  padding: '10px 14px',
+                  background: 'var(--bg-hover)',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                }}
+              >
+                <span>{APP_NAME}</span>
+                <Lock size={14} className="text-muted" />
+              </div>
             </div>
             <div className="input-group-custom">
               <label>Support Email</label>
@@ -205,6 +218,24 @@ const Settings = () => {
               />
               <span className="slider"></span>
             </label>
+          </div>
+        </div>
+
+        <div className="settings-section">
+          <h4>Account</h4>
+          <div className="toggle-row">
+            <div>
+              <label>My Profile</label>
+              <span className="field-hint">View your name, email, and role.</span>
+            </div>
+            <button
+              type="button"
+              className="btn-modal-cancel"
+              style={{ border: '1px solid var(--border-color)' }}
+              onClick={() => navigate('/profile')}
+            >
+              View Profile
+            </button>
           </div>
         </div>
 

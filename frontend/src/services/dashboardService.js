@@ -152,3 +152,28 @@ export const updateSettings = async (settingsData) => {
   const response = await apiClient.put('/settings', settingsData);
   return response.data;
 };
+
+export const getLicenses = async (params) => {
+  const response = await apiClient.get('/licenses', { params });
+  return response.data;
+};
+
+export const getLicense = async (id) => {
+  const response = await apiClient.get(`/licenses/${id}`);
+  return response.data;
+};
+
+export const createLicense = async (licenseData) => {
+  const response = await apiClient.post('/licenses', licenseData);
+  return response.data;
+};
+
+export const updateLicense = async (id, licenseData) => {
+  const response = await apiClient.put(`/licenses/${id}`, licenseData);
+  return response.data;
+};
+
+export const deleteLicense = async (id) => {
+  const response = await apiClient.delete(`/licenses/${id}`);
+  return response.data;
+};

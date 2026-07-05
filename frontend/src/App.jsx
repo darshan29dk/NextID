@@ -9,6 +9,8 @@ import PlatformUsers from './pages/Administration/PlatformUsers';
 import PlatformRoles from './pages/Administration/PlatformRoles';
 import AuditLogs from './pages/Administration/AuditLogs/AuditLogs';
 import Settings from './pages/Administration/Settings/Settings';
+import LicenseManagement from './pages/System/LicenseManagement/LicenseManagement';
+import Profile from './pages/Profile/Profile';
 
 const UnderConstruction = ({ title }) => {
   return (
@@ -67,8 +69,10 @@ function App() {
                   <Route path="/administration/users" element={<PlatformUsers />} />
                   <Route path="/administration/roles" element={<PlatformRoles />} />
                   <Route path="/administration/audit-logs" element={<AuditLogs />} />
-                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/system/settings" element={<Settings />} />
+                  <Route path="/system/license-management" element={<LicenseManagement />} />
+                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/profile" element={<Profile />} />
                 </Routes>
               </DashboardLayout>
             </ProtectedRoute>

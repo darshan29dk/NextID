@@ -15,7 +15,8 @@ import {
   Server,
   Users,
   Key,
-  FileText
+  FileText,
+  KeyRound
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -44,7 +45,8 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     { type: 'item', label: 'Platform Roles', icon: Key, path: 'administration/roles' },
     { type: 'item', label: 'Audit Logs', icon: FileText, path: 'administration/audit-logs' },
     { type: 'heading', label: 'SYSTEM' },
-    { type: 'item', label: 'Settings', icon: SettingsIcon, path: 'system/settings' }
+    { type: 'item', label: 'Settings', icon: SettingsIcon, path: 'system/settings' },
+    { type: 'item', label: 'License Management', icon: KeyRound, path: 'system/license-management' }
   ];
 
   return (
