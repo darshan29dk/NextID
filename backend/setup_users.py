@@ -69,10 +69,11 @@ def main():
                         """
                         INSERT INTO users (name, email, role, password_hash)
                         VALUES (%s, %s, %s, %s)
+                        ON DUPLICATE KEY UPDATE name = VALUES(name), role = VALUES(role), password_hash = VALUES(password_hash)
                         """,
                         (u["name"], u["email"], u["role"], hashed),
                     )
-                    print(f"Inserted new user ({u['email']})")
+                    print(f"Inserted or updated user ({u['email']})")
 
         conn.commit()
         print("Done. All changes committed.")

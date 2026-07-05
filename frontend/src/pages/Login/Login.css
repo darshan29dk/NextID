@@ -11,7 +11,9 @@
 .login-left {
   position: relative;
   width: 60%;
-  background: linear-gradient(135deg, #0a0f1d 0%, #0f172a 50%, #0a0f1d 100%);
+  background: linear-gradient(rgba(10, 15, 29, 0.82), rgba(15, 23, 42, 0.82)), url('/login_bg_tech.png');
+  background-size: cover;
+  background-position: center;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -55,12 +57,12 @@
 .login-brand-icon {
   width: 48px;
   height: 48px;
-  background: var(--primary);
   border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  overflow: hidden;
 }
 
 .login-brand-text h2 {
@@ -88,15 +90,15 @@
 }
 
 .login-heading .white { color: #ffffff; }
-.login-heading .blue { color: var(--primary); }
-.login-heading .muted { color: #334155; }
+.login-heading .blue { color: #38bdf8; } /* Vibrant sky-blue/cyan for contrast */
+.login-heading .muted { color: #64748b; } /* Lighter gray/slate for visibility */
 
 .login-quote {
-  border-left: 3px solid var(--primary);
+  border-left: 3px solid #38bdf8; /* Vibrant left border */
   padding-left: 16px;
   font-size: 16px;
   font-style: italic;
-  color: #94a3b8;
+  color: #cbd5e1; /* Brighter gray for contrast */
   line-height: 1.6;
   max-width: 420px;
 }
