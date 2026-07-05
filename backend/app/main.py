@@ -1,13 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, SessionLocal
-from app.routes import dashboard, notification, profile, theme, platform_user, platform_role, auth,audit_log, platform_settings
+from app.routes import dashboard, notification, profile, theme, platform_user, platform_role, auth, audit_log, platform_settings
+from app.routes import license as license_routes
 from app.models.user import User
 from app.models.notification import Notification
 from app.models.dashboard import RecentActivity, IdentityRecord, ApprovalQueueItem, RoleRecord, RoleMiningTrendPoint
 from app.models.platform_role import PlatformRole
 from app.models.platform_user import PlatformUser
 from app.models.audit_log import AuditLog
+from app.models.license import License
 from datetime import datetime
 
 # Create database tables if they do not exist
@@ -96,6 +98,7 @@ app.include_router(platform_role.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(platform_settings.router, prefix="/api")
 app.include_router(audit_log.router, prefix="/api")
+app.include_router(license_routes.router, prefix="/api")
 
 @app.get("/")
 def read_root():
