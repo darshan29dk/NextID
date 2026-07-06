@@ -12,6 +12,10 @@ import Settings from './pages/Administration/Settings/Settings';
 import LicenseManagement from './pages/System/LicenseManagement/LicenseManagement';
 import Profile from './pages/Profile/Profile';
 // import MenuPermissions from './pages/Administration/MenuPermissions';
+import IdentityAttributes from './pages/Administration/IdentityAttributes';
+import AccountAttributes from './pages/Administration/AccountAttributes';
+import EntitlementAttributes from './pages/Administration/EntitlementAttributes';
+import RoleAttributes from './pages/Administration/RoleAttributes';
 
 const UnderConstruction = ({ title }) => {
   return (
@@ -59,21 +63,46 @@ function App() {
                 <Routes>
                   <Route path="/" element={<Navigate to="/dashboard" replace />} />
                   <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/data-foundation" element={<UnderConstruction title="Data Foundation" />} />
+
+                  {/* ── Data Foundation (new canonical routes) ── */}
+                  <Route path="/data-foundation/identity" element={<IdentityAttributes />} />
+                  <Route path="/data-foundation/account" element={<AccountAttributes />} />
+                  <Route path="/data-foundation/entitlement" element={<EntitlementAttributes />} />
+                  <Route path="/data-foundation/role" element={<RoleAttributes />} />
+                  <Route path="/data-foundation/custom" element={<UnderConstruction title="Custom Attributes" />} />
+                  <Route path="/data-foundation/categories" element={<UnderConstruction title="Attribute Categories" />} />
+                  <Route path="/data-foundation/validation" element={<UnderConstruction title="Attribute Validation" />} />
+
+                  {/* ── Legacy redirects – preserve old bookmarks ── */}
+                  <Route path="/attribute-management/identity"    element={<Navigate to="/data-foundation/identity"    replace />} />
+                  <Route path="/attribute-management/account"     element={<Navigate to="/data-foundation/account"     replace />} />
+                  <Route path="/attribute-management/entitlement" element={<Navigate to="/data-foundation/entitlement" replace />} />
+                  <Route path="/attribute-management/roles"       element={<Navigate to="/data-foundation/role"        replace />} />
+                  <Route path="/attribute-management/custom"      element={<Navigate to="/data-foundation/custom"      replace />} />
+                  <Route path="/attribute-management/categories"  element={<Navigate to="/data-foundation/categories"  replace />} />
+                  <Route path="/attribute-management/validation"  element={<Navigate to="/data-foundation/validation"  replace />} />
+
+                  {/* ── Other modules (under construction) ── */}
+                  <Route path="/data-foundation" element={<Navigate to="/data-foundation/identity" replace />} />
                   <Route path="/role-discovery" element={<UnderConstruction title="Role Discovery" />} />
                   <Route path="/role-engineering" element={<UnderConstruction title="Role Engineering" />} />
                   <Route path="/role-catalog" element={<UnderConstruction title="Role Catalog" />} />
                   <Route path="/governance" element={<UnderConstruction title="Governance" />} />
                   <Route path="/role-lifecycle" element={<UnderConstruction title="Role Lifecycle" />} />
                   <Route path="/analytics" element={<UnderConstruction title="Analytics" />} />
+
+                  {/* ── Administration ── */}
                   <Route path="/administration" element={<Navigate to="/administration/users" replace />} />
                   <Route path="/administration/users" element={<PlatformUsers />} />
                   <Route path="/administration/roles" element={<PlatformRoles />} />
                   <Route path="/administration/audit-logs" element={<AuditLogs />} />
+
+                  {/* ── System ── */}
                   <Route path="/system/settings" element={<Settings />} />
                   <Route path="/system/license-management" element={<LicenseManagement />} />
-                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
+
                   <Route path="/profile" element={<Profile />} />
+                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
               </DashboardLayout>
             </ProtectedRoute>
@@ -87,3 +116,4 @@ function App() {
 }
 
 export default App;
+

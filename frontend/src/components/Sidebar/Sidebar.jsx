@@ -16,7 +16,13 @@ import {
   Users,
   Key,
   FileText,
-  KeyRound
+  KeyRound,
+  Monitor,
+  Layers,
+  ShieldAlert,
+  FolderTree,
+  BadgeCheck,
+  Settings2
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -27,7 +33,13 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
 
   const navItems = [
     { type: 'heading', label: 'DATA FOUNDATION' },
-    { type: 'item', label: 'Data Foundation', icon: Database, path: 'data-foundation', hasSub: true },
+    { type: 'item', label: 'Identity Attributes', icon: Users, path: 'data-foundation/identity' },
+    { type: 'item', label: 'Account Attributes', icon: Database, path: 'data-foundation/account' },
+    { type: 'item', label: 'Entitlement Attributes', icon: Shield, path: 'data-foundation/entitlement' },
+    { type: 'item', label: 'Role Attributes', icon: Users, path: 'data-foundation/role' },
+    { type: 'item', label: 'Custom Attributes', icon: Settings2, path: 'data-foundation/custom' },
+    { type: 'item', label: 'Attribute Categories', icon: FolderTree, path: 'data-foundation/categories' },
+    { type: 'item', label: 'Attribute Validation', icon: BadgeCheck, path: 'data-foundation/validation' },
     { type: 'heading', label: 'ROLE DISCOVERY' },
     { type: 'item', label: 'Role Discovery', icon: Search, path: 'role-discovery', hasSub: true },
     { type: 'heading', label: 'ROLE ENGINEERING' },

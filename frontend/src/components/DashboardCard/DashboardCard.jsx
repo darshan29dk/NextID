@@ -1,11 +1,15 @@
 import React from 'react';
 import './DashboardCard.css';
 
-const DashboardCard = ({ title, value, icon: Icon, color, trend, loading }) => {
+const DashboardCard = ({ title, value, icon: Icon, color, trend, loading, onClick }) => {
   const isTrendDown = trend && trend.startsWith('-');
   
   return (
-    <div className="kpi-card-premium">
+    <div 
+      className={`kpi-card-premium ${onClick ? 'interactive-kpi' : ''}`} 
+      onClick={onClick}
+      style={onClick ? { cursor: 'pointer' } : {}}
+    >
       <div className="kpi-top-row">
         <div className={`kpi-icon-container kpi-bg-${color || 'blue'}`}>
           <Icon size={16} />

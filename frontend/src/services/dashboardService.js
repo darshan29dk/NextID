@@ -20,6 +20,9 @@ apiClient.interceptors.request.use((config) => {
       if (user?.name) {
         config.headers['X-User-Name'] = user.name;
       }
+      if (user?.role) {
+        config.headers['X-User-Role'] = user.role;
+      }
     }
   } catch (err) {
     console.warn('Could not attach user header:', err);
@@ -188,6 +191,117 @@ export const getLicenses = async (params) => {
   return response.data;
 };
 
+export const getIdentityAttributes = async (params) => {
+  const response = await apiClient.get('/identity-attributes', { params });
+  return response.data;
+};
+
+export const getIdentityAttribute = async (id) => {
+  const response = await apiClient.get(`/identity-attributes/${id}`);
+  return response.data;
+};
+
+export const createIdentityAttribute = async (data) => {
+  const response = await apiClient.post('/identity-attributes', data);
+  return response.data;
+};
+
+export const updateIdentityAttribute = async (id, data) => {
+  const response = await apiClient.put(`/identity-attributes/${id}`, data);
+  return response.data;
+};
+
+export const deleteIdentityAttribute = async (id) => {
+  const response = await apiClient.delete(`/identity-attributes/${id}`);
+  return response.data;
+};
+
+export const getAccountAttributes = async (params) => {
+  const response = await apiClient.get('/account-attributes', { params });
+  return response.data;
+};
+
+export const getAccountAttribute = async (id) => {
+  const response = await apiClient.get(`/account-attributes/${id}`);
+  return response.data;
+};
+
+export const createAccountAttribute = async (data) => {
+  const response = await apiClient.post('/account-attributes', data);
+  return response.data;
+};
+
+export const updateAccountAttribute = async (id, data) => {
+  const response = await apiClient.put(`/account-attributes/${id}`, data);
+  return response.data;
+};
+
+export const deleteAccountAttribute = async (id) => {
+  const response = await apiClient.delete(`/account-attributes/${id}`);
+  return response.data;
+};
+
+export const restoreAccountAttribute = async (id) => {
+  const response = await apiClient.post(`/account-attributes/${id}/restore`);
+  return response.data;
+};
+
+export const getEntitlementAttributes = async (params) => {
+  const response = await apiClient.get('/entitlement-attributes', { params });
+  return response.data;
+};
+
+export const getEntitlementAttribute = async (id) => {
+  const response = await apiClient.get(`/entitlement-attributes/${id}`);
+  return response.data;
+};
+
+export const createEntitlementAttribute = async (data) => {
+  const response = await apiClient.post('/entitlement-attributes', data);
+  return response.data;
+};
+
+export const updateEntitlementAttribute = async (id, data) => {
+  const response = await apiClient.put(`/entitlement-attributes/${id}`, data);
+  return response.data;
+};
+
+export const deleteEntitlementAttribute = async (id) => {
+  const response = await apiClient.delete(`/entitlement-attributes/${id}`);
+  return response.data;
+};
+
+export const restoreEntitlementAttribute = async (id) => {
+  const response = await apiClient.post(`/entitlement-attributes/${id}/restore`);
+  return response.data;
+};
+
+export const bulkUpdateEntitlementStatus = async (ids, status) => {
+  const response = await apiClient.post('/entitlement-attributes/bulk-status', { ids, status });
+  return response.data;
+};
+
+export const bulkDeleteEntitlements = async (ids) => {
+  const response = await apiClient.post('/entitlement-attributes/bulk-delete', { ids });
+  return response.data;
+};
+
+export const importEntitlementAttributes = async (csvFile) => {
+  const formData = new FormData();
+  formData.append('file', csvFile);
+  const response = await apiClient.post('/entitlement-attributes/import', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  });
+  return response.data;
+};
+
+export const getAttributeCategories = async () => {
+  const response = await apiClient.get('/attribute-categories');
+  return response.data;
+};
+
 export const getLicense = async (id) => {
   const response = await apiClient.get(`/licenses/${id}`);
   return response.data;
@@ -207,3 +321,45 @@ export const deleteLicense = async (id) => {
   const response = await apiClient.delete(`/licenses/${id}`);
   return response.data;
 };
+
+// ── Role Attributes (AM-004) ─────────────────────────────────
+export const getRoleAttributes = async (params) => {
+  const response = await apiClient.get('/role-attributes', { params });
+  return response.data;
+};
+
+export const getRoleAttribute = async (id) => {
+  const response = await apiClient.get(`/role-attributes/${id}`);
+  return response.data;
+};
+
+export const createRoleAttribute = async (data) => {
+  const response = await apiClient.post('/role-attributes', data);
+  return response.data;
+};
+
+export const updateRoleAttribute = async (id, data) => {
+  const response = await apiClient.put(`/role-attributes/${id}`, data);
+  return response.data;
+};
+
+export const deleteRoleAttribute = async (id) => {
+  const response = await apiClient.delete(`/role-attributes/${id}`);
+  return response.data;
+};
+
+export const restoreRoleAttribute = async (id) => {
+  const response = await apiClient.post(`/role-attributes/${id}/restore`);
+  return response.data;
+};
+
+export const importRoleAttributes = async (csvFile) => {
+  const formData = new FormData();
+  formData.append('file', csvFile);
+  const response = await apiClient.post('/role-attributes/import', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  });
+  return response.data;
+};
