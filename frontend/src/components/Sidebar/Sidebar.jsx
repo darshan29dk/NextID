@@ -54,7 +54,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
       <div className="brand">
         <div className="logo-container">
           <div className="logo-icon">
-            <Server size={18} />
+            <img src="/logo.jpg" alt="rAnalyzer Logo" className="logo-image" />
           </div>
           {!isCollapsed && (
             <div className="logo-text">

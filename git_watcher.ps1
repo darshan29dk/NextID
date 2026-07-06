@@ -28,7 +28,7 @@ $Action = {
     Start-Sleep -Seconds 2
     
     try {
-        cd "C:\Users\Darshan\Desktop\dashboard"
+        Set-Location "C:\Users\Darshan\Desktop\dashboard"
         git add .
         
         # Check if there are changes to commit

@@ -7,6 +7,7 @@ Run this ONCE from VS Code terminal (inside backend/, with venv activated):
 """
 
 import pymysql
+# pyrefly: ignore [missing-import]
 from passlib.context import CryptContext
 
 # ---- DB CONNECTION SETTINGS ----

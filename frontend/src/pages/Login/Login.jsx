@@ -50,7 +50,7 @@ function Login() {
         <div className="login-left-content">
           <div className="login-brand">
             <div className="login-brand-icon">
-              <img src="/ranalyzer_logo.png" alt="rAnalyzer Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              <img src="/logo.jpg" alt="rAnalyzer Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             </div>
             <div className="login-brand-text">
               <h2>rAnalyzer</h2>
