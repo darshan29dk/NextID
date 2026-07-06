@@ -11,6 +11,7 @@ import AuditLogs from './pages/Administration/AuditLogs/AuditLogs';
 import Settings from './pages/Administration/Settings/Settings';
 import LicenseManagement from './pages/System/LicenseManagement/LicenseManagement';
 import Profile from './pages/Profile/Profile';
+// import MenuPermissions from './pages/Administration/MenuPermissions';
 
 const UnderConstruction = ({ title }) => {
   return (

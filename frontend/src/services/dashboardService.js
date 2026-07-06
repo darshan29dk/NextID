@@ -153,6 +153,36 @@ export const updateSettings = async (settingsData) => {
   return response.data;
 };
 
+export const getMenuPermissions = async (params) => {
+  const response = await apiClient.get('/menu-permissions', { params });
+  return response.data;
+};
+
+export const getMenuPermissionsByRole = async (roleId) => {
+  const response = await apiClient.get(`/menu-permissions/${roleId}`);
+  return response.data;
+};
+
+export const createMenuPermission = async (data) => {
+  const response = await apiClient.post('/menu-permissions', data);
+  return response.data;
+};
+
+export const updateMenuPermissionsForRole = async (roleId, list) => {
+  const response = await apiClient.put(`/menu-permissions/${roleId}`, list);
+  return response.data;
+};
+
+export const updateSinglePermissionRecord = async (id, data) => {
+  const response = await apiClient.put(`/menu-permissions/record/${id}`, data);
+  return response.data;
+};
+
+export const deleteMenuPermission = async (id) => {
+  const response = await apiClient.delete(`/menu-permissions/${id}`);
+  return response.data;
+};
+
 export const getLicenses = async (params) => {
   const response = await apiClient.get('/licenses', { params });
   return response.data;

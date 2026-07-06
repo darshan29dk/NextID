@@ -102,6 +102,62 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
 
     write_auth_audit(db, user=user.name, action="Login", detail=f"Logged in as {user.email}")
 
+    # Resolve Menu Permissions
+    from app.models.platform_user import PlatformUser
+    from app.models.platform_role import PlatformRole
+    from app.models.menu_permission import MenuPermission
+    from sqlalchemy import or_
+
+    # 1. Try matching PlatformUser by email
+    platform_user = db.query(PlatformUser).filter(PlatformUser.email == email, PlatformUser.is_deleted == False).first()
+    role_id = None
+    if platform_user and platform_user.platform_role_id:
+        role_id = platform_user.platform_role_id
+    else:
+        # Fallback: match by role name
+        role = db.query(PlatformRole).filter(
+            or_(
+                PlatformRole.role_name == user.role,
+                PlatformRole.role_code == user.role
+            )
+        ).first()
+        if role:
+            role_id = role.id
+
+    allowed_menus = []
+    if role_id:
+        perms = db.query(MenuPermission).filter(MenuPermission.role_id == role_id).all()
+        for p in perms:
+            allowed_menus.append({
+                "menu_name": p.menu_name,
+                "can_view": p.can_view,
+                "can_create": p.can_create,
+                "can_edit": p.can_edit,
+                "can_delete": p.can_delete,
+                "can_export": p.can_export,
+                "can_approve": p.can_approve
+            })
+    else:
+        # If no role resolved, check if user is Platform Administrator (seed backup)
+        if user.role == "Platform Administrator":
+            # Return full access by default
+            DEFAULT_MENUS = [
+                "Dashboard", "Administration", "Platform Users", "Platform Roles", "Menu Permissions",
+                "Settings", "SMTP Settings", "Branding", "Audit Logs", "License", "Data Foundation",
+                "Role Discovery", "Role Engineering", "Role Catalog", "Governance", "Role Lifecycle",
+                "Analytics", "Reports"
+            ]
+            for menu_name in DEFAULT_MENUS:
+                allowed_menus.append({
+                    "menu_name": menu_name,
+                    "can_view": True,
+                    "can_create": True,
+                    "can_edit": True,
+                    "can_delete": True,
+                    "can_export": True,
+                    "can_approve": True
+                })
+
     return {
         "message": "Login successful",
         "user": {
@@ -111,6 +167,7 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
             "role": user.role,
             "profile_image": user.profile_image,
             "theme": user.theme,
+            "allowed_menus": allowed_menus
         },
     }
 

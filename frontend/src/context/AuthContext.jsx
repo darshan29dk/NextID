@@ -43,6 +43,7 @@ export function AuthProvider({ children }) {
               .join('')
               .toUpperCase(),
         theme: backendUser.theme,
+        allowed_menus: backendUser.allowed_menus || []
       }
 
       localStorage.setItem('ranalyzer_auth', 'true')

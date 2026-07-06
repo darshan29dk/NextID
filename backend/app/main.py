@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, SessionLocal
-from app.routes import dashboard, notification, profile, theme, platform_user, platform_role, auth, audit_log, platform_settings
+from app.routes import dashboard, notification, profile, theme, platform_user, platform_role, auth, audit_log, platform_settings, menu_permission
 from app.routes import license as license_routes
 from app.models.user import User
 from app.models.notification import Notification
@@ -10,6 +10,7 @@ from app.models.platform_role import PlatformRole
 from app.models.platform_user import PlatformUser
 from app.models.audit_log import AuditLog
 from app.models.license import License
+from app.models.menu_permission import MenuPermission
 from datetime import datetime
 
 # Create database tables if they do not exist
@@ -72,6 +73,73 @@ try:
                     db.commit()
                     print(f"Updated default platform role: {code}")
 
+    # 3. Seed Menu Permissions for all default menus across roles if empty
+    DEFAULT_MENUS = [
+        "Dashboard", "Administration", "Platform Users", "Platform Roles", "Menu Permissions",
+        "Settings", "SMTP Settings", "Branding", "Audit Logs", "License", "Data Foundation",
+        "Role Discovery", "Role Engineering", "Role Catalog", "Governance", "Role Lifecycle",
+        "Analytics", "Reports"
+    ]
+
+    roles = db.query(PlatformRole).all()
+    for role in roles:
+        for menu_name in DEFAULT_MENUS:
+            existing_perm = db.query(MenuPermission).filter(
+                MenuPermission.role_id == role.id,
+                MenuPermission.menu_name == menu_name
+            ).first()
+            if not existing_perm:
+                can_view = False
+                can_create = False
+                can_edit = False
+                can_delete = False
+                can_export = False
+                can_approve = False
+
+                if role.role_code == "PLAT_ADMIN":
+                    can_view = True
+                    can_create = True
+                    can_edit = True
+                    can_delete = True
+                    can_export = True
+                    can_approve = True
+                elif role.role_code == "READ_ONLY":
+                    if menu_name in ["Dashboard", "Reports", "Analytics"]:
+                        can_view = True
+                elif role.role_code == "SEC_ADMIN":
+                    if menu_name in ["Dashboard", "Administration", "Platform Users", "Platform Roles", "Menu Permissions", "Audit Logs", "Settings"]:
+                        can_view = True
+                        can_create = True
+                        can_edit = True
+                        can_delete = True
+                        can_export = True
+                        can_approve = True
+                elif role.role_code == "COMP_OFFICER":
+                    if menu_name in ["Dashboard", "Administration", "Platform Users", "Platform Roles", "Menu Permissions", "Audit Logs", "Governance", "Reports"]:
+                        can_view = True
+                        can_export = True
+                        can_approve = True
+                elif role.role_code == "SEC_AUDITOR":
+                    if menu_name in ["Dashboard", "Administration", "Platform Users", "Platform Roles", "Menu Permissions", "Audit Logs", "Reports"]:
+                        can_view = True
+                        can_export = True
+
+                new_perm = MenuPermission(
+                    role_id=role.id,
+                    menu_name=menu_name,
+                    can_view=can_view,
+                    can_create=can_create,
+                    can_edit=can_edit,
+                    can_delete=can_delete,
+                    can_export=can_export,
+                    can_approve=can_approve,
+                    created_by="System",
+                    modified_by="System"
+                )
+                db.add(new_perm)
+        db.commit()
+    print("Verified / Seeded menu permissions.")
+
 except Exception as e:
     print(f"Error seeding database: {e}")
 finally:
@@ -99,6 +167,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(platform_settings.router, prefix="/api")
 app.include_router(audit_log.router, prefix="/api")
 app.include_router(license_routes.router, prefix="/api")
+app.include_router(menu_permission.router, prefix="/api")
 
 @app.get("/")
 def read_root():
