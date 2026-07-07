@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -12,6 +12,7 @@ import {
   Settings as SettingsIcon, 
   ChevronRight, 
   ChevronLeft,
+  ChevronDown,
   Server,
   Users,
   Key,
@@ -22,22 +23,40 @@ import {
   ShieldAlert,
   FolderTree,
   BadgeCheck,
-  Settings2
+  Settings2,
+  SlidersHorizontal
 } from 'lucide-react';
 import './Sidebar.css';
+
+// The 5 attribute-related pages, now grouped under one collapsible parent
+// instead of appearing as separate top-level sidebar entries.
+const ATTRIBUTE_GROUP_CHILDREN = [
+  { label: 'Identity Attributes', icon: Users, path: 'data-foundation/identity' },
+  { label: 'Account Attributes', icon: Database, path: 'data-foundation/account' },
+  { label: 'Entitlement Attributes', icon: Shield, path: 'data-foundation/entitlement' },
+  { label: 'Role Attributes', icon: Users, path: 'data-foundation/role' },
+  { label: 'Attribute Categories', icon: FolderTree, path: 'data-foundation/categories' },
+];
 
 const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const activePath = location.pathname.substring(1) || 'dashboard';
 
+  // Whether the "Attributes" group is expanded. Auto-expanded below if the
+  // current route is one of its children, so landing directly on e.g.
+  // Role Attributes doesn't hide that you're inside the group.
+  const [isAttributesOpen, setIsAttributesOpen] = useState(
+    ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath)
+  );
+
+  useEffect(() => {
+    if (ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath)) {
+      setIsAttributesOpen(true);
+    }
+  }, [activePath]);
+
   const navItems = [
-    { type: 'heading', label: 'DATA FOUNDATION' },
-    { type: 'item', label: 'Identity Attributes', icon: Users, path: 'data-foundation/identity' },
-    { type: 'item', label: 'Account Attributes', icon: Database, path: 'data-foundation/account' },
-    { type: 'item', label: 'Entitlement Attributes', icon: Shield, path: 'data-foundation/entitlement' },
-    { type: 'item', label: 'Role Attributes', icon: Users, path: 'data-foundation/role' },
-    { type: 'item', label: 'Attribute Categories', icon: FolderTree, path: 'data-foundation/categories' },
     { type: 'heading', label: 'ROLE DISCOVERY' },
     { type: 'item', label: 'Role Discovery', icon: Search, path: 'role-discovery', hasSub: true },
     { type: 'heading', label: 'ROLE ENGINEERING' },
@@ -58,6 +77,8 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     { type: 'item', label: 'Settings', icon: SettingsIcon, path: 'system/settings' },
     { type: 'item', label: 'License Management', icon: KeyRound, path: 'system/license-management' }
   ];
+
+  const isAttributesGroupActive = ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath);
 
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
@@ -83,6 +104,51 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
           <LayoutDashboard className="nav-icon" size={18} />
           {!isCollapsed && <span className="nav-label">Dashboard</span>}
         </div>
+
+        {!isCollapsed && <div className="nav-heading">DATA FOUNDATION</div>}
+
+        {/* Collapsible "Attributes" group */}
+        <div
+          className={`nav-item ${isAttributesGroupActive && !isAttributesOpen ? 'active' : ''}`}
+          onClick={() => {
+            if (isCollapsed) {
+              // If the sidebar itself is collapsed, just go to the first child
+              navigate('/' + ATTRIBUTE_GROUP_CHILDREN[0].path);
+            } else {
+              setIsAttributesOpen((prev) => !prev);
+            }
+          }}
+        >
+          <SlidersHorizontal className="nav-icon" size={18} />
+          {!isCollapsed && (
+            <>
+              <span className="nav-label">Attributes</span>
+              {isAttributesOpen ? (
+                <ChevronDown className="nav-arrow" size={12} />
+              ) : (
+                <ChevronRight className="nav-arrow" size={12} />
+              )}
+            </>
+          )}
+        </div>
+
+        {!isCollapsed && isAttributesOpen && (
+          <div className="nav-sub-list">
+            {ATTRIBUTE_GROUP_CHILDREN.map((child) => {
+              const ChildIcon = child.icon;
+              return (
+                <div
+                  key={child.path}
+                  className={`nav-item nav-sub-item ${activePath === child.path ? 'active' : ''}`}
+                  onClick={() => navigate('/' + child.path)}
+                >
+                  <ChildIcon className="nav-icon" size={16} />
+                  <span className="nav-label">{child.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {navItems.map((item, idx) => {
           if (item.type === 'heading') {

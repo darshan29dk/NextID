@@ -20,7 +20,9 @@ import {
   Users,
   ArrowLeft,
   Clock,
-  Info
+  Info,
+  Lock,
+  Save
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import {
@@ -28,13 +30,51 @@ import {
   getPlatformRole,
   createPlatformRole,
   updatePlatformRole,
-  deletePlatformRole
+  deletePlatformRole,
+  getMenuPermissionsByRole,
+  updateMenuPermissionsForRole
 } from '../../services/dashboardService';
 import './PlatformRoles.css';
 
 const ROLE_TYPES = ['System', 'Business', 'Application', 'Technical', 'Shared'];
 const RISK_LEVELS = ['Low', 'Medium', 'High', 'Critical'];
 const STATUSES = ['Draft', 'Active', 'Inactive', 'Deprecated'];
+
+// The full set of menus/pages that permissions can be configured for.
+// Names match the Title Case convention already used elsewhere
+// (e.g. MenuPermission.menu_name == "Platform Roles" in role_attribute.py).
+const MENU_LIST = [
+  'Dashboard',
+  'Identity Attributes',
+  'Account Attributes',
+  'Entitlement Attributes',
+  'Role Attributes',
+  'Attribute Categories',
+  'Platform Users',
+  'Platform Roles',
+  'Audit Logs',
+  'Settings',
+  'License Management'
+];
+
+const PERMISSION_COLUMNS = [
+  { key: 'can_view', label: 'View' },
+  { key: 'can_create', label: 'Create' },
+  { key: 'can_edit', label: 'Edit' },
+  { key: 'can_delete', label: 'Delete' },
+  { key: 'can_export', label: 'Export' },
+  { key: 'can_approve', label: 'Approve' }
+];
+
+const buildDefaultPermissionRow = (menuName) => ({
+  menu_name: menuName,
+  can_view: false,
+  can_create: false,
+  can_edit: false,
+  can_delete: false,
+  can_export: false,
+  can_approve: false
+});
 
 const INITIAL_FORM_STATE = {
   role_code: '',
@@ -153,6 +193,13 @@ const PlatformRoles = () => {
   const [detailData, setDetailData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  // Menu Permissions state (lives inside the role detail view)
+  const [permissions, setPermissions] = useState([]);
+  const [permissionsLoading, setPermissionsLoading] = useState(false);
+  const [permissionsSaving, setPermissionsSaving] = useState(false);
+  const [permissionsSaved, setPermissionsSaved] = useState(false);
+  const [permissionsError, setPermissionsError] = useState(null);
+
   const exportDropdownRef = useRef(null);
 
   useEffect(() => {
@@ -210,6 +257,82 @@ const PlatformRoles = () => {
   }, [searchInput]);
 
   // ============================================================
+  // Menu Permissions — fetch, merge with defaults, save
+  // ============================================================
+  const fetchPermissions = async (roleId) => {
+    try {
+      setPermissionsLoading(true);
+      setPermissionsError(null);
+      setPermissionsSaved(false);
+
+      const existing = await getMenuPermissionsByRole(roleId);
+
+      // Merge fetched records into the full MENU_LIST, so every menu has a
+      // row even if no permission record exists for it yet.
+      const merged = MENU_LIST.map((menuName) => {
+        const found = existing.find((p) => p.menu_name === menuName);
+        return found
+          ? {
+              menu_name: menuName,
+              can_view: !!found.can_view,
+              can_create: !!found.can_create,
+              can_edit: !!found.can_edit,
+              can_delete: !!found.can_delete,
+              can_export: !!found.can_export,
+              can_approve: !!found.can_approve
+            }
+          : buildDefaultPermissionRow(menuName);
+      });
+
+      setPermissions(merged);
+    } catch (err) {
+      console.error('Failed to load menu permissions:', err);
+      setPermissionsError('Failed to load menu permissions for this role.');
+      setPermissions(MENU_LIST.map(buildDefaultPermissionRow));
+    } finally {
+      setPermissionsLoading(false);
+    }
+  };
+
+  const handleTogglePermission = (menuName, field) => {
+    setPermissions((prev) =>
+      prev.map((row) =>
+        row.menu_name === menuName ? { ...row, [field]: !row[field] } : row
+      )
+    );
+    setPermissionsSaved(false);
+  };
+
+  const handleSavePermissions = async () => {
+    if (!selectedRoleId) return;
+    try {
+      setPermissionsSaving(true);
+      setPermissionsError(null);
+
+      const payload = permissions.map((row) => ({
+        role_id: selectedRoleId,
+        menu_name: row.menu_name,
+        can_view: row.can_view,
+        can_create: row.can_create,
+        can_edit: row.can_edit,
+        can_delete: row.can_delete,
+        can_export: row.can_export,
+        can_approve: row.can_approve
+      }));
+
+      await updateMenuPermissionsForRole(selectedRoleId, payload);
+      setPermissionsSaved(true);
+      // Re-fetch to reflect exactly what's stored (ids, timestamps, etc.)
+      fetchPermissions(selectedRoleId);
+    } catch (err) {
+      console.error('Failed to save menu permissions:', err);
+      setPermissionsError(err.response?.data?.detail || 'Failed to save menu permissions.');
+    } finally {
+      setPermissionsSaving(false);
+    }
+  };
+
+  // ============================================================
   // Open role detail view
   // ============================================================
   const handleOpenDetail = async (id) => {
@@ -221,6 +344,9 @@ const PlatformRoles = () => {
 
       const data = await getPlatformRole(id);
       setDetailData(data);
+
+      // Load menu permissions for this role alongside the role details
+      fetchPermissions(id);
     } catch (err) {
       console.error(err);
       alert('Failed to load role details.');
@@ -234,6 +360,9 @@ const PlatformRoles = () => {
     setView('list');
     setDetailData(null);
     setSelectedRoleId(null);
+    setPermissions([]);
+    setPermissionsSaved(false);
+    setPermissionsError(null);
     fetchRolesData();
   };
 
@@ -627,6 +756,70 @@ const PlatformRoles = () => {
                     </table>
                   )}
                 </div>
+              </div>
+            </div>
+
+            {/* Menu Permissions */}
+            <div className="detail-section-card">
+              <div className="detail-section-header">
+                <h4><Lock size={14} /> Menu Permissions</h4>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {permissionsSaved && (
+                    <span style={{ fontSize: '12px', color: 'var(--success, #10b981)', fontWeight: '600' }}>
+                      Saved
+                    </span>
+                  )}
+                  <button
+                    className="btn-add-role"
+                    onClick={handleSavePermissions}
+                    disabled={permissionsLoading || permissionsSaving}
+                    style={{ padding: '7px 14px', fontSize: '12.5px' }}
+                  >
+                    <Save size={13} />
+                    <span>{permissionsSaving ? 'Saving...' : 'Save Permissions'}</span>
+                  </button>
+                </div>
+              </div>
+              <div className="detail-section-body">
+                {permissionsError && (
+                  <div className="error-banner" style={{ marginBottom: '12px' }}>{permissionsError}</div>
+                )}
+                {permissionsLoading ? (
+                  <div className="table-loading-container">
+                    <div className="spinner-element"></div>
+                    <p className="text-muted" style={{ fontSize: '13px' }}>Loading menu permissions...</p>
+                  </div>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="detail-inner-table">
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: 'left' }}>Menu</th>
+                          {PERMISSION_COLUMNS.map((col) => (
+                            <th key={col.key} style={{ textAlign: 'center' }}>{col.label}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {permissions.map((row) => (
+                          <tr key={row.menu_name}>
+                            <td style={{ fontWeight: '600' }}>{row.menu_name}</td>
+                            {PERMISSION_COLUMNS.map((col) => (
+                              <td key={col.key} style={{ textAlign: 'center' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={row[col.key]}
+                                  onChange={() => handleTogglePermission(row.menu_name, col.key)}
+                                  style={{ width: '15px', height: '15px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                                />
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
 
