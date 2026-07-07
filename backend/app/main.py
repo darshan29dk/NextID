@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, SessionLocal
 from app.routes import dashboard, notification, profile, theme, platform_user, platform_role, auth, audit_log, platform_settings, menu_permission, identity_attribute, account_attribute, entitlement_attribute, role_attribute
+from app.routes import attribute_category
 from app.routes import license as license_routes
 from app.models.user import User
 from app.models.notification import Notification
@@ -420,6 +421,7 @@ app.include_router(identity_attribute.router, prefix="/api")
 app.include_router(account_attribute.router, prefix="/api")
 app.include_router(entitlement_attribute.router, prefix="/api")
 app.include_router(role_attribute.router, prefix="/api")
+app.include_router(attribute_category.router, prefix="/api")
 
 @app.get("/")
 def read_root():

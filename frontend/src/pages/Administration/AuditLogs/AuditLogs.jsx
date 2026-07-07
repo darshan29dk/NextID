@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Search, ChevronLeft, ChevronRight, RotateCcw, FileText, ChevronDown, ChevronUp } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Search, ChevronLeft, ChevronRight, RotateCcw, FileText, ChevronDown, ChevronUp, Download, FileSpreadsheet } from 'lucide-react';
 import Breadcrumb from '../../../components/Breadcrumb/Breadcrumb';
 import { getAuditLogs, getAuditLogModules, getAuditLogActions, getSettings } from '../../../services/dashboardService';
 import './AuditLogs.css';
@@ -8,7 +8,7 @@ const AuditLogs = () => {
   const [logs, setLogs] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [limit] = useState(10);
+  const [limit] = useState(15);
   const [totalPages, setTotalPages] = useState(1);
 
   const [search, setSearch] = useState('');
@@ -22,6 +22,10 @@ const AuditLogs = () => {
   const [actions, setActions] = useState([]);
 
   const [timezone, setTimezone] = useState('Asia/Kolkata');
+
+  const [showExportDropdown, setShowExportDropdown] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const exportDropdownRef = useRef(null);
 
   useEffect(() => {
     const fetchTimezoneSetting = async () => {
@@ -55,6 +59,17 @@ const AuditLogs = () => {
       }
     };
     fetchFilters();
+  }, []);
+
+  // Close export dropdown when clicking outside of it
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (exportDropdownRef.current && !exportDropdownRef.current.contains(event.target)) {
+        setShowExportDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   const fetchLogs = useCallback(async () => {
@@ -158,6 +173,93 @@ const AuditLogs = () => {
     return pages;
   };
 
+  // Fetches every log row matching the CURRENT filters, ignoring pagination.
+  // This is what makes "Export" mean "all filtered results", not just the
+  // 10 rows currently visible on screen.
+  const fetchAllFilteredLogs = async () => {
+    const queryParams = {
+      page: 1,
+      limit: 10000,
+      search: search.trim() || undefined,
+      module: moduleFilter || undefined,
+      action: actionFilter || undefined,
+      start_date: startDate || undefined,
+      end_date: endDate || undefined,
+    };
+    const response = await getAuditLogs(queryParams);
+    return response.logs || [];
+  };
+
+  const buildExportRows = (allLogs) => {
+    const headers = ["Module", "Action", "Performed By", "Timestamp", "Old Value", "New Value"];
+    const rows = allLogs.map((log) => [
+      log.module,
+      log.action,
+      log.performed_by,
+      formatTimestamp(log.timestamp),
+      log.old_value || '',
+      log.new_value || ''
+    ]);
+    return { headers, rows };
+  };
+
+  const buildExportFilenameSuffix = () => {
+    // Reflects the active module filter in the filename so exported files
+    // are easy to tell apart, e.g. "identity_attributes" vs "all_modules".
+    const modulePart = moduleFilter ? moduleFilter.toLowerCase().replace(/\s+/g, '_') : 'all_modules';
+    return `${modulePart}_${new Date().toISOString().slice(0, 10)}`;
+  };
+
+  const handleExportCSV = async () => {
+    try {
+      setExporting(true);
+      const allLogs = await fetchAllFilteredLogs();
+      const { headers, rows } = buildExportRows(allLogs);
+
+      const csvContent = "data:text/csv;charset=utf-8,"
+        + [headers.join(","), ...rows.map(r => r.map(val => `"${String(val).replace(/"/g, '""')}"`).join(","))].join("\n");
+
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `rAnalyzer_audit_logs_${buildExportFilenameSuffix()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Failed to export audit logs as CSV:', err);
+      alert('Failed to export audit logs. Please try again.');
+    } finally {
+      setExporting(false);
+      setShowExportDropdown(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    try {
+      setExporting(true);
+      const allLogs = await fetchAllFilteredLogs();
+      const { headers, rows } = buildExportRows(allLogs);
+
+      // Tab-delimited so Excel parses it cleanly as a spreadsheet.
+      const excelContent = [headers.join("\t"), ...rows.map(r => r.join("\t"))].join("\n");
+      const blob = new Blob([excelContent], { type: "application/vnd.ms-excel;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `rAnalyzer_audit_logs_${buildExportFilenameSuffix()}.xls`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('Failed to export audit logs as Excel:', err);
+      alert('Failed to export audit logs. Please try again.');
+    } finally {
+      setExporting(false);
+      setShowExportDropdown(false);
+    }
+  };
+
   return (
     <div className="audit-logs-page">
       <Breadcrumb items={[{ label: 'Administration', active: false }, { label: 'Audit Logs', active: true }]} />
@@ -166,6 +268,28 @@ const AuditLogs = () => {
         <div className="header-title-section">
           <h2>Audit Logs</h2>
           <p>Track every change made across the platform — who did what, and when.</p>
+        </div>
+        <div className="header-buttons-section">
+          <div className="btn-export-dropdown-wrapper" ref={exportDropdownRef}>
+            <button
+              className="btn-export-select"
+              onClick={() => setShowExportDropdown(!showExportDropdown)}
+              disabled={exporting}
+            >
+              <Download size={14} />
+              <span>{exporting ? 'Exporting...' : 'Export'}</span>
+            </button>
+            {showExportDropdown && (
+              <div className="export-menu-dropdown">
+                <button className="export-menu-item" onClick={handleExportCSV}>
+                  <FileSpreadsheet size={13} /> Export CSV
+                </button>
+                <button className="export-menu-item" onClick={handleExportExcel}>
+                  <FileSpreadsheet size={13} /> Export Excel
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

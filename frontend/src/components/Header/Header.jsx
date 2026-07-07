@@ -1,8 +1,26 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Search, Bell, HelpCircle, Sun, Moon, LogOut, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import './Header.css';
+
+// Static list of searchable pages, built from the real routes in App.jsx.
+// Under-construction placeholder pages are intentionally excluded since
+// navigating to them wouldn't be useful.
+const SEARCHABLE_PAGES = [
+  { name: 'Dashboard', route: '/dashboard', keywords: ['home', 'overview'] },
+  { name: 'Identity Attributes', route: '/data-foundation/identity', keywords: ['identity', 'attributes'] },
+  { name: 'Account Attributes', route: '/data-foundation/account', keywords: ['account', 'attributes'] },
+  { name: 'Entitlement Attributes', route: '/data-foundation/entitlement', keywords: ['entitlement', 'attributes'] },
+  { name: 'Role Attributes', route: '/data-foundation/role', keywords: ['role', 'attributes'] },
+  { name: 'Attribute Categories', route: '/data-foundation/categories', keywords: ['categories', 'attribute'] },
+  { name: 'Platform Users', route: '/administration/users', keywords: ['users', 'admin', 'administration'] },
+  { name: 'Platform Roles', route: '/administration/roles', keywords: ['roles', 'admin', 'administration'] },
+  { name: 'Audit Logs', route: '/administration/audit-logs', keywords: ['audit', 'logs', 'history'] },
+  { name: 'Settings', route: '/system/settings', keywords: ['settings', 'configuration', 'preferences'] },
+  { name: 'License Management', route: '/system/license-management', keywords: ['license', 'licenses', 'licensing'] },
+  { name: 'My Profile', route: '/profile', keywords: ['profile', 'account', 'me'] },
+];
 
 const Header = ({ 
   theme, 
@@ -12,12 +30,17 @@ const Header = ({
 }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [activeResultIndex, setActiveResultIndex] = useState(0);
   
   const { logout } = useAuth();
   const navigate = useNavigate();
 
   const profileRef = useRef(null);
   const notificationRef = useRef(null);
+  const searchRef = useRef(null);
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -26,6 +49,9 @@ const Header = ({
       }
       if (notificationRef.current && !notificationRef.current.contains(event.target)) {
         setShowNotificationMenu(false);
+      }
+      if (searchRef.current && !searchRef.current.contains(event.target)) {
+        setShowSearchDropdown(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -39,16 +65,82 @@ const Header = ({
     navigate('/profile');
   };
 
+  // Filters the searchable pages list against the current query, matching
+  // against both the page name and its keyword aliases.
+  const searchResults = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return SEARCHABLE_PAGES.filter((page) => {
+      const nameMatch = page.name.toLowerCase().includes(q);
+      const keywordMatch = page.keywords.some((k) => k.includes(q));
+      return nameMatch || keywordMatch;
+    });
+  }, [searchQuery]);
+
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value);
+    setShowSearchDropdown(true);
+    setActiveResultIndex(0);
+  };
+
+  const handleSelectResult = (route) => {
+    navigate(route);
+    setSearchQuery('');
+    setShowSearchDropdown(false);
+  };
+
+  const handleSearchKeyDown = (e) => {
+    if (e.key === 'Escape') {
+      setShowSearchDropdown(false);
+      return;
+    }
+    if (searchResults.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveResultIndex((prev) => (prev + 1) % searchResults.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveResultIndex((prev) => (prev - 1 + searchResults.length) % searchResults.length);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSelectResult(searchResults[activeResultIndex].route);
+    }
+  };
+
   return (
     <header className="header">
-      <div className="search-container">
+      <div className="search-container" ref={searchRef} style={{ position: 'relative' }}>
         <Search className="search-icon" size={16} />
         <input 
           type="text" 
           placeholder="Search roles, identities..." 
           className="search-input"
+          value={searchQuery}
+          onChange={handleSearchChange}
+          onFocus={() => searchQuery && setShowSearchDropdown(true)}
+          onKeyDown={handleSearchKeyDown}
         />
         <kbd className="search-kbd">Ctrl+K</kbd>
+
+        {showSearchDropdown && searchQuery && (
+          <div className="search-results-dropdown">
+            {searchResults.length === 0 ? (
+              <div className="search-no-results">No matching pages found.</div>
+            ) : (
+              searchResults.map((page, idx) => (
+                <button
+                  key={page.route}
+                  className={`search-result-item ${idx === activeResultIndex ? 'active' : ''}`}
+                  onClick={() => handleSelectResult(page.route)}
+                  onMouseEnter={() => setActiveResultIndex(idx)}
+                >
+                  {page.name}
+                </button>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       <div className="header-actions">

@@ -9,9 +9,9 @@ const apiClient = axios.create({
   },
 });
 
-// Attach the currently logged-in user's name to every outgoing request,
-// so the backend can record who actually performed each action
-// (used for audit logging instead of a hardcoded name).
+// Attach the currently logged-in user's name and role to every outgoing request,
+// so the backend can record who actually performed each action (for audit logging)
+// and enforce role-based permission checks (e.g. Platform Administrator-only actions).
 apiClient.interceptors.request.use((config) => {
   try {
     const saved = localStorage.getItem('ranalyzer_user');
@@ -302,6 +302,21 @@ export const getAttributeCategories = async () => {
   return response.data;
 };
 
+export const createAttributeCategory = async (data) => {
+  const response = await apiClient.post('/attribute-categories', data);
+  return response.data;
+};
+
+export const updateAttributeCategory = async (id, data) => {
+  const response = await apiClient.put(`/attribute-categories/${id}`, data);
+  return response.data;
+};
+
+export const deleteAttributeCategory = async (id) => {
+  const response = await apiClient.delete(`/attribute-categories/${id}`);
+  return response.data;
+};
+
 export const getLicense = async (id) => {
   const response = await apiClient.get(`/licenses/${id}`);
   return response.data;
@@ -322,7 +337,7 @@ export const deleteLicense = async (id) => {
   return response.data;
 };
 
-// ── Role Attributes (AM-004) ─────────────────────────────────
+// ── Role Attributes (AM-004) ──────────────────────────────────────
 export const getRoleAttributes = async (params) => {
   const response = await apiClient.get('/role-attributes', { params });
   return response.data;
@@ -362,4 +377,4 @@ export const importRoleAttributes = async (csvFile) => {
     }
   });
   return response.data;
-};
+};
