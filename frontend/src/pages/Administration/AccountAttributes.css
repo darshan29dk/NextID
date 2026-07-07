@@ -260,16 +260,15 @@
   color: var(--text-main);
 }
 
-/* Table Grid View */
-.attributes-table-container {
+.account-attributes-page .attributes-table-container {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
   box-shadow: var(--shadow-sm);
-  overflow: hidden;
+  overflow-x: auto;
 }
 
-.attributes-table-header {
+.account-attributes-page .attributes-table-header {
   display: grid;
   grid-template-columns: 1.4fr 1.4fr 0.9fr 0.8fr 0.8fr 1.1fr 0.7fr 0.6fr 0.8fr;
   column-gap: 16px;
@@ -280,7 +279,9 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
+  -webkit-user-select: none;
   user-select: none;
+  min-width: 960px;
 }
 
 .attributes-table-body {
@@ -288,7 +289,7 @@
   flex-direction: column;
 }
 
-.attributes-table-row {
+.account-attributes-page .attributes-table-row {
   display: grid;
   grid-template-columns: 1.4fr 1.4fr 0.9fr 0.8fr 0.8fr 1.1fr 0.7fr 0.6fr 0.8fr;
   column-gap: 16px;
@@ -299,6 +300,7 @@
   color: var(--text-main);
   cursor: pointer;
   transition: background-color 0.15s ease;
+  min-width: 960px;
 }
 
 .attributes-table-row:hover {
@@ -551,6 +553,7 @@
   right: 0;
   bottom: 0;
   background-color: rgba(15, 23, 42, 0.4);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;

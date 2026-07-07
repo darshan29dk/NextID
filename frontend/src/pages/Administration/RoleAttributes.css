@@ -248,22 +248,23 @@
 }
 
 /* ── Table ──────────────────────────────────── */
-.attributes-table-container {
+.role-attributes-page .attributes-table-container {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius, 8px);
-  overflow: hidden;
+  overflow-x: auto;
 }
 
 .role-columns {
   display: grid;
-  grid-template-columns: 32px minmax(160px,1fr) 1fr 120px 100px 110px 120px 90px 60px 100px;
+  grid-template-columns: 32px 180px 180px 120px 100px 110px 120px 90px 60px 100px;
   align-items: center;
   gap: 12px;
   padding: 10px 16px;
+  min-width: 1240px;
 }
 
-.attributes-table-header {
+.role-attributes-page .attributes-table-header {
   background-color: var(--bg-hover, var(--bg-main));
   border-bottom: 1px solid var(--border-color);
   font-size: 11px;
@@ -273,7 +274,7 @@
   letter-spacing: 0.5px;
 }
 
-.attributes-table-row {
+.role-attributes-page .attributes-table-row {
   border-bottom: 1px solid var(--border-color);
   font-size: 13px;
   color: var(--text-main);
@@ -299,6 +300,7 @@
   display: flex;
   flex-direction: column;
   gap: 3px;
+  min-width: 0;
 }
 
 .attr-name-lbl {
@@ -306,11 +308,18 @@
   font-size: 12px;
   font-family: 'Courier New', monospace;
   color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .attr-display-lbl {
   font-size: 13px;
   color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .attr-type-tag {

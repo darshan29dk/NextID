@@ -324,16 +324,15 @@
   color: var(--text-main);
 }
 
-/* Grid Table Container */
-.attributes-table-container {
+.entitlement-attributes-page .attributes-table-container {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
   box-shadow: var(--shadow-sm);
-  overflow: hidden;
+  overflow-x: auto;
 }
 
-.attributes-table-header {
+.entitlement-attributes-page .attributes-table-header {
   align-items: center;
   padding: 12px 20px;
   background-color: var(--bg-header, #f8fafc);
@@ -341,6 +340,7 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--text-muted);
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -349,7 +349,7 @@
   flex-direction: column;
 }
 
-.attributes-table-row {
+.entitlement-attributes-page .attributes-table-row {
   align-items: center;
   padding: 14px 20px;
   border-bottom: 1px solid var(--border-color);
@@ -371,6 +371,7 @@
   display: grid;
   grid-template-columns: 40px 180px 180px 110px 130px 110px 110px 130px 90px 60px 1fr;
   gap: 8px;
+  min-width: 1160px;
 }
 
 /* Checkbox Cell Alignment */
@@ -638,6 +639,7 @@
   right: 0;
   bottom: 0;
   background-color: rgba(15, 23, 42, 0.4);
+  -webkit-backdrop-filter: blur(4px);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
