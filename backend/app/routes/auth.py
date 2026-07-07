@@ -145,7 +145,8 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
                 "Dashboard", "Administration", "Platform Users", "Platform Roles", "Menu Permissions",
                 "Settings", "SMTP Settings", "Branding", "Audit Logs", "License", "Data Foundation",
                 "Role Discovery", "Role Engineering", "Role Catalog", "Governance", "Role Lifecycle",
-                "Analytics", "Reports"
+                "Analytics", "Reports", "Identity Attributes", "Account Attributes", "Entitlement Attributes",
+                "Role Attributes", "Attribute Categories", "License Management"
             ]
             for menu_name in DEFAULT_MENUS:
                 allowed_menus.append({

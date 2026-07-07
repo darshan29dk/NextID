@@ -232,8 +232,8 @@ def bulk_update_role_permissions(
             "can_approve": perm.can_approve
         }
         if old_state != new_state:
-            audit_old = {"role_name": role.role_name, "menu_name": perm.menu_name, **(old_state or {})}
-            audit_new = {"role_name": role.role_name, "menu_name": perm.menu_name, **new_state}
+            audit_old = {"role_name": role.role_name, "role_code": role.role_code, "menu_name": perm.menu_name, **(old_state or {})}
+            audit_new = {"role_name": role.role_name, "role_code": role.role_code, "menu_name": perm.menu_name, **new_state}
             write_permission_audit(
                 db=db,
                 user=x_user_name,
@@ -257,10 +257,12 @@ def update_single_permission_record(
 
     role = db.query(PlatformRole).filter(PlatformRole.id == perm.role_id).first()
     role_name = role.role_name if role else "Unknown Role"
+    role_code = role.role_code if role else ""
 
     old_state = {
         "id": perm.id,
         "role_name": role_name,
+        "role_code": role_code,
         "menu_name": perm.menu_name,
         "can_view": perm.can_view,
         "can_create": perm.can_create,
@@ -286,6 +288,7 @@ def update_single_permission_record(
         new_state = {
             "id": perm.id,
             "role_name": role_name,
+            "role_code": role_code,
             "menu_name": perm.menu_name,
             "can_view": perm.can_view,
             "can_create": perm.can_create,

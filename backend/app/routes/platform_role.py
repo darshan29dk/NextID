@@ -186,7 +186,7 @@ def get_platform_role_detail(id: int, db: Session = Depends(get_db)):
     # Match role code occurrences in json details
     role_search_term = f'%"{role.role_code}"%'
     audit_trail = db.query(AuditLog).filter(
-        AuditLog.module == "Platform Roles",
+        AuditLog.module.in_(["Platform Roles", "Menu Permissions"]),
         or_(
             AuditLog.old_value.like(role_search_term),
             AuditLog.new_value.like(role_search_term)

@@ -20,7 +20,13 @@ DEFAULT_MENUS = [
     "Governance",
     "Role Lifecycle",
     "Analytics",
-    "Reports"
+    "Reports",
+    "Identity Attributes",
+    "Account Attributes",
+    "Entitlement Attributes",
+    "Role Attributes",
+    "Attribute Categories",
+    "License Management"
 ]
 
 class PlatformRoleMini(BaseModel):
