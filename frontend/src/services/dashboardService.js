@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
-const apiClient = axios.create({
+export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
@@ -376,5 +376,72 @@ export const importRoleAttributes = async (csvFile) => {
       'Content-Type': 'multipart/form-data'
     }
   });
+  return response.data;
+};
+
+// ── Connectors (DS-001, DS-002, DS-003) ──────────────────────────
+export const getConnectors = async (params) => {
+  const response = await apiClient.get('/connectors', { params });
+  return response.data;
+};
+
+export const getConnector = async (id) => {
+  const response = await apiClient.get(`/connectors/${id}`);
+  return response.data;
+};
+
+export const createConnector = async (data) => {
+  const response = await apiClient.post('/connectors', data);
+  return response.data;
+};
+
+export const updateConnector = async (id, data) => {
+  const response = await apiClient.put(`/connectors/${id}`, data);
+  return response.data;
+};
+
+export const deleteConnector = async (id) => {
+  const response = await apiClient.delete(`/connectors/${id}`);
+  return response.data;
+};
+
+export const cloneConnector = async (id) => {
+  const response = await apiClient.post(`/connectors/${id}/clone`);
+  return response.data;
+};
+
+export const testConnectorConnection = async (id) => {
+  const response = await apiClient.post(`/connectors/${id}/test`);
+  return response.data;
+};
+
+export const bulkDeleteConnectors = async (ids) => {
+  const response = await apiClient.post('/connectors/bulk-delete', { ids });
+  return response.data;
+};
+
+export const bulkUpdateConnectorsStatus = async (ids, status) => {
+  const response = await apiClient.post('/connectors/bulk-status', { ids, status });
+  return response.data;
+};
+
+export const uploadConnectorFile = async (id, file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await apiClient.post(`/connectors/${id}/upload`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
+export const getConnectorLogs = async (id) => {
+  const response = await apiClient.get(`/connectors/${id}/logs`);
+  return response.data;
+};
+
+export const getConnectorFiles = async (id) => {
+  const response = await apiClient.get(`/connectors/${id}/files`);
   return response.data;
 };

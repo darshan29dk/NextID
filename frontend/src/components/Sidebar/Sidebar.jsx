@@ -24,7 +24,8 @@ import {
   FolderTree,
   BadgeCheck,
   Settings2,
-  SlidersHorizontal
+  SlidersHorizontal,
+  Globe
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -38,6 +39,12 @@ const ATTRIBUTE_GROUP_CHILDREN = [
   { label: 'Attribute Categories', icon: FolderTree, path: 'data-foundation/categories' },
 ];
 
+const DATA_SOURCES_GROUP_CHILDREN = [
+  { label: 'Connector Workspace', icon: Server, path: 'data-foundation/sources/workspace' },
+  { label: 'Cloud Directories', icon: Globe, path: 'data-foundation/sources/cloud' },
+  { label: 'API Gateways', icon: Layers, path: 'data-foundation/sources/api-gateways' },
+];
+
 const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -49,10 +56,16 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const [isAttributesOpen, setIsAttributesOpen] = useState(
     ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath)
   );
+  const [isDataSourcesOpen, setIsDataSourcesOpen] = useState(
+    DATA_SOURCES_GROUP_CHILDREN.some((child) => child.path === activePath)
+  );
 
   useEffect(() => {
     if (ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath)) {
       setIsAttributesOpen(true);
+    }
+    if (DATA_SOURCES_GROUP_CHILDREN.some((child) => child.path === activePath)) {
+      setIsDataSourcesOpen(true);
     }
   }, [activePath]);
 
@@ -79,6 +92,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   ];
 
   const isAttributesGroupActive = ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath);
+  const isDataSourcesGroupActive = DATA_SOURCES_GROUP_CHILDREN.some((child) => child.path === activePath);
 
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
@@ -135,6 +149,48 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
         {!isCollapsed && isAttributesOpen && (
           <div className="nav-sub-list">
             {ATTRIBUTE_GROUP_CHILDREN.map((child) => {
+              const ChildIcon = child.icon;
+              return (
+                <div
+                  key={child.path}
+                  className={`nav-item nav-sub-item ${activePath === child.path ? 'active' : ''}`}
+                  onClick={() => navigate('/' + child.path)}
+                >
+                  <ChildIcon className="nav-icon" size={16} />
+                  <span className="nav-label">{child.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Collapsible "Data Sources" group */}
+        <div
+          className={`nav-item ${isDataSourcesGroupActive && !isDataSourcesOpen ? 'active' : ''}`}
+          onClick={() => {
+            if (isCollapsed) {
+              navigate('/' + DATA_SOURCES_GROUP_CHILDREN[0].path);
+            } else {
+              setIsDataSourcesOpen((prev) => !prev);
+            }
+          }}
+        >
+          <Database className="nav-icon" size={18} />
+          {!isCollapsed && (
+            <>
+              <span className="nav-label">Data Sources</span>
+              {isDataSourcesOpen ? (
+                <ChevronDown className="nav-arrow" size={12} />
+              ) : (
+                <ChevronRight className="nav-arrow" size={12} />
+              )}
+            </>
+          )}
+        </div>
+
+        {!isCollapsed && isDataSourcesOpen && (
+          <div className="nav-sub-list">
+            {DATA_SOURCES_GROUP_CHILDREN.map((child) => {
               const ChildIcon = child.icon;
               return (
                 <div

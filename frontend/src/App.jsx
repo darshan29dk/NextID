@@ -17,6 +17,7 @@ import AccountAttributes from './pages/Administration/AccountAttributes';
 import EntitlementAttributes from './pages/Administration/EntitlementAttributes';
 import RoleAttributes from './pages/Administration/RoleAttributes';
 import AttributeCategories from './pages/DataFoundation/AttributeCategories';
+import ConnectorWorkspace from './pages/DataFoundation/ConnectorWorkspace';
 
 const UnderConstruction = ({ title }) => {
   return (
@@ -72,6 +73,9 @@ function App() {
                   <Route path="/data-foundation/role" element={<RoleAttributes />} />
                   <Route path="/data-foundation/custom" element={<UnderConstruction title="Custom Attributes" />} />
                   <Route path="/data-foundation/categories" element={<AttributeCategories />} />
+                  <Route path="/data-foundation/sources/workspace" element={<ConnectorWorkspace />} />
+                  <Route path="/data-foundation/sources/cloud" element={<UnderConstruction title="Cloud Directories" />} />
+                  <Route path="/data-foundation/sources/api-gateways" element={<UnderConstruction title="API Gateways" />} />
                   <Route path="/data-foundation/validation" element={<UnderConstruction title="Attribute Validation" />} />
 
                   {/* ── Legacy redirects – preserve old bookmarks ── */}

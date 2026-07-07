@@ -1,0 +1,63 @@
+import { apiClient } from './dashboardService';
+
+export const getConnectors = async (params) => {
+  const response = await apiClient.get('/connectors', { params });
+  return response.data;
+};
+
+export const getConnector = async (id) => {
+  const response = await apiClient.get(`/connectors/${id}`);
+  return response.data;
+};
+
+export const createConnector = async (connectorData) => {
+  const response = await apiClient.post('/connectors', connectorData);
+  return response.data;
+};
+
+export const updateConnector = async (id, connectorData) => {
+  const response = await apiClient.put(`/connectors/${id}`, connectorData);
+  return response.data;
+};
+
+export const deleteConnector = async (id) => {
+  const response = await apiClient.delete(`/connectors/${id}`);
+  return response.data;
+};
+
+export const uploadConnectorFile = async (id, file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await apiClient.post(`/connectors/${id}/upload`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
+export const readExcelSheets = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await apiClient.post('/connectors/read-sheets', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
+export const getConnectorLogs = async (id) => {
+  const response = await apiClient.get(`/connectors/${id}/logs`);
+  return response.data;
+};
+
+export const getConnectorFiles = async (id) => {
+  const response = await apiClient.get(`/connectors/${id}/files`);
+  return response.data;
+};
+
+export const getConnectorAuditLogs = async (id) => {
+  const response = await apiClient.get(`/connectors/${id}/audit-logs`);
+  return response.data;
+};

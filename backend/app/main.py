@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, SessionLocal
-from app.routes import dashboard, notification, profile, theme, platform_user, platform_role, auth, audit_log, platform_settings, menu_permission, identity_attribute, account_attribute, entitlement_attribute, role_attribute
+from app.routes import dashboard, notification, profile, theme, platform_user, platform_role, auth, audit_log, platform_settings, menu_permission, identity_attribute, account_attribute, entitlement_attribute, role_attribute, connectors as connectors_routes
 from app.routes import attribute_category
 from app.routes import license as license_routes
 from app.models.user import User
@@ -17,6 +17,10 @@ from app.models.identity_attribute import IdentityAttribute
 from app.models.account_attribute import AccountAttribute
 from app.models.entitlement_attribute import EntitlementAttribute
 from app.models.role_attribute import RoleAttribute
+from app.models.connector import Connector
+from app.models.connector_log import ConnectorLog
+from app.models.connector_file import ConnectorFile
+from app.utils.crypto import encrypt_password
 from datetime import datetime
 
 # Create database tables if they do not exist
@@ -390,6 +394,69 @@ try:
     except Exception as ex_role:
         print(f"Error seeding role attributes: {ex_role}")
 
+    # Seed default Connectors if empty
+    try:
+        if db.query(Connector).count() == 0:
+            default_connectors = [
+                Connector(
+                    connector_name="CSV HR Import",
+                    connector_type="CSV",
+                    description="Standard HR CSV data integration source.",
+                    status="Configured",
+                    health_status="Healthy",
+                    environment="Production",
+                    auth_type="None",
+                    tags="HR,Identity",
+                    version=1,
+                    csv_delimiter=",",
+                    csv_encoding="UTF-8",
+                    file_path="uploads/hr_import.csv",
+                    created_by="System",
+                    modified_by="System"
+                ),
+                Connector(
+                    connector_name="Finance Excel Import",
+                    connector_type="Excel",
+                    description="Finance department spreadsheet source.",
+                    status="Configured",
+                    health_status="Healthy",
+                    environment="Staging",
+                    auth_type="None",
+                    tags="Finance",
+                    version=1,
+                    excel_sheet_name="Sheet1",
+                    file_path="uploads/finance_import.xlsx",
+                    created_by="System",
+                    modified_by="System"
+                ),
+                Connector(
+                    connector_name="MySQL Identity Source",
+                    connector_type="Database",
+                    description="Production corporate database user source.",
+                    status="Connected",
+                    health_status="Healthy",
+                    environment="Production",
+                    auth_type="Basic",
+                    tags="Database,System",
+                    version=1,
+                    database_type="MySQL",
+                    host="127.0.0.1",
+                    port=3306,
+                    database_name="identity_db",
+                    username="db_user",
+                    password=encrypt_password("password123"),
+                    ssl_enabled=False,
+                    connection_timeout=30,
+                    created_by="System",
+                    modified_by="System"
+                )
+            ]
+            db.add_all(default_connectors)
+            db.commit()
+            print("Seeded default connectors.")
+    except Exception as ex_conn:
+        print(f"Error seeding default connectors: {ex_conn}")
+
 except Exception as e:
     print(f"Error seeding database: {e}")
 finally:
@@ -423,6 +490,7 @@ app.include_router(account_attribute.router, prefix="/api")
 app.include_router(entitlement_attribute.router, prefix="/api")
 app.include_router(role_attribute.router, prefix="/api")
 app.include_router(attribute_category.router, prefix="/api")
+app.include_router(connectors_routes.router, prefix="/api")
 
 @app.get("/")
 def read_root():
