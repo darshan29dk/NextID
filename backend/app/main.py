@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, SessionLocal
+from passlib.context import CryptContext
 from app.routes import dashboard, notification, profile, theme, platform_user, platform_role, auth, audit_log, platform_settings, menu_permission, identity_attribute, account_attribute, entitlement_attribute, role_attribute, connectors as connectors_routes
 from app.routes import connector_mapping
 from app.routes import attribute_category
@@ -33,21 +34,27 @@ from datetime import datetime
 # Create database tables if they do not exist
 Base.metadata.create_all(bind=engine)
 
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 # Seed only essential system data on first startup
 db = SessionLocal()
 try:
-    # 1. Seed default login user if none exists
-    if db.query(User).count() == 0:
-        default_user = User(
-            name="Darshan Kumar",
-            email="darshan.kumar@ranalyzer.io",
-            role="Platform Administrator",
-            profile_image=None,
-            theme="light"
-        )
-        db.add(default_user)
-        db.commit()
-        print("Seeded default user.")
+    # 1. Seed default administrator users if they don't exist
+    admin_users = [
+        ("Darshan Kumar", "darshanreddy5822@gmail.com", "darshankumar"),
+        ("Sania Gupta", "saniagupta2280@gmail.com", "saniagupta")
+    ]
+    for name, email, plain_pwd in admin_users:
+        if db.query(User).filter(User.email == email).count() == 0:
+            db.add(User(
+                name=name,
+                email=email.strip().lower(),
+                role="Platform Administrator",
+                password_hash=pwd_context.hash(plain_pwd),
+                theme="light"
+            ))
+            db.commit()
+            print(f"Auto-seeded user {email}.")
 
     # 2. Seed platform roles if empty, or update descriptions if they differ
     default_platform_roles = [
