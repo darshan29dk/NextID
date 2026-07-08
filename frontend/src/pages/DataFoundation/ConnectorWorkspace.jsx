@@ -54,7 +54,8 @@ import {
   getConnectorSchema,
   getConnectorMappings,
   saveConnectorMappings,
-  updateConnectorSchedule
+  updateConnectorSchedule,
+  importConnectorData
 } from '../../services/connectorService';
 import {
   getIdentityAttributes,
@@ -199,10 +200,9 @@ const ConnectorWorkspace = () => {
   const [sortOrder, setSortOrder] = useState('desc');
 
   const [kpiStats, setKpiStats] = useState({
-    total: 0, csv: 0, excel: 0, database: 0, ldap: 0, connected: 0, disconnected: 0, failed: 0
+    total: 0, csv: 0, excel: 0, database: 0, ldap: 0, api: 0, connected: 0, disconnected: 0, failed: 0
   });
 
-  // Wizard / Modal state
   const [showWizard, setShowWizard] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
   const [editConnectorId, setEditConnectorId] = useState(null);
@@ -225,6 +225,8 @@ const ConnectorWorkspace = () => {
 
   const [testingConnection, setTestingConnection] = useState(false);
   const [testResult, setTestResult] = useState(null);
+  const [syncingData, setSyncingData] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
 
   const [schemaFields, setSchemaFields] = useState([]);
   const [schemaLoading, setSchemaLoading] = useState(false);
@@ -244,6 +246,7 @@ const ConnectorWorkspace = () => {
 
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [scheduleFrequency, setScheduleFrequency] = useState('Daily');
+  const [scheduleTime, setScheduleTime] = useState('12:00');
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [scheduleSaved, setScheduleSaved] = useState(false);
   const [scheduleError, setScheduleError] = useState(null);
@@ -282,6 +285,7 @@ const ConnectorWorkspace = () => {
         excel: list.filter((c) => c.connector_type === 'Excel').length,
         database: list.filter((c) => c.connector_type === 'Database').length,
         ldap: list.filter((c) => c.connector_type === 'LDAP').length,
+        api: list.filter((c) => c.connector_type === 'API Gateway').length,
         connected: list.filter((c) => c.status === 'Connected').length,
         disconnected: list.filter((c) => ['Draft', 'Configured', 'Disabled'].includes(c.status)).length,
         failed: list.filter((c) => c.status === 'Failed').length
@@ -399,6 +403,22 @@ const ConnectorWorkspace = () => {
         if (!editConnectorId && !selectedFile) errors.file = 'CSV file upload is required';
         if (!formData.csv_delimiter) errors.csv_delimiter = 'Delimiter selection is required';
         if (!formData.csv_encoding) errors.csv_encoding = 'Encoding selection is required';
+      } else if (formData.connector_type === 'API Gateway') {
+        if (!formData.host || !formData.host.trim()) errors.host = 'API Endpoint URL is required';
+        if (formData.file_path) {
+          try {
+            JSON.parse(formData.file_path);
+          } catch (e) {
+            errors.file_path = 'Headers must be a valid JSON string (e.g. {"Content-Type": "application/json"})';
+          }
+        }
+        if (formData.auth_type === 'Basic') {
+          if (!formData.username || !formData.username.trim()) errors.username = 'Username is required';
+          if (!editConnectorId && (!formData.password || !formData.password.trim())) errors.password = 'Password is required';
+        } else if (formData.auth_type === 'API Key') {
+          if (!formData.username || !formData.username.trim()) errors.username = 'API Header Name is required';
+          if (!editConnectorId && (!formData.password || !formData.password.trim())) errors.password = 'Token value is required';
+        }
       }
     }
     if (Object.keys(errors).length > 0) {
@@ -503,6 +523,7 @@ const ConnectorWorkspace = () => {
     setMappingsSaved(false);
     setScheduleEnabled(!!connector.schedule_enabled);
     setScheduleFrequency(connector.schedule_frequency || 'Daily');
+    setScheduleTime(connector.schedule_time || '12:00');
     setScheduleSaved(false);
     setScheduleError(null);
     fetchDetailSubData(connector.id);
@@ -550,6 +571,28 @@ const ConnectorWorkspace = () => {
       });
     } finally {
       setTestingConnection(false);
+    }
+  };
+
+  const handleImportNow = async () => {
+    if (!selectedConnector) return;
+    try {
+      setSyncingData(true);
+      setSyncResult(null);
+      setTestResult(null);
+      const result = await importConnectorData(selectedConnector.id, selectedTableName || undefined);
+      setSyncResult(result);
+      const updated = await getConnector(selectedConnector.id);
+      setSelectedConnector(updated);
+      fetchDetailSubData(selectedConnector.id);
+    } catch (err) {
+      console.error('Import run failed:', err);
+      setSyncResult({
+        success: false,
+        message: err.response?.data?.detail || 'Import run encountered a critical error.'
+      });
+    } finally {
+      setSyncingData(false);
     }
   };
 
@@ -649,13 +692,15 @@ const ConnectorWorkspace = () => {
       const result = await updateConnectorSchedule(
         selectedConnector.id,
         scheduleEnabled,
-        scheduleEnabled ? scheduleFrequency : null
+        scheduleEnabled ? scheduleFrequency : null,
+        (scheduleEnabled && scheduleFrequency !== 'Hourly') ? scheduleTime : null
       );
       setScheduleSaved(true);
       setSelectedConnector((prev) => ({
         ...prev,
         schedule_enabled: result.schedule_enabled,
         schedule_frequency: result.schedule_frequency,
+        schedule_time: result.schedule_time,
         next_scheduled_run: result.next_scheduled_run
       }));
       fetchConnectorsList();
@@ -1167,6 +1212,7 @@ const ConnectorWorkspace = () => {
       case 'Excel': return <FileSpreadsheet size={16} className="type-icon excel" />;
       case 'Database': return <Database size={16} className="type-icon database" />;
       case 'LDAP': return <Globe size={16} className="type-icon ldap" style={{ color: '#0ea5e9' }} />;
+      case 'API Gateway': return <Server size={16} className="type-icon api" style={{ color: '#8b5cf6' }} />;
       default: return <Layers size={16} className="type-icon" />;
     }
   };
@@ -1246,6 +1292,14 @@ const ConnectorWorkspace = () => {
                             <p>Connect directly to LDAP directories (Active Directory, OpenLDAP) for schema ingestion.</p>
                           </div>
                           {formData.connector_type === 'LDAP' && <div className="option-badge"><Check size={12} /></div>}
+                        </div>
+                        <div className={`type-option-card ${formData.connector_type === 'API Gateway' ? 'selected' : ''}`} onClick={() => setFormData((prev) => ({ ...prev, connector_type: 'API Gateway', host: 'https://', database_name: 'data', file_path: '{}', auth_type: 'None' }))}>
+                          <div className="option-icon-wrapper database" style={{ color: '#8b5cf6' }}><Server size={24} /></div>
+                          <div className="option-text-wrapper">
+                            <h5>API Gateway</h5>
+                            <p>Query and sync REST/SCIM API endpoints to extract JSON user records.</p>
+                          </div>
+                          {formData.connector_type === 'API Gateway' && <div className="option-badge"><Check size={12} /></div>}
                         </div>
                       </div>
                     </div>
@@ -1483,6 +1537,76 @@ const ConnectorWorkspace = () => {
                           </div>
                         </div>
                       )}
+                      {formData.connector_type === 'API Gateway' && (
+                        <div className="config-type-section">
+                          <h4>API Gateway Endpoint Settings</h4>
+                          <div className="input-group-custom">
+                            <label className="required">API Endpoint URL</label>
+                            <input type="text" name="host" value={formData.host} onChange={handleFieldChange} placeholder="e.g. https://api.system.com/v1/users" />
+                            {formErrors.host && <span className="form-error-text">{formErrors.host}</span>}
+                          </div>
+                          <div className="input-group-custom">
+                            <label>JSON Path Property (e.g. "data" or leave blank for root list)</label>
+                            <input type="text" name="database_name" value={formData.database_name} onChange={handleFieldChange} placeholder="data" />
+                          </div>
+                          <div className="input-group-custom">
+                            <label>Custom HTTP Headers (JSON Object String)</label>
+                            <textarea
+                              name="file_path"
+                              value={formData.file_path}
+                              onChange={handleFieldChange}
+                              placeholder='{"Content-Type": "application/json", "X-Custom-Header": "Value"}'
+                              rows={2}
+                              style={{ fontFamily: 'monospace', fontSize: '12px' }}
+                            />
+                            {formErrors.file_path && <span className="form-error-text">{formErrors.file_path}</span>}
+                          </div>
+                          
+                          {formData.auth_type === 'Basic' && (
+                            <div className="form-row-2col">
+                              <div className="input-group-custom">
+                                <label className="required">Username</label>
+                                <input type="text" name="username" value={formData.username} onChange={handleFieldChange} placeholder="Username" />
+                                {formErrors.username && <span className="form-error-text">{formErrors.username}</span>}
+                              </div>
+                              <div className="input-group-custom">
+                                <label className={editConnectorId ? '' : 'required'}>
+                                  Password {editConnectorId && '(Leave blank to preserve)'}
+                                </label>
+                                <div className="password-input-wrapper-wizard">
+                                  <Lock size={14} className="password-lock-icon" />
+                                  <input type="password" name="password" value={formData.password} onChange={handleFieldChange} placeholder="••••••••••••" />
+                                </div>
+                                {formErrors.password && <span className="form-error-text">{formErrors.password}</span>}
+                              </div>
+                            </div>
+                          )}
+
+                          {formData.auth_type === 'API Key' && (
+                            <div className="form-row-2col">
+                              <div className="input-group-custom">
+                                <label className="required">API Key Header Name</label>
+                                <input type="text" name="username" value={formData.username} onChange={handleFieldChange} placeholder="e.g. Authorization" />
+                                {formErrors.username && <span className="form-error-text">{formErrors.username}</span>}
+                              </div>
+                              <div className="input-group-custom">
+                                <label className={editConnectorId ? '' : 'required'}>
+                                  Token Value {editConnectorId && '(Leave blank to preserve)'}
+                                </label>
+                                <div className="password-input-wrapper-wizard">
+                                  <Lock size={14} className="password-lock-icon" />
+                                  <input type="password" name="password" value={formData.password} onChange={handleFieldChange} placeholder="e.g. Bearer token-value" />
+                                </div>
+                                {formErrors.password && <span className="form-error-text">{formErrors.password}</span>}
+                              </div>
+                            </div>
+                          )}
+                          <div className="input-group-custom">
+                            <label>Timeout (seconds)</label>
+                            <input type="number" name="connection_timeout" value={formData.connection_timeout} onChange={handleFieldChange} placeholder="30" />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1536,6 +1660,17 @@ const ConnectorWorkspace = () => {
                                 <div className="review-item"><label>Base DN</label><span>{formData.database_name}</span></div>
                                 <div className="review-item"><label>Bind DN</label><span>{formData.username}</span></div>
                                 <div className="review-item"><label>Security Mode</label><span>{formData.ssl_enabled ? 'LDAPS (Port 636 / SSL)' : 'Standard LDAP (Port 389)'}</span></div>
+                                <div className="review-item"><label>Timeout</label><span>{formData.connection_timeout}s</span></div>
+                              </>
+                            )}
+                            {formData.connector_type === 'API Gateway' && (
+                              <>
+                                <div className="review-item"><label>REST URL</label><span>{formData.host}</span></div>
+                                <div className="review-item"><label>JSON Path</label><span>{formData.database_name || 'root'}</span></div>
+                                <div className="review-item"><label>Auth Scheme</label><span>{formData.auth_type}</span></div>
+                                {formData.auth_type !== 'None' && (
+                                  <div className="review-item"><label>API Key Header/Username</label><span>{formData.username}</span></div>
+                                )}
                                 <div className="review-item"><label>Timeout</label><span>{formData.connection_timeout}s</span></div>
                               </>
                             )}
@@ -2396,6 +2531,20 @@ const ConnectorWorkspace = () => {
                 >
                   {testingConnection ? 'Testing...' : 'Test Connection'}
                 </button>
+                <button
+                  className="btn-primary"
+                  onClick={handleImportNow}
+                  disabled={syncingData}
+                  style={{
+                    padding: '8px 14px', fontSize: '13px', border: 'none',
+                    borderRadius: '6px', backgroundColor: 'var(--primary)', color: '#fff',
+                    cursor: syncingData ? 'default' : 'pointer', fontWeight: '600',
+                    display: 'inline-flex', alignItems: 'center', gap: '6px'
+                  }}
+                >
+                  <Play size={14} />
+                  {syncingData ? 'Importing...' : 'Import Now'}
+                </button>
                 <button className="btn-add-connector" onClick={(e) => handleOpenEditWizard(selectedConnector, e)}>
                   <Edit size={14} />
                   <span>Edit</span>
@@ -2427,6 +2576,85 @@ const ConnectorWorkspace = () => {
               </div>
             )}
 
+            {syncResult && (
+              <div
+                style={{
+                  margin: '0 0 16px', padding: '12px 16px', borderRadius: '8px',
+                  fontSize: '13px', fontWeight: '500',
+                  backgroundColor: syncResult.success ? 'var(--success-light, #10b98120)' : 'var(--danger-light)',
+                  color: syncResult.success ? 'var(--success, #10b981)' : 'var(--danger)',
+                  border: `1px solid ${syncResult.success ? 'var(--success, #10b981)' : 'var(--danger)'}`
+                }}
+              >
+                {syncResult.success ? (
+                  <>
+                    ✓ Import completed successfully in {syncResult.duration_ms}ms. 
+                    <span style={{ marginLeft: '12px', fontWeight: 'bold' }}>
+                      Processed: {syncResult.processed} | Imported: {syncResult.imported} | Warnings: {syncResult.warnings} | Errors: {syncResult.errors}
+                    </span>
+                  </>
+                ) : (
+                  <>✗ Sync failed: {syncResult.message}</>
+                )}
+              </div>
+            )}
+
+            {/* Sync Overview Dashboard (Metrics Panel) */}
+            <div className="connector-metrics-panel" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+              <div className="metric-card-custom" style={{ padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-card)', boxShadow: 'var(--shadow-sm)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>SYNC HEALTH</span>
+                  <div className={`status-dot ${selectedConnector.health_status === 'Healthy' ? 'active' : selectedConnector.health_status === 'Degraded' ? 'warning' : 'failed'}`} />
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-main)' }}>
+                  {selectedConnector.health_status || 'Unknown'}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Status: {selectedConnector.status}
+                </div>
+              </div>
+
+              <div className="metric-card-custom" style={{ padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-card)', boxShadow: 'var(--shadow-sm)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>LAST SYNCHRONIZED</span>
+                  <Clock size={14} className="text-muted" style={{ opacity: 0.7 }} />
+                </div>
+                <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {selectedConnector.last_sync ? new Date(selectedConnector.last_sync + 'Z').toLocaleString('en-US') : 'Never'}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Last Tested: {selectedConnector.last_tested ? new Date(selectedConnector.last_tested + 'Z').toLocaleDateString() : 'Never'}
+                </div>
+              </div>
+
+              <div className="metric-card-custom" style={{ padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-card)', boxShadow: 'var(--shadow-sm)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>SYNC ACTIVITY STATS</span>
+                  <Activity size={14} className="text-muted" style={{ opacity: 0.7 }} />
+                </div>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', fontSize: '16px', fontWeight: '700', color: 'var(--text-main)' }}>
+                  <span style={{ color: 'var(--success, #10b981)' }}>{selectedConnector.success_count || 0} <span style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-muted)' }}>Success</span></span>
+                  <span style={{ color: 'var(--danger, #ef4444)' }}>{selectedConnector.failure_count || 0} <span style={{ fontSize: '10px', fontWeight: '600', color: 'var(--text-muted)' }}>Failed</span></span>
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Total Sync Executions
+                </div>
+              </div>
+
+              <div className="metric-card-custom" style={{ padding: '16px', borderRadius: '12px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-card)', boxShadow: 'var(--shadow-sm)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.5px' }}>SYNC RUN DURATION</span>
+                  <History size={14} className="text-muted" style={{ opacity: 0.7 }} />
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--text-main)' }}>
+                  {selectedConnector.last_sync_duration ? `${selectedConnector.last_sync_duration} ms` : '—'}
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Last Execution Latency
+                </div>
+              </div>
+            </div>
+
             <div className="drawer-tabs-navigation" style={{ marginBottom: '16px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
               <button className={`drawer-tab-btn ${detailTab === 'info' ? 'active' : ''}`} onClick={() => setDetailTab('info')}>
                 <Info size={13} /> Details
@@ -2457,6 +2685,9 @@ const ConnectorWorkspace = () => {
               </button>
               <button className={`drawer-tab-btn ${detailTab === 'schedule' ? 'active' : ''}`} onClick={() => setDetailTab('schedule')}>
                 <Clock size={13} /> Schedule
+              </button>
+              <button className={`drawer-tab-btn ${detailTab === 'import_history' ? 'active' : ''}`} onClick={() => setDetailTab('import_history')}>
+                <History size={13} /> Import History ({connectorLogs.filter((l) => ['Import Started', 'Import Run'].includes(l.action)).length})
               </button>
             </div>
 
@@ -2519,6 +2750,26 @@ const ConnectorWorkspace = () => {
                                 <div className="summary-item"><label>Bind DN</label><span>{selectedConnector.username}</span></div>
                                 <div className="summary-item"><label>Bind Password</label><span>•••••••••••• (Encrypted on write)</span></div>
                                 <div className="summary-item"><label>Security Mode</label><span>{selectedConnector.ssl_enabled ? 'LDAPS (Secure SSL)' : 'Standard LDAP (Non-SSL)'}</span></div>
+                                <div className="summary-item"><label>Timeout</label><span>{selectedConnector.connection_timeout} seconds</span></div>
+                              </>
+                            )}
+                            {selectedConnector.connector_type === 'API Gateway' && (
+                              <>
+                                <div className="summary-item" style={{ gridColumn: 'span 2' }}><label>REST API URL</label><span className="mono-text" style={{ wordBreak: 'break-all' }}>{selectedConnector.host}</span></div>
+                                <div className="summary-item"><label>JSON Extraction Path</label><span className="mono-text">{selectedConnector.database_name || 'root (Entire Response)'}</span></div>
+                                <div className="summary-item"><label>Custom HTTP Headers</label><span className="mono-text">{selectedConnector.file_path || '{}'}</span></div>
+                                {selectedConnector.auth_type === 'Basic' && (
+                                  <>
+                                    <div className="summary-item"><label>Basic Auth Username</label><span>{selectedConnector.username}</span></div>
+                                    <div className="summary-item"><label>Password</label><span>•••••••••••• (Encrypted on write)</span></div>
+                                  </>
+                                )}
+                                {selectedConnector.auth_type === 'API Key' && (
+                                  <>
+                                    <div className="summary-item"><label>API Key Header</label><span className="mono-text">{selectedConnector.username}</span></div>
+                                    <div className="summary-item"><label>Token Value</label><span>•••••••••••• (Encrypted on write)</span></div>
+                                  </>
+                                )}
                                 <div className="summary-item"><label>Timeout</label><span>{selectedConnector.connection_timeout} seconds</span></div>
                               </>
                             )}
@@ -3248,17 +3499,30 @@ const ConnectorWorkspace = () => {
                           </label>
                         </div>
                         {scheduleEnabled && (
-                          <div style={{ marginBottom: '16px' }}>
-                            <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Frequency</label>
-                            <select
-                              value={scheduleFrequency}
-                              onChange={(e) => { setScheduleFrequency(e.target.value); setScheduleSaved(false); }}
-                              style={{ padding: '7px 10px', fontSize: '13px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)' }}
-                            >
-                              <option value="Hourly">Hourly</option>
-                              <option value="Daily">Daily</option>
-                              <option value="Weekly">Weekly</option>
-                            </select>
+                          <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Frequency</label>
+                              <select
+                                value={scheduleFrequency}
+                                onChange={(e) => { setScheduleFrequency(e.target.value); setScheduleSaved(false); }}
+                                style={{ padding: '7px 10px', fontSize: '13px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)' }}
+                              >
+                                <option value="Hourly">Hourly</option>
+                                <option value="Daily">Daily</option>
+                                <option value="Weekly">Weekly</option>
+                              </select>
+                            </div>
+                            {scheduleFrequency !== 'Hourly' && (
+                              <div>
+                                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Execution Time</label>
+                                <input
+                                  type="time"
+                                  value={scheduleTime}
+                                  onChange={(e) => { setScheduleTime(e.target.value); setScheduleSaved(false); }}
+                                  style={{ padding: '6px 10px', fontSize: '13px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', width: '120px' }}
+                                />
+                              </div>
+                            )}
                           </div>
                         )}
                         {selectedConnector.next_scheduled_run && scheduleEnabled && (
@@ -3287,6 +3551,44 @@ const ConnectorWorkspace = () => {
                             <span style={{ fontSize: '12px', color: 'var(--success)', fontWeight: '600' }}>Saved</span>
                           )}
                         </div>
+                      </div>
+                    )}
+
+                    {detailTab === 'import_history' && (
+                      <div className="drawer-tab-logs-pane">
+                        <h5>Connector Data Import History</h5>
+                        <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px', marginBottom: '16px' }}>
+                          A history of manual and automated sync imports executed for this connector.
+                        </p>
+                        {connectorLogs.filter((l) => ['Import Started', 'Import Run'].includes(l.action)).length === 0 ? (
+                          <div className="drawer-tab-empty-msg">
+                            <History size={24} className="text-muted" />
+                            <p>No data import runs have been executed yet.</p>
+                          </div>
+                        ) : (
+                          <div className="drawer-history-records-list">
+                            {connectorLogs
+                              .filter((l) => ['Import Started', 'Import Run'].includes(l.action))
+                              .map((log) => (
+                                <div key={log.id} className="history-record-card log-card" style={{ padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '10px', backgroundColor: 'var(--bg-card)' }}>
+                                  <div className="log-badge-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                      <span className={`status-badge ${log.status.toLowerCase() === 'success' ? 'connected' : log.status.toLowerCase() === 'failed' ? 'failed' : 'disconnected'}`} style={{ fontSize: '10px', padding: '2px 6px' }}>
+                                        {log.status}
+                                      </span>
+                                      <span className="log-action-text" style={{ fontWeight: '600', fontSize: '13px' }}>{log.action}</span>
+                                    </div>
+                                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                      {new Date(log.timestamp).toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <p className="log-details-text" style={{ margin: 0, fontSize: '12.5px', color: 'var(--text-main)', lineHeight: '1.4' }}>
+                                    {log.details}
+                                  </p>
+                                </div>
+                              ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -3323,12 +3625,13 @@ const ConnectorWorkspace = () => {
         </div>
       </div>
 
-      <div className="stats-grid">
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
         <DashboardCard title="Total Connectors" value={kpiStats.total} icon={Layers} color="blue" loading={loading} />
         <DashboardCard title="CSV Connectors" value={kpiStats.csv} icon={FileText} color="indigo" loading={loading} />
         <DashboardCard title="Excel Connectors" value={kpiStats.excel} icon={FileSpreadsheet} color="teal" loading={loading} />
         <DashboardCard title="Database Connectors" value={kpiStats.database} icon={Database} color="purple" loading={loading} />
         <DashboardCard title="LDAP Connectors" value={kpiStats.ldap} icon={Globe} color="blue" loading={loading} />
+        <DashboardCard title="API Gateways" value={kpiStats.api} icon={Server} color="purple" loading={loading} />
         <DashboardCard title="Connected Sources" value={kpiStats.connected} icon={CheckCircle2} color="green" loading={loading} />
         <DashboardCard title="Configured / Draft" value={kpiStats.disconnected} icon={SlidersHorizontal} color="yellow" loading={loading} />
         <DashboardCard title="Failed Connections" value={kpiStats.failed} icon={XCircle} color="red" loading={loading} />
@@ -3347,6 +3650,7 @@ const ConnectorWorkspace = () => {
             <option value="Excel">Excel</option>
             <option value="Database">Database</option>
             <option value="LDAP">LDAP</option>
+            <option value="API Gateway">API Gateway</option>
           </select>
           <select className="filter-dropdown" value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}>
             <option value="">All Statuses</option>

@@ -40,7 +40,6 @@ const ATTRIBUTE_GROUP_CHILDREN = [
 
 const DATA_SOURCES_GROUP_CHILDREN = [
   { label: 'Connector Workspace', icon: Server, path: 'data-foundation/sources/workspace' },
-  { label: 'API Gateways', icon: Layers, path: 'data-foundation/sources/api-gateways' },
 ];
 
 const Sidebar = ({ isCollapsed, toggleCollapse }) => {

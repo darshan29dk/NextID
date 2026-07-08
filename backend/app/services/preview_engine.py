@@ -153,7 +153,7 @@ class PreviewEngine:
         return {"message": "Preview generated successfully", "count": len(preview_records)}
 
     @staticmethod
-    def _read_raw_records(connector: Connector, table_name: Optional[str] = None) -> List[Dict[str, Any]]:
+    def _read_raw_records(connector: Connector, table_name: Optional[str] = None, limit: Optional[int] = 100) -> List[Dict[str, Any]]:
         raw_rows = []
 
         if connector.connector_type in ["CSV", "Excel"]:
@@ -181,7 +181,7 @@ class PreviewEngine:
                         # Clean key spacing
                         stripped_row = {str(k).strip(): v for k, v in row.items()}
                         raw_rows.append(stripped_row)
-                        if len(raw_rows) >= 100:  # Preview limit
+                        if limit is not None and len(raw_rows) >= limit:  # Dynamic limit
                             break
 
             elif connector.connector_type == "Excel":
@@ -204,7 +204,7 @@ class PreviewEngine:
                         if idx < len(row):
                             row_dict[h] = row[idx]
                     raw_rows.append(row_dict)
-                    if len(raw_rows) >= 100:
+                    if limit is not None and len(raw_rows) >= limit:
                         break
 
         elif connector.connector_type == "Database":
@@ -228,7 +228,8 @@ class PreviewEngine:
             try:
                 with conn.cursor(pymysql.cursors.DictCursor) as cursor:
                     # Basic SQL validation escaping backticks safely
-                    cursor.execute(f"SELECT * FROM `{table_name}` LIMIT 100")
+                    limit_sql = f" LIMIT {limit}" if limit is not None else ""
+                    cursor.execute(f"SELECT * FROM `{table_name}`{limit_sql}")
                     raw_rows = cursor.fetchall()
             finally:
                 conn.close()

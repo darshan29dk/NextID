@@ -8,3 +8,5 @@ python-dotenv
 python-multipart
 openpyxl
 email-validator
+apscheduler
+requests

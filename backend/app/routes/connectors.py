@@ -513,8 +513,48 @@ def test_connector(
         elif connector.connector_type == "LDAP":
             raise Exception("LDAP connection testing is not yet implemented.")
 
-        else:
-            raise Exception(f"Unknown connector type: {connector.connector_type}")
+        elif connector.connector_type == "API Gateway":
+            import requests as requests_lib
+            url = connector.host
+            if not url:
+                raise Exception("API Gateway URL is required.")
+            
+            headers = {}
+            if connector.file_path:
+                try:
+                    headers = json.loads(connector.file_path)
+                except Exception:
+                    pass
+
+            auth = None
+            if connector.auth_type == "Basic":
+                decrypted_pw = decrypt_password(connector.password) if connector.password else ""
+                auth = (connector.username, decrypted_pw)
+            elif connector.auth_type == "API Key" and connector.username and connector.password:
+                decrypted_pw = decrypt_password(connector.password) if connector.password else ""
+                headers[connector.username] = decrypted_pw
+
+            timeout = connector.connection_timeout or 30
+            resp = requests_lib.get(url, headers=headers, auth=auth, timeout=timeout)
+            
+            if resp.status_code >= 400:
+                raise Exception(f"HTTP Error {resp.status_code}: {resp.text[:100]}")
+            
+            res_json = resp.json()
+            json_key = connector.database_name
+            target_list = res_json
+            if json_key:
+                if json_key in res_json:
+                    target_list = res_json[json_key]
+            
+            if isinstance(target_list, list):
+                message = f"Successfully connected to API. Extracted {len(target_list)} records from path '{json_key or 'root'}'."
+            elif isinstance(res_json, dict):
+                message = f"Successfully connected to API. Received JSON response object."
+            else:
+                message = f"Successfully connected to API. Response was text."
+            
+            success = True
 
     except Exception as e:
         success = False
@@ -527,12 +567,12 @@ def test_connector(
     connector.last_sync_duration = duration_ms
     if success:
         connector.health_status = "Healthy"
-        if connector.connector_type in ["Database", "LDAP"]:
+        if connector.connector_type in ["Database", "LDAP", "API Gateway"]:
             connector.status = "Connected"
         connector.success_count = (connector.success_count or 0) + 1
     else:
         connector.health_status = "Unhealthy"
-        if connector.connector_type in ["Database", "LDAP"]:
+        if connector.connector_type in ["Database", "LDAP", "API Gateway"]:
             connector.status = "Failed"
         connector.failure_count = (connector.failure_count or 0) + 1
 
@@ -690,8 +730,58 @@ def get_connector_schema(
         elif connector.connector_type == "LDAP":
             raise Exception("Schema discovery for LDAP is not yet implemented.")
 
-        else:
-            raise Exception(f"Unknown connector type: {connector.connector_type}")
+        elif connector.connector_type == "API Gateway":
+            import requests as requests_lib
+            from app.utils.crypto import decrypt_password
+            
+            url = connector.host
+            if not url:
+                raise Exception("API Gateway URL is required.")
+            
+            headers = {}
+            if connector.file_path:
+                try:
+                    headers = json.loads(connector.file_path)
+                except Exception:
+                    pass
+
+            auth = None
+            if connector.auth_type == "Basic":
+                decrypted_pw = decrypt_password(connector.password) if connector.password else ""
+                auth = (connector.username, decrypted_pw)
+            elif connector.auth_type == "API Key" and connector.username and connector.password:
+                decrypted_pw = decrypt_password(connector.password) if connector.password else ""
+                headers[connector.username] = decrypted_pw
+
+            timeout = connector.connection_timeout or 30
+            resp = requests_lib.get(url, headers=headers, auth=auth, timeout=timeout)
+            if resp.status_code >= 400:
+                raise Exception(f"HTTP Error {resp.status_code}: {resp.text[:100]}")
+            
+            res_json = resp.json()
+            json_key = connector.database_name
+            target_list = res_json
+            if json_key:
+                if json_key in res_json:
+                    target_list = res_json[json_key]
+            
+            if not isinstance(target_list, list) or len(target_list) == 0:
+                # If it's a single dictionary, wrap it as a list to discover schema from it
+                if isinstance(target_list, dict):
+                    target_list = [target_list]
+                else:
+                    raise Exception(f"Expected a JSON array or object under JSON path key '{json_key or 'root'}'.")
+
+            sample_record = target_list[0]
+            if not isinstance(sample_record, dict):
+                raise Exception("Discovered records are not JSON objects.")
+
+            for key, val in sample_record.items():
+                fields.append({
+                    "field_name": str(key).strip(),
+                    "data_type": type(val).__name__.capitalize() if val is not None else "String",
+                    "sample_value": str(val) if val is not None else None
+                })
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -710,10 +800,11 @@ def update_connector_schedule(
     id: int,
     schedule_enabled: bool,
     schedule_frequency: str = None,
+    schedule_time: str = None,
     db: Session = Depends(get_db),
     x_user_name: str = Header(default="System")
 ):
-    from app.services.scheduler import register_connector_schedule, unregister_connector_schedule
+    from app.services.scheduler import register_connector_schedule, unregister_connector_schedule, calculate_next_run
 
     connector = db.query(Connector).filter(Connector.id == id, Connector.is_deleted == False).first()
     if not connector:
@@ -726,14 +817,13 @@ def update_connector_schedule(
 
     connector.schedule_enabled = schedule_enabled
     connector.schedule_frequency = schedule_frequency if schedule_enabled else None
+    connector.schedule_time = schedule_time if (schedule_enabled and schedule_frequency in ["Daily", "Weekly"]) else None
     connector.modified_by = x_user_name
     connector.updated_at = datetime.utcnow()
 
     if schedule_enabled:
-        register_connector_schedule(connector.id, schedule_frequency)
-        interval_map = {"Hourly": 1, "Daily": 24, "Weekly": 168}
-        from datetime import timedelta
-        connector.next_scheduled_run = datetime.utcnow() + timedelta(hours=interval_map[schedule_frequency])
+        register_connector_schedule(connector.id, schedule_frequency, schedule_time)
+        connector.next_scheduled_run = calculate_next_run(schedule_frequency, schedule_time)
     else:
         unregister_connector_schedule(connector.id)
         connector.next_scheduled_run = None
@@ -741,16 +831,272 @@ def update_connector_schedule(
     db.commit()
     db.refresh(connector)
 
+    time_str = f" at {schedule_time}" if (schedule_time and schedule_frequency in ["Daily", "Weekly"]) else ""
     write_connector_log(
         db=db,
         connector_id=connector.id,
         action="Schedule Updated",
-        details=f"Scheduling {'enabled (' + schedule_frequency + ')' if schedule_enabled else 'disabled'} by {x_user_name}.",
+        details=f"Scheduling {'enabled (' + schedule_frequency + time_str + ')' if schedule_enabled else 'disabled'} by {x_user_name}.",
         status_val="Success"
     )
 
     return {
         "schedule_enabled": connector.schedule_enabled,
         "schedule_frequency": connector.schedule_frequency,
+        "schedule_time": connector.schedule_time,
         "next_scheduled_run": connector.next_scheduled_run.isoformat() if connector.next_scheduled_run else None
+    }
+
+
+@router.post("/connectors/{id}/import")
+def import_connector_data(
+    id: int,
+    table_name: Optional[str] = None,
+    db: Session = Depends(get_db),
+    x_user_name: str = Header(default="System"),
+    x_user_role: str = Header(default="Read Only User")
+):
+    # RBAC check (Administrators and Data Stewards can run imports)
+    if x_user_role not in ["Platform Administrator", "Data Steward"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied. Only Platform Administrators and Data Stewards can import data."
+        )
+
+    # 1. Fetch connector
+    connector = db.query(Connector).filter(Connector.id == id, Connector.is_deleted == False).first()
+    if not connector:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    # 2. Check mappings
+    from app.models.connector_field_mapping import ConnectorFieldMapping
+    mappings = db.query(ConnectorFieldMapping).filter(ConnectorFieldMapping.connector_id == id).all()
+    if not mappings:
+        raise HTTPException(
+            status_code=400,
+            detail="No attribute mappings found for this connector. Configure mappings first."
+        )
+
+    start_time = time.time()
+    
+    # 3. Read raw records (with a high limit, e.g. 2000, or None to read all)
+    from app.services.preview_engine import PreviewEngine
+    try:
+        raw_rows = PreviewEngine._read_raw_records(connector, table_name, limit=2000)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to read source data: {str(e)}")
+
+    if not raw_rows:
+        return {"message": "No records found to import", "processed": 0, "imported": 0, "errors": 0}
+
+    # 4. Load transform and validation engines and tables
+    from app.models.transformation_rule import TransformationRule
+    from app.models.validation_rule import ValidationRule
+    from app.services.transformation_engine import TransformationEngine
+    from app.services.validation_engine import ValidationEngine
+
+    transformations = db.query(TransformationRule).filter(
+        TransformationRule.connector_id == id,
+        TransformationRule.enabled == True,
+        TransformationRule.is_deleted == False
+    ).order_by(TransformationRule.execution_order.asc()).all()
+
+    validations = db.query(ValidationRule).filter(
+        ValidationRule.connector_id == id,
+        ValidationRule.enabled == True,
+        ValidationRule.is_deleted == False
+    ).order_by(ValidationRule.execution_order.asc()).all()
+
+    mapping_by_id = {m.id: m for m in mappings}
+    source_to_target = {m.source_field: m.target_attribute_name for m in mappings}
+    
+    seen_values_by_rule = {rule.id: set() for rule in validations if rule.validation_type.lower() == "unique"}
+
+    # Process and filter out records that have validation errors
+    parsed_identities = []
+    
+    total_processed = 0
+    valid_count = 0
+    warning_count = 0
+    error_count = 0
+
+    for index, raw_row in enumerate(raw_rows):
+        total_processed += 1
+        record_number = index + 1
+
+        # Map raw fields to initial target attributes
+        original_mapped = {}
+        for source_f, val in raw_row.items():
+            target_attr = source_to_target.get(source_f)
+            if target_attr:
+                original_mapped[target_attr] = str(val) if val is not None else ""
+
+        # Fill in missing mapped fields as empty
+        for m in mappings:
+            if m.target_attribute_name not in original_mapped:
+                original_mapped[m.target_attribute_name] = ""
+
+        transformed = dict(original_mapped)
+
+        # Apply transformations
+        for trans_rule in transformations:
+            if trans_rule.mapping_id in mapping_by_id:
+                mapping = mapping_by_id[trans_rule.mapping_id]
+                target_attr = mapping.target_attribute_name
+                current_val = transformed.get(target_attr, "")
+                
+                transformed_val = TransformationEngine.transform_value(
+                    value=current_val,
+                    rule_type=trans_rule.transformation_type,
+                    expression=trans_rule.expression,
+                    parameters_str=trans_rule.parameters,
+                    row_data=raw_row
+                )
+                transformed[target_attr] = transformed_val
+
+        # Apply validations
+        record_has_errors = False
+        record_has_warnings = False
+
+        for val_rule in validations:
+            if val_rule.mapping_id in mapping_by_id:
+                mapping = mapping_by_id[val_rule.mapping_id]
+                target_attr = mapping.target_attribute_name
+                transformed_val = transformed.get(target_attr, "")
+
+                seen_set = seen_values_by_rule.get(val_rule.id)
+                val_res = ValidationEngine.validate_value(
+                    value=transformed_val,
+                    validation_type=val_rule.validation_type,
+                    parameters_str=val_rule.parameters,
+                    error_message=val_rule.error_message,
+                    seen_values=seen_set,
+                    severity=val_rule.severity
+                )
+
+                if not val_res["valid"]:
+                    status_sev = val_res["status"]
+                    if status_sev == "Error":
+                        record_has_errors = True
+                    elif status_sev == "Warning":
+                        record_has_warnings = True
+
+        if record_has_errors:
+            error_count += 1
+            continue  # Skip inserting this record if there are validation errors
+        
+        if record_has_warnings:
+            warning_count += 1
+        
+        valid_count += 1
+
+        # Check if mapped to "Identity" module and construct IdentityRecord
+        is_identity_mapped = any(m.target_module == "Identity" for m in mappings)
+        if is_identity_mapped:
+            # Map target attributes to IdentityRecord properties
+            username = transformed.get("employee_id") or transformed.get("display_name") or transformed.get("username")
+            if not username and transformed.get("first_name"):
+                username = f"{transformed.get('first_name')}.{transformed.get('last_name', '')}".strip(".").lower()
+            if not username:
+                username = f"user_{record_number}"
+                
+            email = transformed.get("email")
+            if not email:
+                email = f"{username.replace(' ', '').lower()}@ranalyzer.io"
+                
+            dept = transformed.get("department") or "General"
+            role = transformed.get("job_title") or transformed.get("role") or "Member"
+            apps = transformed.get("applications") or "Active Directory"
+            
+            try:
+                entitlements_val = int(transformed.get("entitlements_count") or 5)
+            except ValueError:
+                entitlements_val = 5
+                
+            risk = transformed.get("risk_level") or "Low"
+            
+            try:
+                sod = int(transformed.get("sod_conflict") or 0)
+            except ValueError:
+                sod = 0
+
+            parsed_identities.append({
+                "username": username,
+                "email": email,
+                "department": dept,
+                "role": role,
+                "applications": apps,
+                "entitlements_count": entitlements_val,
+                "risk_level": risk,
+                "sod_conflict": sod
+            })
+
+    # 5. Save the valid identity records (replacing existing ones if we imported identities)
+    from app.models.dashboard import IdentityRecord, RecentActivity
+    if parsed_identities:
+        db.query(IdentityRecord).delete()
+        for item in parsed_identities:
+            rec = IdentityRecord(
+                username=item["username"],
+                email=item["email"],
+                department=item["department"],
+                role=item["role"],
+                applications=item["applications"],
+                entitlements_count=item["entitlements_count"],
+                risk_level=item["risk_level"],
+                sod_conflict=item["sod_conflict"]
+            )
+            db.add(rec)
+        db.commit()
+
+    duration_ms = int((time.time() - start_time) * 1000)
+
+    # 6. Update Connector statistics
+    connector.last_sync = datetime.utcnow()
+    connector.last_sync_duration = duration_ms
+    if error_count > 0 and valid_count == 0:
+        connector.health_status = "Unhealthy"
+        connector.status = "Failed"
+        connector.failure_count = (connector.failure_count or 0) + 1
+    elif error_count > 0:
+        connector.health_status = "Degraded"
+        connector.status = "Connected"
+        connector.success_count = (connector.success_count or 0) + 1
+    else:
+        connector.health_status = "Healthy"
+        connector.status = "Connected"
+        connector.success_count = (connector.success_count or 0) + 1
+        
+    db.commit()
+    db.refresh(connector)
+
+    # 7. Write Connector log entry
+    status_val = "Success" if error_count == 0 else ("Failed" if valid_count == 0 else "Warning")
+    log_details = f"Import execution finished in {duration_ms}ms. Total processed: {total_processed}, imported: {valid_count}, warnings: {warning_count}, rejected: {error_count}."
+    write_connector_log(
+        db=db,
+        connector_id=connector.id,
+        action="Import Run",
+        details=log_details,
+        status_val=status_val
+    )
+
+    # 8. Write Recent Activity feed
+    activity = RecentActivity(
+        user=x_user_name,
+        action=f"Data Source Sync - {connector.connector_name} - {valid_count} identities imported ({error_count} errors)",
+        status="success" if error_count == 0 else "warning",
+        created_at=datetime.utcnow()
+    )
+    db.add(activity)
+    db.commit()
+
+    return {
+        "success": True,
+        "processed": total_processed,
+        "imported": valid_count,
+        "warnings": warning_count,
+        "errors": error_count,
+        "duration_ms": duration_ms,
+        "last_sync": connector.last_sync.isoformat()
     }

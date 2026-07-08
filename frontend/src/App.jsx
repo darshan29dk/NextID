@@ -74,7 +74,7 @@ function App() {
                   <Route path="/data-foundation/categories" element={<AttributeCategories />} />
                   <Route path="/data-foundation/sources/workspace" element={<ConnectorWorkspace />} />
                   <Route path="/data-foundation/sources/cloud" element={<UnderConstruction title="Cloud Directories" />} />
-                  <Route path="/data-foundation/sources/api-gateways" element={<UnderConstruction title="API Gateways" />} />
+                  <Route path="/data-foundation/sources/api-gateways" element={<Navigate to="/data-foundation/sources/workspace" replace />} />
                   <Route path="/data-foundation/validation" element={<UnderConstruction title="Attribute Validation" />} />
 
                   {/* ── Legacy redirects – preserve old bookmarks ── */}

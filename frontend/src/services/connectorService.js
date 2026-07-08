@@ -88,9 +88,17 @@ export const saveConnectorMappings = async (id, mappings) => {
   const response = await apiClient.put(`/connectors/${id}/mappings`, mappings);
   return response.data;
 };
-export const updateConnectorSchedule = async (id, scheduleEnabled, scheduleFrequency) => {
+export const updateConnectorSchedule = async (id, scheduleEnabled, scheduleFrequency, scheduleTime) => {
   const params = { schedule_enabled: scheduleEnabled };
   if (scheduleFrequency) params.schedule_frequency = scheduleFrequency;
+  if (scheduleTime) params.schedule_time = scheduleTime;
   const response = await apiClient.put(`/connectors/${id}/schedule`, null, { params });
+  return response.data;
+};
+
+export const importConnectorData = async (id, tableName) => {
+  const response = await apiClient.post(`/connectors/${id}/import`, null, {
+    params: tableName ? { table_name: tableName } : {}
+  });
   return response.data;
 };
