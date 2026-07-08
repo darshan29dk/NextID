@@ -2,6 +2,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime, timedelta
 import time as time_module
+from typing import Optional
 
 scheduler = BackgroundScheduler()
 
