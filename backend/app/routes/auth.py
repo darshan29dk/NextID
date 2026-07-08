@@ -66,7 +66,7 @@ def write_auth_audit(db: Session, user: str, action: str, detail: str = None):
 def send_otp_email(to_email: str, otp: str, expiry_minutes: int):
     msg = MIMEMultipart("alternative")
     msg["Subject"] = "rAnalyzer - Your OTP for Password Reset"
-    msg["From"] = GMAIL_USER
+    msg["From"] = SMTP_USER
     msg["To"] = to_email
 
     html = f"""
