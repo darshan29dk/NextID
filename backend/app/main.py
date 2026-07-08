@@ -27,10 +27,17 @@ from app.models.connector_field_mapping import ConnectorFieldMapping
 from app.models.transformation_rule import TransformationRule
 from app.models.validation_rule import ValidationRule
 from app.models.import_preview import ImportPreview
+from app.models.application import Application
+from app.models.application_field_mapping import ApplicationFieldMapping
+from app.models.application_account import ApplicationAccount
+from app.models.application_entitlement import ApplicationEntitlement
+from app.models.application_role import ApplicationRole
+from app.models.import_run_history import ImportRunHistory
 from app.services.scheduler import start_scheduler, restore_active_schedules
 from app.routes import transformations, validations, preview
 from app.utils.crypto import encrypt_password
 from datetime import datetime
+from app.routes import application as application_routes
 
 # Create database tables if they do not exist
 Base.metadata.create_all(bind=engine)
@@ -514,6 +521,7 @@ app.include_router(connector_mapping.router, prefix="/api")
 app.include_router(transformations.router, prefix="/api")
 app.include_router(validations.router, prefix="/api")
 app.include_router(preview.router, prefix="/api")
+app.include_router(application_routes.router, prefix="/api")
 
 @app.get("/")
 def read_root():

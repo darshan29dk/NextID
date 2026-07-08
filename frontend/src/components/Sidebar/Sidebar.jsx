@@ -41,6 +41,9 @@ const ATTRIBUTE_GROUP_CHILDREN = [
 const DATA_SOURCES_GROUP_CHILDREN = [
   { label: 'Connector Workspace', icon: Server, path: 'data-foundation/sources/workspace' },
 ];
+const APPLICATIONS_GROUP_CHILDREN = [
+  { label: 'Application Workspace', icon: Server, path: 'data-foundation/applications' },
+];
 
 const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const location = useLocation();
@@ -56,6 +59,9 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const [isDataSourcesOpen, setIsDataSourcesOpen] = useState(
     DATA_SOURCES_GROUP_CHILDREN.some((child) => child.path === activePath)
   );
+  const [isApplicationsOpen, setIsApplicationsOpen] = useState(
+    APPLICATIONS_GROUP_CHILDREN.some((child) => child.path === activePath)
+  );
 
   useEffect(() => {
     if (ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath)) {
@@ -63,6 +69,9 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     }
     if (DATA_SOURCES_GROUP_CHILDREN.some((child) => child.path === activePath)) {
       setIsDataSourcesOpen(true);
+    }
+    if (APPLICATIONS_GROUP_CHILDREN.some((child) => child.path === activePath)) {
+      setIsApplicationsOpen(true);
     }
   }, [activePath]);
 
@@ -90,7 +99,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
 
   const isAttributesGroupActive = ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath);
   const isDataSourcesGroupActive = DATA_SOURCES_GROUP_CHILDREN.some((child) => child.path === activePath);
-
+  const isApplicationsGroupActive = APPLICATIONS_GROUP_CHILDREN.some((child) => child.path === activePath);
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="brand">
@@ -202,6 +211,48 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
             })}
           </div>
         )}
+        {/* Collapsible "Applications" group */}
+        <div
+          className={`nav-item ${isApplicationsGroupActive && !isApplicationsOpen ? 'active' : ''}`}
+          onClick={() => {
+            if (isCollapsed) {
+              navigate('/' + APPLICATIONS_GROUP_CHILDREN[0].path);
+            } else {
+              setIsApplicationsOpen((prev) => !prev);
+            }
+          }}
+        >
+          <Layers className="nav-icon" size={18} />
+          {!isCollapsed && (
+            <>
+              <span className="nav-label">Applications</span>
+              {isApplicationsOpen ? (
+                <ChevronDown className="nav-arrow" size={12} />
+              ) : (
+                <ChevronRight className="nav-arrow" size={12} />
+              )}
+            </>
+          )}
+        </div>
+
+        {!isCollapsed && isApplicationsOpen && (
+          <div className="nav-sub-list">
+            {APPLICATIONS_GROUP_CHILDREN.map((child) => {
+              const ChildIcon = child.icon;
+              return (
+                <div
+                  key={child.path}
+                  className={`nav-item nav-sub-item ${activePath === child.path ? 'active' : ''}`}
+                  onClick={() => navigate('/' + child.path)}
+                >
+                  <ChildIcon className="nav-icon" size={16} />
+                  <span className="nav-label">{child.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        
 
         {navItems.map((item, idx) => {
           if (item.type === 'heading') {

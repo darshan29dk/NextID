@@ -18,6 +18,7 @@ import EntitlementAttributes from './pages/Administration/EntitlementAttributes'
 import RoleAttributes from './pages/Administration/RoleAttributes';
 import AttributeCategories from './pages/DataFoundation/AttributeCategories';
 import ConnectorWorkspace from './pages/DataFoundation/ConnectorWorkspace';
+import ApplicationWorkspace from './pages/DataFoundation/ApplicationWorkspace';
 const UnderConstruction = ({ title }) => {
   return (
     <div style={{
@@ -73,6 +74,7 @@ function App() {
                   <Route path="/data-foundation/custom" element={<UnderConstruction title="Custom Attributes" />} />
                   <Route path="/data-foundation/categories" element={<AttributeCategories />} />
                   <Route path="/data-foundation/sources/workspace" element={<ConnectorWorkspace />} />
+                  <Route path="/data-foundation/applications" element={<ApplicationWorkspace />} />
                   <Route path="/data-foundation/sources/cloud" element={<UnderConstruction title="Cloud Directories" />} />
                   <Route path="/data-foundation/sources/api-gateways" element={<Navigate to="/data-foundation/sources/workspace" replace />} />
                   <Route path="/data-foundation/validation" element={<UnderConstruction title="Attribute Validation" />} />
