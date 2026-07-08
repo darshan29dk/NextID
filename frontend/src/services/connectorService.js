@@ -61,3 +61,30 @@ export const getConnectorAuditLogs = async (id) => {
   const response = await apiClient.get(`/connectors/${id}/audit-logs`);
   return response.data;
 };
+
+export const testConnector = async (id) => {
+  const response = await apiClient.post(`/connectors/${id}/test`);
+  return response.data;
+};
+
+export const getConnectorTables = async (id) => {
+  const response = await apiClient.get(`/connectors/${id}/tables`);
+  return response.data;
+};
+
+export const getConnectorSchema = async (id, tableName) => {
+  const response = await apiClient.get(`/connectors/${id}/schema`, {
+    params: tableName ? { table_name: tableName } : {}
+  });
+  return response.data;
+};
+
+export const getConnectorMappings = async (id) => {
+  const response = await apiClient.get(`/connectors/${id}/mappings`);
+  return response.data;
+};
+
+export const saveConnectorMappings = async (id, mappings) => {
+  const response = await apiClient.put(`/connectors/${id}/mappings`, mappings);
+  return response.data;
+};

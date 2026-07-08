@@ -5,6 +5,7 @@ from typing import List, Optional
 import json
 import os
 import io
+import time
 from datetime import datetime
 import openpyxl
 
@@ -19,7 +20,7 @@ from app.schemas.connector import (
     ConnectorPaginatedResponse, ConnectorLogResponse, ConnectorFileResponse
 )
 from app.schemas.audit_log import AuditLogResponse
-from app.utils.crypto import encrypt_password
+from app.utils.crypto import encrypt_password, decrypt_password
 
 router = APIRouter()
 
@@ -429,3 +430,278 @@ def get_connector_audit_logs(id: int, db: Session = Depends(get_db)):
             filtered_audits.append(a)
             
     return filtered_audits
+
+@router.post("/connectors/{id}/test")
+def test_connector(
+    id: int,
+    db: Session = Depends(get_db),
+    x_user_name: str = Header(default="System")
+):
+    connector = db.query(Connector).filter(Connector.id == id, Connector.is_deleted == False).first()
+    if not connector:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    start_time = time.time()
+    success = False
+    message = ""
+
+    try:
+        if connector.connector_type == "CSV":
+            if not connector.file_path:
+                raise Exception("No CSV file has been uploaded to this connector yet.")
+
+            full_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                connector.file_path
+            )
+            if not os.path.exists(full_path):
+                raise Exception(f"File not found on server: {connector.file_path}")
+
+            import csv as csv_module
+            with open(full_path, "r", encoding=connector.csv_encoding or "UTF-8") as f:
+                reader = csv_module.reader(f, delimiter=connector.csv_delimiter or ",")
+                header = next(reader, None)
+                if not header:
+                    raise Exception("CSV file appears to be empty or has no header row.")
+                message = f"Successfully read CSV file. Detected {len(header)} column(s): {', '.join(header[:5])}{'...' if len(header) > 5 else ''}"
+            success = True
+
+        elif connector.connector_type == "Excel":
+            if not connector.file_path:
+                raise Exception("No Excel file has been uploaded to this connector yet.")
+
+            full_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                connector.file_path
+            )
+            if not os.path.exists(full_path):
+                raise Exception(f"File not found on server: {connector.file_path}")
+
+            wb = openpyxl.load_workbook(full_path, read_only=True)
+            if connector.excel_sheet_name and connector.excel_sheet_name not in wb.sheetnames:
+                raise Exception(f"Configured sheet '{connector.excel_sheet_name}' not found in workbook. Available: {', '.join(wb.sheetnames)}")
+
+            sheet = wb[connector.excel_sheet_name] if connector.excel_sheet_name else wb.active
+            header_row = next(sheet.iter_rows(max_row=1, values_only=True), None)
+            col_count = len([c for c in header_row if c is not None]) if header_row else 0
+            message = f"Successfully opened workbook sheet '{sheet.title}'. Detected {col_count} column(s)."
+            success = True
+
+        elif connector.connector_type == "Database":
+            if connector.database_type != "MySQL":
+                raise Exception(f"Live connection testing for {connector.database_type} is not yet supported. Only MySQL is currently testable.")
+
+            import pymysql
+            decrypted_pw = decrypt_password(connector.password) if connector.password else ""
+
+            conn = pymysql.connect(
+                host=connector.host,
+                port=connector.port or 3306,
+                user=connector.username,
+                password=decrypted_pw,
+                database=connector.database_name,
+                connect_timeout=connector.connection_timeout or 30
+            )
+            cursor = conn.cursor()
+            cursor.execute("SELECT VERSION()")
+            version = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            message = f"Successfully connected to MySQL database '{connector.database_name}'. Server version: {version[0] if version else 'Unknown'}"
+            success = True
+
+        elif connector.connector_type == "LDAP":
+            raise Exception("LDAP connection testing is not yet implemented.")
+
+        else:
+            raise Exception(f"Unknown connector type: {connector.connector_type}")
+
+    except Exception as e:
+        success = False
+        message = str(e)
+
+    duration_ms = int((time.time() - start_time) * 1000)
+
+    # Update connector status based on test result
+    connector.last_tested = datetime.utcnow()
+    connector.last_sync_duration = duration_ms
+    if success:
+        connector.health_status = "Healthy"
+        if connector.connector_type in ["Database", "LDAP"]:
+            connector.status = "Connected"
+        connector.success_count = (connector.success_count or 0) + 1
+    else:
+        connector.health_status = "Unhealthy"
+        if connector.connector_type in ["Database", "LDAP"]:
+            connector.status = "Failed"
+        connector.failure_count = (connector.failure_count or 0) + 1
+
+    db.commit()
+
+    write_connector_log(
+        db=db,
+        connector_id=connector.id,
+        action="Test Connection",
+        details=message,
+        status_val="Success" if success else "Failed"
+    )
+
+    return {
+        "success": success,
+        "message": message,
+        "duration_ms": duration_ms,
+        "tested_at": connector.last_tested.isoformat()
+    }
+@router.get("/connectors/{id}/tables")
+def get_database_tables(id: int, db: Session = Depends(get_db)):
+    connector = db.query(Connector).filter(Connector.id == id, Connector.is_deleted == False).first()
+    if not connector:
+        raise HTTPException(status_code=404, detail="Connector not found")
+    if connector.connector_type != "Database":
+        raise HTTPException(status_code=400, detail="Table listing is only available for Database connectors.")
+    if connector.database_type != "MySQL":
+        raise HTTPException(status_code=400, detail=f"Table listing for {connector.database_type} is not yet supported. Only MySQL is currently supported.")
+
+    import pymysql
+    decrypted_pw = decrypt_password(connector.password) if connector.password else ""
+    try:
+        conn = pymysql.connect(
+            host=connector.host,
+            port=connector.port or 3306,
+            user=connector.username,
+            password=decrypted_pw,
+            database=connector.database_name,
+            connect_timeout=connector.connection_timeout or 30
+        )
+        cursor = conn.cursor()
+        cursor.execute("SHOW TABLES")
+        tables = [row[0] for row in cursor.fetchall()]
+        cursor.close()
+        conn.close()
+        return {"tables": tables}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to list tables: {str(e)}")
+
+
+@router.get("/connectors/{id}/schema")
+def get_connector_schema(
+    id: int,
+    table_name: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    connector = db.query(Connector).filter(Connector.id == id, Connector.is_deleted == False).first()
+    if not connector:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    fields = []
+
+    try:
+        if connector.connector_type == "CSV":
+            if not connector.file_path:
+                raise Exception("No CSV file has been uploaded to this connector yet.")
+            full_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                connector.file_path
+            )
+            if not os.path.exists(full_path):
+                raise Exception(f"File not found on server: {connector.file_path}")
+
+            import csv as csv_module
+            with open(full_path, "r", encoding=connector.csv_encoding or "UTF-8") as f:
+                reader = csv_module.reader(f, delimiter=connector.csv_delimiter or ",")
+                header = next(reader, None)
+                if not header:
+                    raise Exception("CSV file appears to be empty or has no header row.")
+                sample_row = next(reader, None)
+                for idx, col_name in enumerate(header):
+                    sample_val = sample_row[idx] if sample_row and idx < len(sample_row) else None
+                    fields.append({
+                        "field_name": col_name.strip(),
+                        "data_type": "String",
+                        "sample_value": sample_val
+                    })
+
+        elif connector.connector_type == "Excel":
+            if not connector.file_path:
+                raise Exception("No Excel file has been uploaded to this connector yet.")
+            full_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+                connector.file_path
+            )
+            if not os.path.exists(full_path):
+                raise Exception(f"File not found on server: {connector.file_path}")
+
+            wb = openpyxl.load_workbook(full_path, read_only=True)
+            sheet = wb[connector.excel_sheet_name] if connector.excel_sheet_name and connector.excel_sheet_name in wb.sheetnames else wb.active
+
+            rows_iter = sheet.iter_rows(max_row=2, values_only=True)
+            header_row = next(rows_iter, None)
+            sample_row = next(rows_iter, None)
+            if not header_row:
+                raise Exception("Excel sheet appears to be empty.")
+
+            for idx, col_name in enumerate(header_row):
+                if col_name is None:
+                    continue
+                sample_val = sample_row[idx] if sample_row and idx < len(sample_row) else None
+                fields.append({
+                    "field_name": str(col_name).strip(),
+                    "data_type": "String",
+                    "sample_value": str(sample_val) if sample_val is not None else None
+                })
+
+        elif connector.connector_type == "Database":
+            if connector.database_type != "MySQL":
+                raise Exception(f"Schema discovery for {connector.database_type} is not yet supported. Only MySQL is currently supported.")
+            if not table_name:
+                raise Exception("A table_name query parameter is required to discover schema for a Database connector.")
+
+            import pymysql
+            decrypted_pw = decrypt_password(connector.password) if connector.password else ""
+            conn = pymysql.connect(
+                host=connector.host,
+                port=connector.port or 3306,
+                user=connector.username,
+                password=decrypted_pw,
+                database=connector.database_name,
+                connect_timeout=connector.connection_timeout or 30
+            )
+            cursor = conn.cursor()
+            cursor.execute(f"DESCRIBE `{table_name}`")
+            rows = cursor.fetchall()
+            cursor.execute(f"SELECT * FROM `{table_name}` LIMIT 1")
+            sample_row = cursor.fetchone()
+            col_names = [desc[0] for desc in cursor.description]
+            cursor.close()
+            conn.close()
+
+            for row in rows:
+                col_name = row[0]
+                col_type = row[1]
+                sample_val = None
+                if sample_row and col_name in col_names:
+                    sample_val = sample_row[col_names.index(col_name)]
+                fields.append({
+                    "field_name": col_name,
+                    "data_type": col_type,
+                    "sample_value": str(sample_val) if sample_val is not None else None
+                })
+
+        elif connector.connector_type == "LDAP":
+            raise Exception("Schema discovery for LDAP is not yet implemented.")
+
+        else:
+            raise Exception(f"Unknown connector type: {connector.connector_type}")
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    write_connector_log(
+        db=db,
+        connector_id=connector.id,
+        action="Schema Discovery",
+        details=f"Discovered {len(fields)} field(s)" + (f" from table '{table_name}'" if table_name else ""),
+        status_val="Success"
+    )
+
+    return {"fields": fields, "field_count": len(fields)}
