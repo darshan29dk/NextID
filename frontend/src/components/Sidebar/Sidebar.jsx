@@ -24,8 +24,7 @@ import {
   FolderTree,
   BadgeCheck,
   Settings2,
-  SlidersHorizontal,
-  Globe
+  SlidersHorizontal
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -41,7 +40,6 @@ const ATTRIBUTE_GROUP_CHILDREN = [
 
 const DATA_SOURCES_GROUP_CHILDREN = [
   { label: 'Connector Workspace', icon: Server, path: 'data-foundation/sources/workspace' },
-  { label: 'Cloud Directories', icon: Globe, path: 'data-foundation/sources/cloud' },
   { label: 'API Gateways', icon: Layers, path: 'data-foundation/sources/api-gateways' },
 ];
 

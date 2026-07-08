@@ -18,7 +18,6 @@ import EntitlementAttributes from './pages/Administration/EntitlementAttributes'
 import RoleAttributes from './pages/Administration/RoleAttributes';
 import AttributeCategories from './pages/DataFoundation/AttributeCategories';
 import ConnectorWorkspace from './pages/DataFoundation/ConnectorWorkspace';
-
 const UnderConstruction = ({ title }) => {
   return (
     <div style={{

@@ -3,15 +3,24 @@ import {
   Search, Plus, Edit, Trash2, RotateCcw, ChevronLeft, ChevronRight, 
   AlertTriangle, X, Database, FileText, FileSpreadsheet, Server, 
   Globe, Info, CheckCircle, XCircle, Copy, Play, Layers, Shield,
-  Clock, History, Upload, Trash, Tag, ShieldAlert, BarChart3, Settings2
+  Clock, History, Upload, Trash, Tag, ShieldAlert, BarChart3, Settings2,
+  Save, ArrowRightLeft
 } from 'lucide-react';
 import Breadcrumb from '../../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../../components/DashboardCard/DashboardCard';
 import { 
   getConnectors, createConnector, updateConnector, deleteConnector, 
   cloneConnector, testConnectorConnection, bulkDeleteConnectors, 
-  bulkUpdateConnectorsStatus, uploadConnectorFile, getConnectorLogs, getConnectorFiles 
+  bulkUpdateConnectorsStatus, uploadConnectorFile, getConnectorLogs, getConnectorFiles,
+  getIdentityAttributes, getAccountAttributes, getEntitlementAttributes, getRoleAttributes
 } from '../../../services/dashboardService';
+import {
+  getConnectorTables,
+  getConnectorSchema,
+  getConnectorMappings,
+  saveConnectorMappings,
+  updateConnectorSchedule
+} from '../../../services/connectorService';
 import './ConnectorWorkspace.css';
 
 const CONNECTOR_TYPES = [
@@ -22,6 +31,7 @@ const CONNECTOR_TYPES = [
 
 const ENVIRONMENTS = ["Production", "Staging", "Development"];
 const AUTH_TYPES = ["Basic", "OAuth2", "API Key", "IAM Role", "None"];
+const MAPPING_MODULES = ['Identity', 'Account', 'Entitlement', 'Role'];
 
 const INITIAL_FORM_STATE = {
   connector_name: '',
@@ -51,28 +61,24 @@ const ConnectorWorkspace = () => {
   const [limit] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
 
-  // Search & Filters
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [envFilter, setEnvFilter] = useState('');
 
-  // UI status
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [successBanner, setSuccessBanner] = useState(null);
   const [selectedIds, setSelectedIds] = useState([]);
 
-  // Modals / Wizard
   const [showWizard, setShowWizard] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [formErrors, setFormErrors] = useState({});
   const [editingId, setEditingId] = useState(null);
 
-  // side drawer details
   const [selectedConnector, setSelectedConnector] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerTab, setDrawerTab] = useState('config');
@@ -82,7 +88,29 @@ const ConnectorWorkspace = () => {
   const [uploadLoading, setUploadLoading] = useState(false);
   const fileInputRef = useRef(null);
 
-  // KPI stats
+  const [schemaFields, setSchemaFields] = useState([]);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+  const [schemaError, setSchemaError] = useState(null);
+  const [dbTables, setDbTables] = useState([]);
+  const [dbTablesLoading, setDbTablesLoading] = useState(false);
+  const [selectedTableName, setSelectedTableName] = useState('');
+
+  const [mappingRows, setMappingRows] = useState([]);
+  const [mappingsLoading, setMappingsLoading] = useState(false);
+  const [mappingsSaving, setMappingsSaving] = useState(false);
+  const [mappingsSaved, setMappingsSaved] = useState(false);
+  const [mappingsError, setMappingsError] = useState(null);
+  const [attributeOptions, setAttributeOptions] = useState({
+    Identity: [], Account: [], Entitlement: [], Role: []
+  });
+
+  // Schedule state
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [scheduleFrequency, setScheduleFrequency] = useState('Daily');
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [scheduleSaved, setScheduleSaved] = useState(false);
+  const [scheduleError, setScheduleError] = useState(null);
+
   const [stats, setStats] = useState({
     total: 0,
     csv: 0,
@@ -112,7 +140,6 @@ const ConnectorWorkspace = () => {
       setTotal(response.total);
       setTotalPages(response.total_pages);
 
-      // Load broad KPIs
       const kpiRes = await getConnectors({ limit: 1000 });
       const kpis = kpiRes.connectors || [];
       
@@ -138,7 +165,6 @@ const ConnectorWorkspace = () => {
     fetchConnectorsData();
   }, [fetchConnectorsData]);
 
-  // Debounce search input
   useEffect(() => {
     const delay = setTimeout(() => {
       setSearch(searchInput);
@@ -147,11 +173,21 @@ const ConnectorWorkspace = () => {
     return () => clearTimeout(delay);
   }, [searchInput]);
 
-  // Handle drawer load on selection
   const handleSelectConnector = async (conn) => {
     setSelectedConnector(conn);
     setDrawerOpen(true);
     setDrawerTab('config');
+    setSchemaFields([]);
+    setSchemaError(null);
+    setDbTables([]);
+    setSelectedTableName('');
+    setMappingRows([]);
+    setMappingsError(null);
+    setMappingsSaved(false);
+    setScheduleEnabled(!!conn.schedule_enabled);
+    setScheduleFrequency(conn.schedule_frequency || 'Daily');
+    setScheduleSaved(false);
+    setScheduleError(null);
     loadDrawerDetails(conn.id);
   };
 
@@ -177,7 +213,6 @@ const ConnectorWorkspace = () => {
     setPage(1);
   };
 
-  // Form input changes
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData(prev => ({
@@ -241,7 +276,7 @@ const ConnectorWorkspace = () => {
       port: conn.port || '',
       database_name: conn.database_name || '',
       username: conn.username || '',
-      password: '', // Masked password setup
+      password: '',
       ssl_enabled: conn.ssl_enabled || false,
       connection_timeout: conn.connection_timeout || 30,
       csv_delimiter: conn.csv_delimiter || ',',
@@ -249,7 +284,7 @@ const ConnectorWorkspace = () => {
       excel_sheet_name: conn.excel_sheet_name || 'Sheet1',
       file_path: conn.file_path || ''
     });
-    setWizardStep(2); // Skip Step 1 in edit mode
+    setWizardStep(2);
     setFormErrors({});
     setShowWizard(true);
   };
@@ -264,7 +299,6 @@ const ConnectorWorkspace = () => {
       if (payload.connection_timeout) payload.connection_timeout = parseInt(payload.connection_timeout);
 
       if (editingId) {
-        // If password is blank in edit, do not transmit to avoid overwriting
         if (!payload.password) delete payload.password;
         await updateConnector(editingId, payload);
         showBannerSuccess(`Connector '${formData.connector_name}' updated successfully.`);
@@ -338,7 +372,6 @@ const ConnectorWorkspace = () => {
     }
   };
 
-  // Bulk operations
   const handleSelectAll = (e) => {
     if (e.target.checked) {
       setSelectedIds(connectors.map(c => c.id));
@@ -379,7 +412,6 @@ const ConnectorWorkspace = () => {
     }
   };
 
-  // Upload file for CSV/Excel
   const handleFileUpload = async () => {
     if (!uploadFile || !selectedConnector) return;
     try {
@@ -388,7 +420,7 @@ const ConnectorWorkspace = () => {
       showBannerSuccess(`Config file '${uploadFile.name}' uploaded successfully.`);
       setUploadFile(null);
       loadDrawerDetails(selectedConnector.id);
-      fetchConnectorsData(); // Refresh configuration status
+      fetchConnectorsData();
     } catch (err) {
       console.error("File upload failed:", err);
       setErrorMsg("Failed to upload connector file.");
@@ -397,7 +429,143 @@ const ConnectorWorkspace = () => {
     }
   };
 
-  // Helper styles
+  const handleLoadDbTables = async () => {
+    if (!selectedConnector) return;
+    try {
+      setDbTablesLoading(true);
+      setSchemaError(null);
+      const res = await getConnectorTables(selectedConnector.id);
+      setDbTables(res.tables || []);
+    } catch (err) {
+      console.error('Failed to load tables:', err);
+      setSchemaError(err.response?.data?.detail || 'Failed to load tables from database.');
+    } finally {
+      setDbTablesLoading(false);
+    }
+  };
+
+  const handleDiscoverSchema = async () => {
+    if (!selectedConnector) return;
+    try {
+      setSchemaLoading(true);
+      setSchemaError(null);
+      setSchemaFields([]);
+      const res = await getConnectorSchema(selectedConnector.id, selectedTableName || undefined);
+      setSchemaFields(res.fields || []);
+      setMappingRows([]);
+    } catch (err) {
+      console.error('Schema discovery failed:', err);
+      setSchemaError(err.response?.data?.detail || 'Schema discovery failed unexpectedly.');
+    } finally {
+      setSchemaLoading(false);
+    }
+  };
+
+  const handleOpenMappingTab = async () => {
+    setDrawerTab('mapping');
+    if (!selectedConnector) return;
+    if (schemaFields.length === 0) return;
+    await loadMappingData();
+  };
+
+  const loadMappingData = async () => {
+    try {
+      setMappingsLoading(true);
+      setMappingsError(null);
+      setMappingsSaved(false);
+      const [existingMappings, identityRes, accountRes, entitlementRes, roleRes] = await Promise.all([
+        getConnectorMappings(selectedConnector.id),
+        getIdentityAttributes({ limit: 1000 }),
+        getAccountAttributes({ limit: 1000 }),
+        getEntitlementAttributes({ limit: 1000 }),
+        getRoleAttributes({ limit: 1000 })
+      ]);
+      setAttributeOptions({
+        Identity: identityRes.attributes || [],
+        Account: accountRes.attributes || [],
+        Entitlement: entitlementRes.attributes || [],
+        Role: roleRes.attributes || []
+      });
+      const rows = schemaFields.map((f) => {
+        const existing = existingMappings.find((m) => m.source_field === f.field_name);
+        return {
+          source_field: f.field_name,
+          target_module: existing ? existing.target_module : '',
+          target_attribute_name: existing ? existing.target_attribute_name : ''
+        };
+      });
+      setMappingRows(rows);
+    } catch (err) {
+      console.error('Failed to load mapping data:', err);
+      setMappingsError(err.response?.data?.detail || 'Failed to load attribute mapping data.');
+    } finally {
+      setMappingsLoading(false);
+    }
+  };
+
+  const handleMappingModuleChange = (sourceField, newModule) => {
+    setMappingRows((prev) =>
+      prev.map((row) => row.source_field === sourceField ? { ...row, target_module: newModule, target_attribute_name: '' } : row)
+    );
+    setMappingsSaved(false);
+  };
+
+  const handleMappingAttributeChange = (sourceField, newAttrName) => {
+    setMappingRows((prev) =>
+      prev.map((row) => row.source_field === sourceField ? { ...row, target_attribute_name: newAttrName } : row)
+    );
+    setMappingsSaved(false);
+  };
+
+  const handleSaveSchedule = async () => {
+    if (!selectedConnector) return;
+    try {
+      setScheduleSaving(true);
+      setScheduleError(null);
+      const result = await updateConnectorSchedule(
+        selectedConnector.id,
+        scheduleEnabled,
+        scheduleEnabled ? scheduleFrequency : null
+      );
+      setScheduleSaved(true);
+      setSelectedConnector((prev) => ({
+        ...prev,
+        schedule_enabled: result.schedule_enabled,
+        schedule_frequency: result.schedule_frequency,
+        next_scheduled_run: result.next_scheduled_run
+      }));
+      fetchConnectorsData();
+    } catch (err) {
+      console.error('Failed to save schedule:', err);
+      setScheduleError(err.response?.data?.detail || 'Failed to save schedule settings.');
+    } finally {
+      setScheduleSaving(false);
+    }
+  };
+
+  const handleSaveMappings = async () => {
+    if (!selectedConnector) return;
+    try {
+      setMappingsSaving(true);
+      setMappingsError(null);
+      const payload = mappingRows
+        .filter((r) => r.target_module && r.target_attribute_name)
+        .map((r) => ({
+          connector_id: selectedConnector.id,
+          source_field: r.source_field,
+          target_module: r.target_module,
+          target_attribute_name: r.target_attribute_name
+        }));
+      await saveConnectorMappings(selectedConnector.id, payload);
+      setMappingsSaved(true);
+    } catch (err) {
+      console.error('Failed to save mappings:', err);
+      setMappingsError(err.response?.data?.detail || 'Failed to save attribute mappings.');
+    } finally {
+      setMappingsSaving(false);
+    }
+  };
+
   const getStatusBadge = (status) => {
     const s = status.toLowerCase();
     let badgeClass = "badge-draft";
@@ -430,15 +598,13 @@ const ConnectorWorkspace = () => {
         </div>
       </div>
 
-      {/* KPI Cards Section */}
       <div className="kpi-grid">
-        <DashboardCard title="Total Connectors" value={stats.total} icon={<Server size={22} />} trend="Connected & Draft states" />
-        <DashboardCard title="Connected Sources" value={stats.connected} icon={<CheckCircle size={22} />} status="success" />
-        <DashboardCard title="Disconnected / Draft" value={stats.disconnected} icon={<Clock size={22} />} status="warning" />
-        <DashboardCard title="Failed Integrations" value={stats.failed} icon={<ShieldAlert size={22} />} status="danger" />
+        <DashboardCard title="Total Connectors" value={stats.total} icon={Server} trend="Connected & Draft states" />
+        <DashboardCard title="Connected Sources" value={stats.connected} icon={CheckCircle} status="success" />
+        <DashboardCard title="Disconnected / Draft" value={stats.disconnected} icon={Clock} status="warning" />
+        <DashboardCard title="Failed Integrations" value={stats.failed} icon={ShieldAlert} status="danger" />
       </div>
 
-      {/* Success/Error Banner alerts */}
       {successBanner && (
         <div className="alert-banner alert-success">
           <CheckCircle size={18} />
@@ -453,7 +619,6 @@ const ConnectorWorkspace = () => {
         </div>
       )}
 
-      {/* Bulk actions floating panel */}
       {selectedIds.length > 0 && (
         <div className="bulk-actions-bar">
           <div className="bulk-actions-info">
@@ -474,7 +639,6 @@ const ConnectorWorkspace = () => {
         </div>
       )}
 
-      {/* Filters Toolbar */}
       <div className="toolbar-card">
         <div className="search-wrapper">
           <Search className="search-icon" size={16} />
@@ -534,7 +698,6 @@ const ConnectorWorkspace = () => {
         </button>
       </div>
 
-      {/* Table Container */}
       <div className="table-card">
         {loading && connectors.length === 0 ? (
           <div className="workspace-loader">
@@ -645,7 +808,6 @@ const ConnectorWorkspace = () => {
           </div>
         )}
 
-        {/* Pagination */}
         {totalPages > 1 && (
           <div className="pagination-wrapper">
             <span className="pagination-info">Showing {connectors.length} of {total} connectors</span>
@@ -678,7 +840,6 @@ const ConnectorWorkspace = () => {
         )}
       </div>
 
-      {/* ADD/EDIT CONNECTOR WIZARD MODAL */}
       {showWizard && (
         <div className="wizard-modal-overlay">
           <div className="wizard-modal-box">
@@ -687,7 +848,6 @@ const ConnectorWorkspace = () => {
               <button className="close-wizard-btn" onClick={() => setShowWizard(false)}><X size={18} /></button>
             </div>
 
-            {/* Steps Banner */}
             <div className="wizard-steps-indicator">
               {!editingId && (
                 <div className={`step-node ${wizardStep === 1 ? 'active' : ''} ${wizardStep > 1 ? 'completed' : ''}`}>
@@ -717,7 +877,6 @@ const ConnectorWorkspace = () => {
             )}
 
             <div className="wizard-modal-body">
-              {/* STEP 1: Type Selection (Creation Only) */}
               {wizardStep === 1 && !editingId && (
                 <div className="step-type-grid">
                   {CONNECTOR_TYPES.map(type => {
@@ -739,7 +898,6 @@ const ConnectorWorkspace = () => {
                 </div>
               )}
 
-              {/* STEP 2: General Details */}
               {wizardStep === 2 && (
                 <div className="form-step-container">
                   <div className="form-row">
@@ -798,10 +956,8 @@ const ConnectorWorkspace = () => {
                 </div>
               )}
 
-              {/* STEP 3: Config settings by type */}
               {wizardStep === 3 && (
                 <div className="form-step-container">
-                  {/* CSV Specific Config */}
                   {formData.connector_type === 'CSV' && (
                     <div className="csv-config-box">
                       <h4 className="config-section-title"><FileText size={16} /> CSV Delimiter Settings</h4>
@@ -828,7 +984,6 @@ const ConnectorWorkspace = () => {
                     </div>
                   )}
 
-                  {/* Excel Specific Config */}
                   {formData.connector_type === 'Excel' && (
                     <div className="excel-config-box">
                       <h4 className="config-section-title"><FileSpreadsheet size={16} /> Excel Document Settings</h4>
@@ -845,7 +1000,6 @@ const ConnectorWorkspace = () => {
                     </div>
                   )}
 
-                  {/* Database Specific Config */}
                   {formData.connector_type === 'Database' && (
                     <div className="db-config-box">
                       <h4 className="config-section-title"><Database size={16} /> Database Authentication Config</h4>
@@ -951,7 +1105,6 @@ const ConnectorWorkspace = () => {
                 </div>
               )}
 
-              {/* STEP 4: Summary & Preview */}
               {wizardStep === 4 && (
                 <div className="wizard-summary-container">
                   <div className="summary-left-pane">
@@ -976,7 +1129,6 @@ const ConnectorWorkspace = () => {
                         </div>
                       )}
 
-                      {/* CSV Summary */}
                       {formData.connector_type === 'CSV' && (
                         <>
                           <div className="summary-item">
@@ -990,7 +1142,6 @@ const ConnectorWorkspace = () => {
                         </>
                       )}
 
-                      {/* Excel Summary */}
                       {formData.connector_type === 'Excel' && (
                         <div className="summary-item">
                           <span className="summary-label">Sheet Name</span>
@@ -998,7 +1149,6 @@ const ConnectorWorkspace = () => {
                         </div>
                       )}
 
-                      {/* Database Summary */}
                       {formData.connector_type === 'Database' && (
                         <>
                           <div className="summary-item">
@@ -1064,7 +1214,6 @@ const ConnectorWorkspace = () => {
         </div>
       )}
 
-      {/* RIGHT DETAILED DRAWER SCREEN OVERLAY */}
       <div className={`detail-drawer ${drawerOpen ? 'drawer-opened' : ''}`}>
         {selectedConnector && (
           <div className="drawer-inner">
@@ -1077,8 +1226,7 @@ const ConnectorWorkspace = () => {
               <button className="close-drawer-btn" onClick={() => setDrawerOpen(false)}><X size={20} /></button>
             </div>
 
-            {/* Tabs */}
-            <div className="drawer-tabs">
+            <div className="drawer-tabs" style={{ overflowX: 'auto', flexWrap: 'nowrap' }}>
               <button className={`drawer-tab-btn ${drawerTab === 'config' ? 'active' : ''}`} onClick={() => setDrawerTab('config')}>
                 <Settings2 size={14} /> Config
               </button>
@@ -1088,13 +1236,18 @@ const ConnectorWorkspace = () => {
               <button className={`drawer-tab-btn ${drawerTab === 'files' ? 'active' : ''}`} onClick={() => setDrawerTab('files')}>
                 <Upload size={14} /> Files history
               </button>
-              <button className="drawer-tab-btn drawer-tab-btn-future" disabled title="Upcoming feature in build phases">
-                <Layers size={14} /> Mapping
+              <button className={`drawer-tab-btn ${drawerTab === 'schema' ? 'active' : ''}`} onClick={() => setDrawerTab('schema')}>
+                <Layers size={14} /> Schema
+              </button>
+              <button className={`drawer-tab-btn ${drawerTab === 'mapping' ? 'active' : ''}`} onClick={handleOpenMappingTab}>
+                <ArrowRightLeft size={14} /> Mapping
+              </button>
+              <button className={`drawer-tab-btn ${drawerTab === 'schedule' ? 'active' : ''}`} onClick={() => setDrawerTab('schedule')}>
+                <Clock size={14} /> Schedule
               </button>
             </div>
 
             <div className="drawer-body">
-              {/* CONFIGURATION TAB */}
               {drawerTab === 'config' && (
                 <div className="drawer-config-panel">
                   <div className="config-grid">
@@ -1163,7 +1316,6 @@ const ConnectorWorkspace = () => {
                 </div>
               )}
 
-              {/* TIMELINE LOGS TAB */}
               {drawerTab === 'logs' && (
                 <div className="drawer-logs-panel">
                   {connectorLogs.length === 0 ? (
@@ -1190,10 +1342,8 @@ const ConnectorWorkspace = () => {
                 </div>
               )}
 
-              {/* FILE HISTORIES TAB */}
               {drawerTab === 'files' && (
                 <div className="drawer-files-panel">
-                  {/* File Upload zone */}
                   {(selectedConnector.connector_type === 'CSV' || selectedConnector.connector_type === 'Excel') && (
                     <div className="upload-dropzone">
                       <Upload size={24} className="upload-dropzone-icon" />
@@ -1241,6 +1391,252 @@ const ConnectorWorkspace = () => {
                       ))}
                     </div>
                   )}
+                </div>
+              )}
+
+              {drawerTab === 'schema' && (
+                <div style={{ padding: '4px 2px' }}>
+                  <h4 className="drawer-section-title">Field Discovery</h4>
+
+                  {selectedConnector.connector_type === 'Database' && (
+                    <div style={{ marginBottom: '16px', marginTop: '12px' }}>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <button
+                          onClick={handleLoadDbTables}
+                          disabled={dbTablesLoading}
+                          style={{
+                            padding: '7px 14px', fontSize: '13px', border: '1px solid var(--border-color)',
+                            borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)',
+                            cursor: dbTablesLoading ? 'default' : 'pointer', fontWeight: '600'
+                          }}
+                        >
+                          {dbTablesLoading ? 'Loading Tables...' : 'List Tables'}
+                        </button>
+                        {dbTables.length > 0 && (
+                          <select
+                            value={selectedTableName}
+                            onChange={(e) => setSelectedTableName(e.target.value)}
+                            style={{
+                              padding: '7px 10px', fontSize: '13px', border: '1px solid var(--border-color)',
+                              borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)'
+                            }}
+                          >
+                            <option value="">Select a table...</option>
+                            {dbTables.map((t) => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleDiscoverSchema}
+                    disabled={schemaLoading || (selectedConnector.connector_type === 'Database' && !selectedTableName)}
+                    style={{
+                      padding: '8px 16px', fontSize: '13px', border: 'none', borderRadius: '6px',
+                      backgroundColor: 'var(--primary)', color: '#fff',
+                      cursor: schemaLoading ? 'default' : 'pointer', fontWeight: '600', marginBottom: '14px', marginTop: '4px'
+                    }}
+                  >
+                    {schemaLoading ? 'Discovering...' : 'Discover Schema'}
+                  </button>
+
+                  {schemaError && (
+                    <div style={{ padding: '10px 14px', borderRadius: '8px', backgroundColor: 'var(--danger-light)', color: 'var(--danger)', fontSize: '13px', marginBottom: '12px' }}>
+                      {schemaError}
+                    </div>
+                  )}
+
+                  {schemaFields.length === 0 ? (
+                    <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <Layers size={24} style={{ marginBottom: '8px' }} />
+                      <p>No fields discovered yet. Click "Discover Schema" above.</p>
+                    </div>
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <th style={{ textAlign: 'left', padding: '8px 6px', fontSize: '12px', color: 'var(--text-muted)' }}>Field Name</th>
+                          <th style={{ textAlign: 'left', padding: '8px 6px', fontSize: '12px', color: 'var(--text-muted)' }}>Data Type</th>
+                          <th style={{ textAlign: 'left', padding: '8px 6px', fontSize: '12px', color: 'var(--text-muted)' }}>Sample Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {schemaFields.map((f, idx) => (
+                          <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                            <td style={{ padding: '8px 6px', fontWeight: '600', fontSize: '13px' }}>{f.field_name}</td>
+                            <td style={{ padding: '8px 6px', fontSize: '13px' }}>{f.data_type}</td>
+                            <td style={{ padding: '8px 6px', fontSize: '13px', color: 'var(--text-muted)' }}>{f.sample_value ?? '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
+              {drawerTab === 'mapping' && (
+                <div style={{ padding: '4px 2px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                    <h4 className="drawer-section-title" style={{ margin: 0 }}>Attribute Mapping</h4>
+                    {mappingRows.length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        {mappingsSaved && (
+                          <span style={{ fontSize: '12px', color: 'var(--success)', fontWeight: '600' }}>Saved</span>
+                        )}
+                        <button
+                          onClick={handleSaveMappings}
+                          disabled={mappingsSaving}
+                          style={{
+                            padding: '7px 14px', fontSize: '13px', border: 'none', borderRadius: '6px',
+                            backgroundColor: 'var(--primary)', color: '#fff',
+                            cursor: mappingsSaving ? 'default' : 'pointer', fontWeight: '600',
+                            display: 'flex', alignItems: 'center', gap: '6px'
+                          }}
+                        >
+                          <Save size={13} />
+                          {mappingsSaving ? 'Saving...' : 'Save Mapping'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {mappingsError && (
+                    <div style={{ padding: '10px 14px', borderRadius: '8px', backgroundColor: 'var(--danger-light)', color: 'var(--danger)', fontSize: '13px', marginBottom: '12px' }}>
+                      {mappingsError}
+                    </div>
+                  )}
+
+                  {schemaFields.length === 0 ? (
+                    <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <ArrowRightLeft size={24} style={{ marginBottom: '8px' }} />
+                      <p>No fields available yet. Go to the "Schema" tab and click "Discover Schema" first.</p>
+                    </div>
+                  ) : mappingsLoading ? (
+                    <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <p>Loading attribute mapping data...</p>
+                    </div>
+                  ) : (
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border-color)' }}>
+                          <th style={{ textAlign: 'left', padding: '8px 6px', fontSize: '12px', color: 'var(--text-muted)' }}>Source Field</th>
+                          <th style={{ textAlign: 'left', padding: '8px 6px', fontSize: '12px', color: 'var(--text-muted)' }}>Target Module</th>
+                          <th style={{ textAlign: 'left', padding: '8px 6px', fontSize: '12px', color: 'var(--text-muted)' }}>Target Attribute</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {mappingRows.map((row) => {
+                          const moduleOptions = attributeOptions[row.target_module] || [];
+                          return (
+                            <tr key={row.source_field} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                              <td style={{ padding: '8px 6px', fontWeight: '600', fontSize: '13px' }}>{row.source_field}</td>
+                              <td style={{ padding: '8px 6px' }}>
+                                <select
+                                  value={row.target_module}
+                                  onChange={(e) => handleMappingModuleChange(row.source_field, e.target.value)}
+                                  style={{
+                                    padding: '5px 8px', fontSize: '12px', border: '1px solid var(--border-color)',
+                                    borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)'
+                                  }}
+                                >
+                                  <option value="">Not Mapped</option>
+                                  {MAPPING_MODULES.map((m) => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                              </td>
+                              <td style={{ padding: '8px 6px' }}>
+                                <select
+                                  value={row.target_attribute_name}
+                                  onChange={(e) => handleMappingAttributeChange(row.source_field, e.target.value)}
+                                  disabled={!row.target_module}
+                                  style={{
+                                    padding: '5px 8px', fontSize: '12px', border: '1px solid var(--border-color)',
+                                    borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)'
+                                  }}
+                                >
+                                  <option value="">Select attribute...</option>
+                                  {moduleOptions.map((attr) => (
+                                    <option key={attr.attribute_name} value={attr.attribute_name}>
+                                      {attr.display_name} ({attr.attribute_name})
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
+
+              {drawerTab === 'schedule' && (
+                <div style={{ padding: '4px 2px' }}>
+                  <h4 className="drawer-section-title">Automated Testing Schedule</h4>
+                  <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px', marginBottom: '16px' }}>
+                    When enabled, this connector's connection will be automatically re-tested on the interval below —
+                    the same check as clicking "Test Connection" manually.
+                  </p>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                    <label className="checkbox-switch" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <input
+                        type="checkbox"
+                        checked={scheduleEnabled}
+                        onChange={(e) => { setScheduleEnabled(e.target.checked); setScheduleSaved(false); }}
+                      />
+                      <span className="switch-slider"></span>
+                      <span className="switch-label">Enable Scheduled Testing</span>
+                    </label>
+                  </div>
+
+                  {scheduleEnabled && (
+                    <div style={{ marginBottom: '16px' }}>
+                      <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Frequency</label>
+                      <select
+                        value={scheduleFrequency}
+                        onChange={(e) => { setScheduleFrequency(e.target.value); setScheduleSaved(false); }}
+                        style={{
+                          padding: '7px 10px', fontSize: '13px', border: '1px solid var(--border-color)',
+                          borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)'
+                        }}
+                      >
+                        <option value="Hourly">Hourly</option>
+                        <option value="Daily">Daily</option>
+                        <option value="Weekly">Weekly</option>
+                      </select>
+                    </div>
+                  )}
+
+                  {selectedConnector.next_scheduled_run && scheduleEnabled && (
+                    <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                      Next scheduled run: {new Date(selectedConnector.next_scheduled_run + 'Z').toLocaleString('en-US')}
+                    </div>
+                  )}
+
+                  {scheduleError && (
+                    <div style={{ padding: '10px 14px', borderRadius: '8px', backgroundColor: 'var(--danger-light)', color: 'var(--danger)', fontSize: '13px', marginBottom: '12px' }}>
+                      {scheduleError}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <button
+                      onClick={handleSaveSchedule}
+                      disabled={scheduleSaving}
+                      style={{
+                        padding: '8px 16px', fontSize: '13px', border: 'none', borderRadius: '6px',
+                        backgroundColor: 'var(--primary)', color: '#fff',
+                        cursor: scheduleSaving ? 'default' : 'pointer', fontWeight: '600'
+                      }}
+                    >
+                      {scheduleSaving ? 'Saving...' : 'Save Schedule'}
+                    </button>
+                    {scheduleSaved && (
+                      <span style={{ fontSize: '12px', color: 'var(--success)', fontWeight: '600' }}>Saved</span>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

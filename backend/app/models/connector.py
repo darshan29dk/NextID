@@ -45,6 +45,10 @@ class Connector(Base):
     modified_by = Column(String(100), default="System", nullable=False)
     last_tested = Column(DateTime, nullable=True)
     last_sync = Column(DateTime, nullable=True)
+    schedule_enabled = Column(Boolean, default=False, nullable=True)
+    schedule_frequency = Column(String(20), nullable=True)  # "Hourly", "Daily", "Weekly"
+    schedule_time = Column(String(10), nullable=True)  # "HH:MM", used for Daily/Weekly
+    next_scheduled_run = Column(DateTime, nullable=True)
     is_deleted = Column(Boolean, default=False, nullable=False)
 
     # Relationships

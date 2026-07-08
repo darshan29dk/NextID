@@ -25,6 +25,7 @@ from app.models.connector_field_mapping import ConnectorFieldMapping
 from app.models.transformation_rule import TransformationRule
 from app.models.validation_rule import ValidationRule
 from app.models.import_preview import ImportPreview
+from app.services.scheduler import start_scheduler, restore_active_schedules
 from app.routes import transformations, validations, preview
 from app.utils.crypto import encrypt_password
 from datetime import datetime
@@ -467,6 +468,10 @@ except Exception as e:
     print(f"Error seeding database: {e}")
 finally:
     db.close()
+# Start the background scheduler and restore any connectors that had
+# scheduling enabled before this server restart.
+start_scheduler()
+restore_active_schedules()
 
 app = FastAPI(title="rAnalyzer API", version="1.0.0")
 

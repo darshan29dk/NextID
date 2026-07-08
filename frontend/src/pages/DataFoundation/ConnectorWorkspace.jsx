@@ -33,7 +33,8 @@ import {
   ArrowLeft,
   Sliders,
   ClipboardCheck,
-  Play
+  Play,
+  Clock
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
@@ -52,7 +53,8 @@ import {
   getConnectorTables,
   getConnectorSchema,
   getConnectorMappings,
-  saveConnectorMappings
+  saveConnectorMappings,
+  updateConnectorSchedule
 } from '../../services/connectorService';
 import {
   getIdentityAttributes,
@@ -239,6 +241,12 @@ const ConnectorWorkspace = () => {
   const [attributeOptions, setAttributeOptions] = useState({
     Identity: [], Account: [], Entitlement: [], Role: []
   });
+
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [scheduleFrequency, setScheduleFrequency] = useState('Daily');
+  const [scheduleSaving, setScheduleSaving] = useState(false);
+  const [scheduleSaved, setScheduleSaved] = useState(false);
+  const [scheduleError, setScheduleError] = useState(null);
 
   const fetchConnectorsList = useCallback(async () => {
     try {
@@ -493,6 +501,10 @@ const ConnectorWorkspace = () => {
     setMappingRows([]);
     setMappingsError(null);
     setMappingsSaved(false);
+    setScheduleEnabled(!!connector.schedule_enabled);
+    setScheduleFrequency(connector.schedule_frequency || 'Daily');
+    setScheduleSaved(false);
+    setScheduleError(null);
     fetchDetailSubData(connector.id);
   };
 
@@ -627,6 +639,32 @@ const ConnectorWorkspace = () => {
       prev.map((row) => row.source_field === sourceField ? { ...row, target_attribute_name: newAttrName } : row)
     );
     setMappingsSaved(false);
+  };
+
+  const handleSaveSchedule = async () => {
+    if (!selectedConnector) return;
+    try {
+      setScheduleSaving(true);
+      setScheduleError(null);
+      const result = await updateConnectorSchedule(
+        selectedConnector.id,
+        scheduleEnabled,
+        scheduleEnabled ? scheduleFrequency : null
+      );
+      setScheduleSaved(true);
+      setSelectedConnector((prev) => ({
+        ...prev,
+        schedule_enabled: result.schedule_enabled,
+        schedule_frequency: result.schedule_frequency,
+        next_scheduled_run: result.next_scheduled_run
+      }));
+      fetchConnectorsList();
+    } catch (err) {
+      console.error('Failed to save schedule:', err);
+      setScheduleError(err.response?.data?.detail || 'Failed to save schedule settings.');
+    } finally {
+      setScheduleSaving(false);
+    }
   };
 
   const handleSaveMappings = async () => {
@@ -2417,6 +2455,9 @@ const ConnectorWorkspace = () => {
               <button className={`drawer-tab-btn ${detailTab === 'preview' ? 'active' : ''}`} onClick={() => setDetailTab('preview')}>
                 <Play size={13} /> Preview
               </button>
+              <button className={`drawer-tab-btn ${detailTab === 'schedule' ? 'active' : ''}`} onClick={() => setDetailTab('schedule')}>
+                <Clock size={13} /> Schedule
+              </button>
             </div>
 
             <div className="detail-section-card">
@@ -3189,13 +3230,71 @@ const ConnectorWorkspace = () => {
                         )}
                       </div>
                     )}
+
+                    {detailTab === 'schedule' && (
+                      <div className="drawer-tab-info-pane">
+                        <h5>Automated Testing Schedule</h5>
+                        <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px', marginBottom: '16px' }}>
+                          When enabled, this connector's connection will be automatically re-tested on the interval below.
+                        </p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                            <input
+                              type="checkbox"
+                              checked={scheduleEnabled}
+                              onChange={(e) => { setScheduleEnabled(e.target.checked); setScheduleSaved(false); }}
+                            />
+                            <span style={{ fontWeight: '600', fontSize: '13px' }}>Enable Scheduled Testing</span>
+                          </label>
+                        </div>
+                        {scheduleEnabled && (
+                          <div style={{ marginBottom: '16px' }}>
+                            <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-muted)', marginBottom: '6px' }}>Frequency</label>
+                            <select
+                              value={scheduleFrequency}
+                              onChange={(e) => { setScheduleFrequency(e.target.value); setScheduleSaved(false); }}
+                              style={{ padding: '7px 10px', fontSize: '13px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)' }}
+                            >
+                              <option value="Hourly">Hourly</option>
+                              <option value="Daily">Daily</option>
+                              <option value="Weekly">Weekly</option>
+                            </select>
+                          </div>
+                        )}
+                        {selectedConnector.next_scheduled_run && scheduleEnabled && (
+                          <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                            Next scheduled run: {new Date(selectedConnector.next_scheduled_run + 'Z').toLocaleString('en-US')}
+                          </div>
+                        )}
+                        {scheduleError && (
+                          <div className="error-banner" style={{ marginBottom: '12px' }}>{scheduleError}</div>
+                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <button
+                            onClick={handleSaveSchedule}
+                            disabled={scheduleSaving}
+                            style={{
+                              padding: '8px 16px', fontSize: '13px', border: 'none', borderRadius: '6px',
+                              backgroundColor: 'var(--primary)', color: '#fff',
+                              cursor: scheduleSaving ? 'default' : 'pointer', fontWeight: '600',
+                              display: 'inline-flex', alignItems: 'center', gap: '6px'
+                            }}
+                          >
+                            <Save size={13} />
+                            {scheduleSaving ? 'Saving...' : 'Save Schedule'}
+                          </button>
+                          {scheduleSaved && (
+                            <span style={{ fontSize: '12px', color: 'var(--success)', fontWeight: '600' }}>Saved</span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
             </div>
           </>
         )}
-
         {renderModals()}
       </div>
     );

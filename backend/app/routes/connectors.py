@@ -705,3 +705,52 @@ def get_connector_schema(
     )
 
     return {"fields": fields, "field_count": len(fields)}
+@router.put("/connectors/{id}/schedule")
+def update_connector_schedule(
+    id: int,
+    schedule_enabled: bool,
+    schedule_frequency: str = None,
+    db: Session = Depends(get_db),
+    x_user_name: str = Header(default="System")
+):
+    from app.services.scheduler import register_connector_schedule, unregister_connector_schedule
+
+    connector = db.query(Connector).filter(Connector.id == id, Connector.is_deleted == False).first()
+    if not connector:
+        raise HTTPException(status_code=404, detail="Connector not found")
+
+    if schedule_enabled and not schedule_frequency:
+        raise HTTPException(status_code=400, detail="A schedule frequency is required when enabling scheduling.")
+    if schedule_frequency and schedule_frequency not in ["Hourly", "Daily", "Weekly"]:
+        raise HTTPException(status_code=400, detail="Frequency must be one of: Hourly, Daily, Weekly.")
+
+    connector.schedule_enabled = schedule_enabled
+    connector.schedule_frequency = schedule_frequency if schedule_enabled else None
+    connector.modified_by = x_user_name
+    connector.updated_at = datetime.utcnow()
+
+    if schedule_enabled:
+        register_connector_schedule(connector.id, schedule_frequency)
+        interval_map = {"Hourly": 1, "Daily": 24, "Weekly": 168}
+        from datetime import timedelta
+        connector.next_scheduled_run = datetime.utcnow() + timedelta(hours=interval_map[schedule_frequency])
+    else:
+        unregister_connector_schedule(connector.id)
+        connector.next_scheduled_run = None
+
+    db.commit()
+    db.refresh(connector)
+
+    write_connector_log(
+        db=db,
+        connector_id=connector.id,
+        action="Schedule Updated",
+        details=f"Scheduling {'enabled (' + schedule_frequency + ')' if schedule_enabled else 'disabled'} by {x_user_name}.",
+        status_val="Success"
+    )
+
+    return {
+        "schedule_enabled": connector.schedule_enabled,
+        "schedule_frequency": connector.schedule_frequency,
+        "next_scheduled_run": connector.next_scheduled_run.isoformat() if connector.next_scheduled_run else None
+    }
