@@ -1057,6 +1057,26 @@ const ConnectorWorkspace = () => {
   };
 
   // ── Preview Handlers ─────────────────────────────────────────────
+  const fetchPreviewData = async () => {
+    if (!selectedConnector) return;
+    try {
+      setPreviewLoading(true);
+      const params = {
+        page: previewPage,
+        limit: previewLimit,
+      };
+      if (previewStatusFilter) params.status = previewStatusFilter;
+      if (previewSearch) params.search = previewSearch;
+      const res = await getConnectorPreview(selectedConnector.id, params);
+      setPreviewRecords(res.records || []);
+      setPreviewTotal(res.total || 0);
+      setPreviewSummary(res.summary || null);
+    } catch (err) {
+      console.error('Failed to load preview data:', err);
+    } finally {
+      setPreviewLoading(false);
+    }
+  };
   const handleGeneratePreview = async () => {
     if (!selectedConnector) return;
     try {
@@ -3348,6 +3368,7 @@ const ConnectorWorkspace = () => {
                                   placeholder="Search preview records..."
                                   value={previewSearch}
                                   onChange={e => { setPreviewSearch(e.target.value); setPreviewPage(1); }}
+                                  onKeyDown={e => { if (e.key === 'Enter') fetchPreviewData(); }}
                                   style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--border-color)', borderRadius: '6px', width: '220px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)' }}
                                 />
                                 <button className="btn-browse-file" onClick={fetchPreviewData} style={{ padding: '6px 10px' }}>Search</button>
