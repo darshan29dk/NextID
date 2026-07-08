@@ -19,8 +19,10 @@ router = APIRouter()
 
 otp_store = {}
 
-GMAIL_USER = "saniagupta2280@gmail.com"
-GMAIL_APP_PASSWORD = "zzejcvoduvnbciwh"
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
+SMTP_USER = os.getenv("SMTP_USER", "saniagupta2280@gmail.com")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "zzejcvoduvnbciwh")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -86,9 +88,15 @@ def send_otp_email(to_email: str, otp: str, expiry_minutes: int):
 
     msg.attach(MIMEText(html, "html"))
 
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-        server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
-        server.sendmail(GMAIL_USER, to_email, msg.as_string())
+    if SMTP_PORT == 465:
+        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as server:
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_USER, to_email, msg.as_string())
+    else:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(SMTP_USER, to_email, msg.as_string())
 
 
 @router.post("/auth/login")
