@@ -732,7 +732,6 @@ def get_connector_schema(
 
         elif connector.connector_type == "API Gateway":
             import requests as requests_lib
-            from app.utils.crypto import decrypt_password
             
             url = connector.host
             if not url:
