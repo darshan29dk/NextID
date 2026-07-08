@@ -22,6 +22,10 @@ from app.models.connector import Connector
 from app.models.connector_log import ConnectorLog
 from app.models.connector_file import ConnectorFile
 from app.models.connector_field_mapping import ConnectorFieldMapping
+from app.models.transformation_rule import TransformationRule
+from app.models.validation_rule import ValidationRule
+from app.models.import_preview import ImportPreview
+from app.routes import transformations, validations, preview
 from app.utils.crypto import encrypt_password
 from datetime import datetime
 
@@ -494,6 +498,9 @@ app.include_router(role_attribute.router, prefix="/api")
 app.include_router(attribute_category.router, prefix="/api")
 app.include_router(connectors_routes.router, prefix="/api")
 app.include_router(connector_mapping.router, prefix="/api")
+app.include_router(transformations.router, prefix="/api")
+app.include_router(validations.router, prefix="/api")
+app.include_router(preview.router, prefix="/api")
 
 @app.get("/")
 def read_root():

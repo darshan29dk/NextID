@@ -445,3 +445,73 @@ export const getConnectorFiles = async (id) => {
   const response = await apiClient.get(`/connectors/${id}/files`);
   return response.data;
 };
+
+// ── Transformations ───────────────────────────────────────────────
+export const getTransformationRules = async (connectorId, params) => {
+  const response = await apiClient.get(`/connectors/${connectorId}/transformations`, { params });
+  return response.data;
+};
+
+export const createTransformationRule = async (connectorId, data) => {
+  const response = await apiClient.post(`/connectors/${connectorId}/transformations`, data);
+  return response.data;
+};
+
+export const updateTransformationRule = async (id, data) => {
+  const response = await apiClient.put(`/transformations/${id}`, data);
+  return response.data;
+};
+
+export const deleteTransformationRule = async (id) => {
+  const response = await apiClient.delete(`/transformations/${id}`);
+  return response.data;
+};
+
+export const testTransformationRule = async (data) => {
+  const response = await apiClient.post('/test-rule/transform', data);
+  return response.data;
+};
+
+// ── Validations ──────────────────────────────────────────────────
+export const getValidationRules = async (connectorId, params) => {
+  const response = await apiClient.get(`/connectors/${connectorId}/validations`, { params });
+  return response.data;
+};
+
+export const createValidationRule = async (connectorId, data) => {
+  const response = await apiClient.post(`/connectors/${connectorId}/validations`, data);
+  return response.data;
+};
+
+export const updateValidationRule = async (id, data) => {
+  const response = await apiClient.put(`/validations/${id}`, data);
+  return response.data;
+};
+
+export const deleteValidationRule = async (id) => {
+  const response = await apiClient.delete(`/validations/${id}`);
+  return response.data;
+};
+
+export const testValidationRule = async (data) => {
+  const response = await apiClient.post('/test-rule/validate', data);
+  return response.data;
+};
+
+// ── Import Preview ───────────────────────────────────────────────
+export const generateConnectorPreview = async (connectorId, tableName) => {
+  const response = await apiClient.post(`/connectors/${connectorId}/preview`, null, {
+    params: tableName ? { table_name: tableName } : {}
+  });
+  return response.data;
+};
+
+export const getConnectorPreview = async (connectorId, params) => {
+  const response = await apiClient.get(`/connectors/${connectorId}/preview`, { params });
+  return response.data;
+};
+
+export const clearConnectorPreview = async (connectorId) => {
+  const response = await apiClient.delete(`/connectors/${connectorId}/preview`);
+  return response.data;
+};

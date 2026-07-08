@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
+# pyrefly: ignore [missing-import]
 from passlib.context import CryptContext
 import random
 import smtplib

@@ -30,7 +30,10 @@ import {
   Globe,
   Save,
   ArrowRightLeft,
-  ArrowLeft
+  ArrowLeft,
+  Sliders,
+  ClipboardCheck,
+  Play
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
@@ -55,7 +58,20 @@ import {
   getIdentityAttributes,
   getAccountAttributes,
   getEntitlementAttributes,
-  getRoleAttributes
+  getRoleAttributes,
+  getTransformationRules,
+  createTransformationRule,
+  updateTransformationRule,
+  deleteTransformationRule,
+  testTransformationRule,
+  getValidationRules,
+  createValidationRule,
+  updateValidationRule,
+  deleteValidationRule,
+  testValidationRule,
+  generateConnectorPreview,
+  getConnectorPreview,
+  clearConnectorPreview
 } from '../../services/dashboardService';
 import './ConnectorWorkspace.css';
 
@@ -94,6 +110,74 @@ const MAPPING_MODULES = ['Identity', 'Account', 'Entitlement', 'Role'];
 const ConnectorWorkspace = () => {
   // View state: 'list' | 'detail'
   const [view, setView] = useState('list');
+  const [userRole, setUserRole] = useState('Read Only');
+  const [userName, setUserName] = useState('');
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('ranalyzer_user');
+      if (saved) {
+        const u = JSON.parse(saved);
+        if (u?.role) setUserRole(u.role);
+        if (u?.name) setUserName(u.name);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  // Transformations State
+  const [transformations, setTransformations] = useState([]);
+  const [transformLoading, setTransformLoading] = useState(false);
+  const [transformTotal, setTransformTotal] = useState(0);
+  const [transformPage, setTransformPage] = useState(1);
+  const [transformLimit] = useState(10);
+  const [showTransformModal, setShowTransformModal] = useState(false);
+  const [transformFormData, setTransformFormData] = useState({
+    id: null, rule_name: '', transformation_type: 'Trim', mapping_id: '', expression: '', parameters: '', execution_order: 0, enabled: true
+  });
+  const [transformSubmitting, setTransformSubmitting] = useState(false);
+  
+  // Test transformation sandbox
+  const [testTransformValue, setTestTransformValue] = useState('');
+  const [testTransformOutput, setTestTransformOutput] = useState('');
+  const [testTransformError, setTestTransformError] = useState('');
+  const [testingTransform, setTestingTransform] = useState(false);
+
+  // Validations State
+  const [validations, setValidations] = useState([]);
+  const [validationLoading, setValidationLoading] = useState(false);
+  const [validationTotal, setValidationTotal] = useState(0);
+  const [validationPage, setValidationPage] = useState(1);
+  const [validationLimit] = useState(10);
+  const [showValidationModal, setShowValidationModal] = useState(false);
+  const [validationFormData, setValidationFormData] = useState({
+    id: null, rule_name: '', validation_type: 'Required', mapping_id: '', parameters: '', severity: 'Error', error_message: '', execution_order: 0, enabled: true
+  });
+  const [validationSubmitting, setValidationSubmitting] = useState(false);
+
+  // Test validation sandbox
+  const [testValidationValue, setTestValidationValue] = useState('');
+  const [testValidationStatus, setTestValidationStatus] = useState('');
+  const [testValidationMessage, setTestValidationMessage] = useState('');
+  const [testingValidation, setTestingValidation] = useState(false);
+
+  // Preview State
+  const [previewRecords, setPreviewRecords] = useState([]);
+  const [previewSummary, setPreviewSummary] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewTotal, setPreviewTotal] = useState(0);
+  const [previewPage, setPreviewPage] = useState(1);
+  const [previewLimit] = useState(10);
+  const [previewStatusFilter, setPreviewStatusFilter] = useState('');
+  const [previewSearch, setPreviewSearch] = useState('');
+  const [generatingPreview, setGeneratingPreview] = useState(false);
+  const [clearingPreview, setClearingPreview] = useState(false);
+
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [connectorToDelete, setConnectorToDelete] = useState(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const deletingRef = React.useRef(false);
 
   // Connector list state
   const [connectors, setConnectors] = useState([]);
@@ -155,10 +239,6 @@ const ConnectorWorkspace = () => {
   const [attributeOptions, setAttributeOptions] = useState({
     Identity: [], Account: [], Entitlement: [], Role: []
   });
-
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [connectorToDelete, setConnectorToDelete] = useState(null);
-  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
   const fetchConnectorsList = useCallback(async () => {
     try {
@@ -572,6 +652,420 @@ const ConnectorWorkspace = () => {
     }
   };
 
+  // ── Transformations Handlers ─────────────────────────────────────
+  const fetchTransformations = useCallback(async () => {
+    if (!selectedConnector) return;
+    try {
+      setTransformLoading(true);
+      const res = await getTransformationRules(selectedConnector.id, { page: transformPage, limit: transformLimit });
+      setTransformations(res.rules || []);
+      setTransformTotal(res.total || 0);
+    } catch (err) {
+      console.error("Failed to fetch transformations:", err);
+    } finally {
+      setTransformLoading(false);
+    }
+  }, [selectedConnector, transformPage, transformLimit]);
+
+  useEffect(() => {
+    if (detailTab === 'transformations') {
+      fetchTransformations();
+    }
+  }, [detailTab, fetchTransformations]);
+
+  const handleOpenTransformAdd = () => {
+    setTransformFormData({
+      id: null, rule_name: '', transformation_type: 'Trim', mapping_id: mappingRows[0]?.source_field ? mappingRows.find(r => r.target_attribute_name)?.source_field || '' : '', expression: '', parameters: '', execution_order: transformations.length + 1, enabled: true
+    });
+    setTestTransformValue('');
+    setTestTransformOutput('');
+    setTestTransformError('');
+    setShowTransformModal(true);
+  };
+
+  const handleOpenTransformEdit = (rule) => {
+    const mapping = mappingRows.find(m => m.id === rule.mapping_id || (m.target_attribute_name && m.target_attribute_name === rule.mapping?.target_attribute_name));
+    setTransformFormData({
+      id: rule.id,
+      rule_name: rule.rule_name,
+      transformation_type: rule.transformation_type,
+      mapping_id: mapping ? mapping.source_field : (rule.mapping_id || ''),
+      expression: rule.expression || '',
+      parameters: rule.parameters || '',
+      execution_order: rule.execution_order,
+      enabled: rule.enabled
+    });
+    setTestTransformValue('');
+    setTestTransformOutput('');
+    setTestTransformError('');
+    setShowTransformModal(true);
+  };
+
+  const handleSaveTransformation = async () => {
+    if (!transformFormData.rule_name.trim()) {
+      alert("Rule name is required.");
+      return;
+    }
+    const mapping = mappingRows.find(r => r.source_field === transformFormData.mapping_id);
+    if (!mapping) {
+      alert("A valid attribute mapping is required.");
+      return;
+    }
+
+    try {
+      setTransformSubmitting(true);
+      const existingMappings = await getConnectorMappings(selectedConnector.id);
+      const backendMapping = existingMappings.find(m => m.source_field === mapping.source_field);
+      if (!backendMapping) {
+        alert("The mapping was not found on the backend. Please save the Mappings tab configuration first.");
+        return;
+      }
+
+      const payload = {
+        connector_id: selectedConnector.id,
+        mapping_id: backendMapping.id,
+        rule_name: transformFormData.rule_name,
+        transformation_type: transformFormData.transformation_type,
+        expression: transformFormData.expression || null,
+        parameters: transformFormData.parameters || null,
+        execution_order: parseInt(transformFormData.execution_order) || 0,
+        enabled: transformFormData.enabled
+      };
+
+      if (transformFormData.id) {
+        await updateTransformationRule(transformFormData.id, payload);
+      } else {
+        await createTransformationRule(selectedConnector.id, payload);
+      }
+      setShowTransformModal(false);
+      fetchTransformations();
+    } catch (err) {
+      alert("Failed to save rule: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setTransformSubmitting(false);
+    }
+  };
+
+  const handleDeleteTransformation = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this transformation rule?")) return;
+    try {
+      await deleteTransformationRule(id);
+      fetchTransformations();
+    } catch (err) {
+      alert("Failed to delete rule: " + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleDuplicateTransformation = async (rule) => {
+    try {
+      const payload = {
+        connector_id: rule.connector_id,
+        mapping_id: rule.mapping_id,
+        rule_name: `${rule.rule_name} (Copy)`,
+        transformation_type: rule.transformation_type,
+        expression: rule.expression,
+        parameters: rule.parameters,
+        execution_order: rule.execution_order + 1,
+        enabled: rule.enabled
+      };
+      await createTransformationRule(rule.connector_id, payload);
+      fetchTransformations();
+    } catch (err) {
+      alert("Failed to duplicate rule: " + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleToggleTransformationEnabled = async (rule) => {
+    try {
+      await updateTransformationRule(rule.id, { enabled: !rule.enabled });
+      fetchTransformations();
+    } catch (err) {
+      alert("Failed to toggle rule: " + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleTestTransformation = async () => {
+    if (!testTransformValue) return;
+    try {
+      setTestingTransform(true);
+      setTestTransformOutput('');
+      setTestTransformError('');
+      const res = await testTransformationRule({
+        value: testTransformValue,
+        transformation_type: transformFormData.transformation_type,
+        expression: transformFormData.expression || null,
+        parameters: transformFormData.parameters || null
+      });
+      if (res.success) {
+        setTestTransformOutput(res.output_value);
+      } else {
+        setTestTransformError(res.error_message);
+      }
+    } catch (err) {
+      setTestTransformError(err.response?.data?.detail || err.message);
+    } finally {
+      setTestingTransform(false);
+    }
+  };
+
+  // ── Validations Handlers ─────────────────────────────────────────
+  const fetchValidations = useCallback(async () => {
+    if (!selectedConnector) return;
+    try {
+      setValidationLoading(true);
+      const res = await getValidationRules(selectedConnector.id, { page: validationPage, limit: validationLimit });
+      setValidations(res.rules || []);
+      setValidationTotal(res.total || 0);
+    } catch (err) {
+      console.error("Failed to fetch validations:", err);
+    } finally {
+      setValidationLoading(false);
+    }
+  }, [selectedConnector, validationPage, validationLimit]);
+
+  useEffect(() => {
+    if (detailTab === 'validations') {
+      fetchValidations();
+    }
+  }, [detailTab, fetchValidations]);
+
+  const handleOpenValidationAdd = () => {
+    setValidationFormData({
+      id: null, rule_name: '', validation_type: 'Required', mapping_id: mappingRows[0]?.source_field ? mappingRows.find(r => r.target_attribute_name)?.source_field || '' : '', parameters: '', severity: 'Error', error_message: '', execution_order: validations.length + 1, enabled: true
+    });
+    setTestValidationValue('');
+    setTestValidationStatus('');
+    setTestValidationMessage('');
+    setShowValidationModal(true);
+  };
+
+  const handleOpenValidationEdit = (rule) => {
+    const mapping = mappingRows.find(m => m.id === rule.mapping_id || (m.target_attribute_name && m.target_attribute_name === rule.mapping?.target_attribute_name));
+    setValidationFormData({
+      id: rule.id,
+      rule_name: rule.rule_name,
+      validation_type: rule.validation_type,
+      mapping_id: mapping ? mapping.source_field : (rule.mapping_id || ''),
+      parameters: rule.parameters || '',
+      severity: rule.severity,
+      error_message: rule.error_message,
+      execution_order: rule.execution_order,
+      enabled: rule.enabled
+    });
+    setTestValidationValue('');
+    setTestValidationStatus('');
+    setTestValidationMessage('');
+    setShowValidationModal(true);
+  };
+
+  const handleSaveValidation = async () => {
+    if (!validationFormData.rule_name.trim()) {
+      alert("Rule name is required.");
+      return;
+    }
+    if (!validationFormData.error_message.trim()) {
+      alert("Error message is required.");
+      return;
+    }
+    const mapping = mappingRows.find(r => r.source_field === validationFormData.mapping_id);
+    if (!mapping) {
+      alert("A valid attribute mapping is required.");
+      return;
+    }
+
+    try {
+      setValidationSubmitting(true);
+      const existingMappings = await getConnectorMappings(selectedConnector.id);
+      const backendMapping = existingMappings.find(m => m.source_field === mapping.source_field);
+      if (!backendMapping) {
+        alert("The mapping was not found on the backend. Please save the Mappings tab configuration first.");
+        return;
+      }
+
+      const payload = {
+        connector_id: selectedConnector.id,
+        mapping_id: backendMapping.id,
+        rule_name: validationFormData.rule_name,
+        validation_type: validationFormData.validation_type,
+        parameters: validationFormData.parameters || null,
+        severity: validationFormData.severity,
+        error_message: validationFormData.error_message,
+        execution_order: parseInt(validationFormData.execution_order) || 0,
+        enabled: validationFormData.enabled
+      };
+
+      if (validationFormData.id) {
+        await updateValidationRule(validationFormData.id, payload);
+      } else {
+        await createValidationRule(selectedConnector.id, payload);
+      }
+      setShowValidationModal(false);
+      fetchValidations();
+    } catch (err) {
+      alert("Failed to save validation: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setValidationSubmitting(false);
+    }
+  };
+
+  const handleDeleteValidation = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this validation rule?")) return;
+    try {
+      await deleteValidationRule(id);
+      fetchValidations();
+    } catch (err) {
+      alert("Failed to delete rule: " + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleDuplicateValidation = async (rule) => {
+    try {
+      const payload = {
+        connector_id: rule.connector_id,
+        mapping_id: rule.mapping_id,
+        rule_name: `${rule.rule_name} (Copy)`,
+        validation_type: rule.validation_type,
+        parameters: rule.parameters,
+        severity: rule.severity,
+        error_message: rule.error_message,
+        execution_order: rule.execution_order + 1,
+        enabled: rule.enabled
+      };
+      await createValidationRule(rule.connector_id, payload);
+      fetchValidations();
+    } catch (err) {
+      alert("Failed to duplicate rule: " + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleToggleValidationEnabled = async (rule) => {
+    try {
+      await updateValidationRule(rule.id, { enabled: !rule.enabled });
+      fetchValidations();
+    } catch (err) {
+      alert("Failed to toggle rule: " + (err.response?.data?.detail || err.message));
+    }
+  };
+
+  const handleTestValidation = async () => {
+    if (!testValidationValue) return;
+    try {
+      setTestingValidation(true);
+      setTestValidationStatus('');
+      setTestValidationMessage('');
+      const res = await testValidationRule({
+        value: testValidationValue,
+        validation_type: validationFormData.validation_type,
+        parameters: validationFormData.parameters || null
+      });
+      if (res.success) {
+        setTestValidationStatus(res.status);
+        setTestValidationMessage(res.message || "Value is valid!");
+      } else {
+        setTestValidationStatus("Error");
+        setTestValidationMessage(res.message || "Failed to execute validation test.");
+      }
+    } catch (err) {
+      setTestValidationStatus("Error");
+      setTestValidationMessage(err.response?.data?.detail || err.message);
+    } finally {
+      setTestingValidation(false);
+    }
+  };
+
+  // ── Preview Handlers ─────────────────────────────────────────────
+  const handleGeneratePreview = async () => {
+    if (!selectedConnector) return;
+    try {
+      setGeneratingPreview(true);
+      await generateConnectorPreview(selectedConnector.id, selectedTableName || undefined);
+      setPreviewPage(1);
+      fetchPreviewData();
+    } catch (err) {
+      alert("Failed to generate preview: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setGeneratingPreview(false);
+    }
+  };
+
+  const handleClearPreview = async () => {
+    if (!selectedConnector) return;
+    if (!window.confirm("Are you sure you want to clear the dry-run preview cache?")) return;
+    try {
+      setClearingPreview(true);
+      await clearConnectorPreview(selectedConnector.id);
+      setPreviewRecords([]);
+      setPreviewTotal(0);
+      setPreviewSummary(null);
+    } catch (err) {
+      alert("Failed to clear preview cache: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setClearingPreview(false);
+    }
+  };
+
+  const handleExportPreview = (format) => {
+    if (previewRecords.length === 0) {
+      alert("No preview records found to export.");
+      return;
+    }
+    
+    const exportData = previewRecords.map(rec => {
+      let source = {};
+      let transformed = {};
+      let errorsList = [];
+      let warningsList = [];
+      try { source = JSON.parse(rec.source_data); } catch(e){}
+      try { transformed = JSON.parse(rec.transformed_data); } catch(e){}
+      try { errorsList = JSON.parse(rec.errors) || []; } catch(e){}
+      try { warningsList = JSON.parse(rec.warnings) || []; } catch(e){}
+      
+      const flat = {
+        "Record Number": rec.record_number,
+        "Validation Status": rec.status,
+        "Errors": errorsList.join("; "),
+        "Warnings": warningsList.join("; ")
+      };
+      
+      Object.keys(source).forEach(k => {
+        flat[`Source_${k}`] = source[k];
+      });
+      Object.keys(transformed).forEach(k => {
+        flat[`Transformed_${k}`] = transformed[k];
+      });
+      
+      return flat;
+    });
+
+    if (format === 'json') {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `connector_${selectedConnector.connector_name}_preview.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    } else {
+      const headers = Object.keys(exportData[0]);
+      const csvRows = [headers.join(",")];
+      exportData.forEach(row => {
+        const values = headers.map(header => {
+          const val = row[header] === undefined ? "" : String(row[header]);
+          const escaped = val.replace(/"/g, '""');
+          return `"${escaped}"`;
+        });
+        csvRows.push(values.join(","));
+      });
+      const csvContent = "data:text/csv;charset=utf-8," + encodeURIComponent(csvRows.join("\n"));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", csvContent);
+      downloadAnchor.setAttribute("download", `connector_${selectedConnector.connector_name}_preview.csv`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+  };
+
   const handleOpenDeleteConfirm = (connector, e) => {
     if (e) e.stopPropagation();
     setConnectorToDelete(connector);
@@ -579,8 +1073,9 @@ const ConnectorWorkspace = () => {
   };
 
   const handleDeleteSubmit = async () => {
-    if (!connectorToDelete) return;
+    if (!connectorToDelete || deletingRef.current) return;
     try {
+      deletingRef.current = true;
       setDeleteSubmitting(true);
       await deleteConnector(connectorToDelete.id);
       setShowDeleteConfirm(false);
@@ -593,8 +1088,22 @@ const ConnectorWorkspace = () => {
       fetchKPIStats();
     } catch (err) {
       console.error(err);
-      alert(err.response?.data?.detail || 'Failed to delete connector.');
+      if (err.response?.status === 404) {
+        // If it returns a 404, it means the connector has already been successfully deleted.
+        // We handle this gracefully by closing the confirm modal and updating the view.
+        setShowDeleteConfirm(false);
+        setConnectorToDelete(null);
+        if (selectedConnector?.id === connectorToDelete.id) {
+          setView('list');
+          setSelectedConnector(null);
+        }
+        fetchConnectorsList();
+        fetchKPIStats();
+      } else {
+        alert(err.response?.data?.detail || 'Failed to delete connector.');
+      }
     } finally {
+      deletingRef.current = false;
       setDeleteSubmitting(false);
     }
   };
@@ -1016,6 +1525,772 @@ const ConnectorWorkspace = () => {
           </div>
         )}
 
+        {showTransformModal && (
+          <div className="modal-overlay-custom" style={{ zIndex: 1100 }}>
+            <div className="modal-content-custom" style={{ maxWidth: '650px', width: '100%' }}>
+              <div className="modal-header-custom">
+                <h3>{transformFormData.id ? 'Edit Transformation Rule' : 'Add Transformation Rule'}</h3>
+                <button className="modal-close-btn-custom" onClick={() => setShowTransformModal(false)}><X size={18} /></button>
+              </div>
+              <div className="modal-body-custom" style={{ padding: '20px', maxHeight: '75vh', overflowY: 'auto' }}>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                  <div className="input-group-custom">
+                    <label className="required">Rule Name</label>
+                    <input 
+                      type="text" 
+                      value={transformFormData.rule_name} 
+                      onChange={e => setTransformFormData(prev => ({ ...prev, rule_name: e.target.value }))}
+                      placeholder="e.g. Clean & Title Case Name"
+                    />
+                  </div>
+                  <div className="input-group-custom">
+                    <label className="required">Mapped Attribute</label>
+                    <select 
+                      value={transformFormData.mapping_id} 
+                      onChange={e => setTransformFormData(prev => ({ ...prev, mapping_id: e.target.value }))}
+                      style={{ padding: '8px 12px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', width: '100%' }}
+                    >
+                      <option value="">Select mapped attribute...</option>
+                      {mappingRows.filter(r => r.target_attribute_name).map(r => (
+                        <option key={r.source_field} value={r.source_field}>
+                          {r.target_attribute_name} ({r.source_field})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                  <div className="input-group-custom">
+                    <label className="required">Transformation Type</label>
+                    <select 
+                      value={transformFormData.transformation_type} 
+                      onChange={e => setTransformFormData(prev => ({ ...prev, transformation_type: e.target.value }))}
+                      style={{ padding: '8px 12px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', width: '100%' }}
+                    >
+                      {['Trim', 'Uppercase', 'Lowercase', 'Capitalize', 'Replace', 'Regex Replace', 'Split', 'Concatenate', 'Substring', 'Date Format', 'Number Format', 'Default Value', 'Lookup', 'Expression'].map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="input-group-custom">
+                    <label>Execution Order</label>
+                    <input 
+                      type="number" 
+                      value={transformFormData.execution_order} 
+                      onChange={e => setTransformFormData(prev => ({ ...prev, execution_order: parseInt(e.target.value) || 0 }))}
+                    />
+                  </div>
+                </div>
+
+                {/* Conditional Form Configs */}
+                {['Replace', 'Regex Replace'].includes(transformFormData.transformation_type) && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                    <div className="input-group-custom">
+                      <label className="required">{transformFormData.transformation_type === 'Replace' ? 'Search Text' : 'Regex Pattern'}</label>
+                      <input 
+                        type="text" 
+                        placeholder={transformFormData.transformation_type === 'Replace' ? 'e.g. old_text' : 'e.g. [0-9]+'}
+                        value={(() => {
+                          try {
+                            const p = JSON.parse(transformFormData.parameters || '{}');
+                            return p.search || p.pattern || '';
+                          } catch (e) { return ''; }
+                        })()}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setTransformFormData(prev => {
+                            let curr = {};
+                            try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                            if (prev.transformation_type === 'Replace') curr.search = val;
+                            else curr.pattern = val;
+                            return { ...prev, parameters: JSON.stringify(curr) };
+                          });
+                        }}
+                      />
+                    </div>
+                    <div className="input-group-custom">
+                      <label>Replacement Text</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. new_text"
+                        value={(() => {
+                          try {
+                            const p = JSON.parse(transformFormData.parameters || '{}');
+                            return p.replace || '';
+                          } catch (e) { return ''; }
+                        })()}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setTransformFormData(prev => {
+                            let curr = {};
+                            try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                            curr.replace = val;
+                            return { ...prev, parameters: JSON.stringify(curr) };
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {transformFormData.transformation_type === 'Split' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                    <div className="input-group-custom">
+                      <label className="required">Delimiter</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. @ or , or space"
+                        value={(() => {
+                          try { return JSON.parse(transformFormData.parameters || '{}').delimiter || ''; } catch (e) { return ''; }
+                        })()}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setTransformFormData(prev => {
+                            let curr = {};
+                            try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                            curr.delimiter = val;
+                            return { ...prev, parameters: JSON.stringify(curr) };
+                          });
+                        }}
+                      />
+                    </div>
+                    <div className="input-group-custom">
+                      <label>Select Index</label>
+                      <input 
+                        type="number" 
+                        placeholder="0 for first part"
+                        value={(() => {
+                          try { return JSON.parse(transformFormData.parameters || '{}').index ?? ''; } catch (e) { return ''; }
+                        })()}
+                        onChange={e => {
+                          const val = parseInt(e.target.value) || 0;
+                          setTransformFormData(prev => {
+                            let curr = {};
+                            try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                            curr.index = val;
+                            return { ...prev, parameters: JSON.stringify(curr) };
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {transformFormData.transformation_type === 'Concatenate' && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '12px' }}>
+                      <div className="input-group-custom">
+                        <label className="required">Fields to Join (Comma-separated)</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. first_name, last_name"
+                          value={(() => {
+                            try { return (JSON.parse(transformFormData.parameters || '{}').fields || []).join(', '); } catch (e) { return ''; }
+                          })()}
+                          onChange={e => {
+                            const val = e.target.value.split(',').map(x => x.trim()).filter(Boolean);
+                            setTransformFormData(prev => {
+                              let curr = {};
+                              try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                              curr.fields = val;
+                              return { ...prev, parameters: JSON.stringify(curr) };
+                            });
+                          }}
+                        />
+                      </div>
+                      <div className="input-group-custom">
+                        <label>Delimiter</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. space or -"
+                          value={(() => {
+                            try { return JSON.parse(transformFormData.parameters || '{}').delimiter ?? ' '; } catch (e) { return ' '; }
+                          })()}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setTransformFormData(prev => {
+                              let curr = {};
+                              try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                              curr.delimiter = val;
+                              return { ...prev, parameters: JSON.stringify(curr) };
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                      <div className="input-group-custom">
+                        <label>Prefix text</label>
+                        <input 
+                          type="text" 
+                          placeholder="Optional prefix"
+                          value={(() => {
+                            try { return JSON.parse(transformFormData.parameters || '{}').prefix || ''; } catch (e) { return ''; }
+                          })()}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setTransformFormData(prev => {
+                              let curr = {};
+                              try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                              curr.prefix = val;
+                              return { ...prev, parameters: JSON.stringify(curr) };
+                            });
+                          }}
+                        />
+                      </div>
+                      <div className="input-group-custom">
+                        <label>Suffix text</label>
+                        <input 
+                          type="text" 
+                          placeholder="Optional suffix"
+                          value={(() => {
+                            try { return JSON.parse(transformFormData.parameters || '{}').suffix || ''; } catch (e) { return ''; }
+                          })()}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setTransformFormData(prev => {
+                              let curr = {};
+                              try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                              curr.suffix = val;
+                              return { ...prev, parameters: JSON.stringify(curr) };
+                            });
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {transformFormData.transformation_type === 'Substring' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                    <div className="input-group-custom">
+                      <label className="required">Start Index</label>
+                      <input 
+                        type="number" 
+                        placeholder="0 for beginning"
+                        value={(() => {
+                          try { return JSON.parse(transformFormData.parameters || '{}').start ?? ''; } catch (e) { return ''; }
+                        })()}
+                        onChange={e => {
+                          const val = parseInt(e.target.value) || 0;
+                          setTransformFormData(prev => {
+                            let curr = {};
+                            try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                            curr.start = val;
+                            return { ...prev, parameters: JSON.stringify(curr) };
+                          });
+                        }}
+                      />
+                    </div>
+                    <div className="input-group-custom">
+                      <label>Length / End Index</label>
+                      <input 
+                        type="number" 
+                        placeholder="Leave blank for end of string"
+                        value={(() => {
+                          try { return JSON.parse(transformFormData.parameters || '{}').end ?? ''; } catch (e) { return ''; }
+                        })()}
+                        onChange={e => {
+                          const val = e.target.value ? parseInt(e.target.value) : null;
+                          setTransformFormData(prev => {
+                            let curr = {};
+                            try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                            if (val === null) delete curr.end;
+                            else curr.end = val;
+                            return { ...prev, parameters: JSON.stringify(curr) };
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {transformFormData.transformation_type === 'Date Format' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                    <div className="input-group-custom">
+                      <label className="required">Source Date Format</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. %Y-%m-%d"
+                        value={(() => {
+                          try { return JSON.parse(transformFormData.parameters || '{}').source_format ?? '%Y-%m-%d'; } catch (e) { return '%Y-%m-%d'; }
+                        })()}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setTransformFormData(prev => {
+                            let curr = {};
+                            try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                            curr.source_format = val;
+                            return { ...prev, parameters: JSON.stringify(curr) };
+                          });
+                        }}
+                      />
+                    </div>
+                    <div className="input-group-custom">
+                      <label className="required">Target Date Format</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. %d/%m/%Y"
+                        value={(() => {
+                          try { return JSON.parse(transformFormData.parameters || '{}').target_format ?? '%d/%m/%Y'; } catch (e) { return '%d/%m/%Y'; }
+                        })()}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setTransformFormData(prev => {
+                            let curr = {};
+                            try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                            curr.target_format = val;
+                            return { ...prev, parameters: JSON.stringify(curr) };
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {transformFormData.transformation_type === 'Number Format' && (
+                  <div className="input-group-custom" style={{ marginBottom: '16px' }}>
+                    <label className="required">Decimal Places</label>
+                    <input 
+                      type="number" 
+                      placeholder="e.g. 2"
+                      value={(() => {
+                        try { return JSON.parse(transformFormData.parameters || '{}').decimals ?? 2; } catch (e) { return 2; }
+                      })()}
+                      onChange={e => {
+                        const val = parseInt(e.target.value) || 0;
+                        setTransformFormData(prev => {
+                          let curr = {};
+                          try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                          curr.decimals = val;
+                          return { ...prev, parameters: JSON.stringify(curr) };
+                        });
+                      }}
+                    />
+                  </div>
+                )}
+
+                {transformFormData.transformation_type === 'Default Value' && (
+                  <div className="input-group-custom" style={{ marginBottom: '16px' }}>
+                    <label className="required">Fallback Value (If Empty)</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Active / Standard"
+                      value={(() => {
+                        try { return JSON.parse(transformFormData.parameters || '{}').default ?? ''; } catch (e) { return ''; }
+                      })()}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setTransformFormData(prev => {
+                          let curr = {};
+                          try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                          curr.default = val;
+                          return { ...prev, parameters: JSON.stringify(curr) };
+                        });
+                      }}
+                    />
+                  </div>
+                )}
+
+                {transformFormData.transformation_type === 'Lookup' && (
+                  <div className="input-group-custom" style={{ marginBottom: '16px' }}>
+                    <label className="required">Lookup Mapping (JSON object of key-value matches)</label>
+                    <textarea 
+                      placeholder='e.g. {"active": "True", "inactive": "False"}'
+                      rows={3}
+                      style={{ width: '100%', padding: '8px', border: '1px solid var(--border-color)', borderRadius: '6px', fontFamily: 'monospace', fontSize: '12px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)' }}
+                      value={(() => {
+                        try {
+                          const p = JSON.parse(transformFormData.parameters || '{}');
+                          return p.lookup_map ? JSON.stringify(p.lookup_map) : '';
+                        } catch (e) { return ''; }
+                      })()}
+                      onChange={e => {
+                        const text = e.target.value;
+                        setTransformFormData(prev => {
+                          let curr = {};
+                          try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                          try {
+                            curr.lookup_map = JSON.parse(text);
+                          } catch(err) {
+                            // Keep raw text input inside lookup_map context while parsing
+                          }
+                          return { ...prev, parameters: JSON.stringify(curr) };
+                        });
+                      }}
+                    />
+                  </div>
+                )}
+
+                {transformFormData.transformation_type === 'Expression' && (
+                  <div className="input-group-custom" style={{ marginBottom: '16px' }}>
+                    <label className="required">Formula Expression (Placeholders like {first_name} supported)</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. {first_name}.{last_name}@ranalyzer.com"
+                      value={transformFormData.expression || ''}
+                      onChange={e => setTransformFormData(prev => ({ ...prev, expression: e.target.value }))}
+                    />
+                  </div>
+                )}
+
+                <div className="input-group-custom" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
+                  <input 
+                    type="checkbox" 
+                    id="ruleEnabledChk"
+                    checked={transformFormData.enabled}
+                    onChange={e => setTransformFormData(prev => ({ ...prev, enabled: e.target.checked }))}
+                    style={{ cursor: 'pointer' }}
+                  />
+                  <label htmlFor="ruleEnabledChk" style={{ margin: 0, cursor: 'pointer', fontWeight: '600' }}>Enable Rule Execution</label>
+                </div>
+
+                {/* Dry Run sandbox (Jira 5) */}
+                <div style={{ border: '1px dashed var(--border-color)', padding: '16px', borderRadius: '8px', backgroundColor: 'rgba(0,0,0,0.01)', marginBottom: '16px' }}>
+                  <h5 style={{ margin: '0 0 12px', fontSize: '13px', fontWeight: 'bold' }}>Test Rule Sandbox</h5>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    <input 
+                      type="text" 
+                      placeholder="Enter sample input string to test..."
+                      value={testTransformValue}
+                      onChange={e => setTestTransformValue(e.target.value)}
+                      style={{ flex: 1, padding: '6px 12px', fontSize: '12px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)' }}
+                    />
+                    <button 
+                      className="btn-browse-file" 
+                      type="button"
+                      disabled={testingTransform || !testTransformValue}
+                      onClick={handleTestTransformation}
+                      style={{ fontSize: '12px' }}
+                    >
+                      {testingTransform ? 'Testing...' : 'Test Rule'}
+                    </button>
+                  </div>
+                  {testTransformOutput && (
+                    <div style={{ fontSize: '12px', color: 'var(--success)', fontWeight: '600', padding: '6px', backgroundColor: 'rgba(16,185,129,0.05)', borderRadius: '4px' }}>
+                      Success: {testTransformOutput}
+                    </div>
+                  )}
+                  {testTransformError && (
+                    <div style={{ fontSize: '12px', color: 'var(--danger)', fontWeight: '600', padding: '6px', backgroundColor: 'rgba(239,68,68,0.05)', borderRadius: '4px' }}>
+                      Error: {testTransformError}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+              <div className="modal-footer-custom" style={{ padding: '16px 20px' }}>
+                <button className="btn-modal-cancel" type="button" onClick={() => setShowTransformModal(false)}>Cancel</button>
+                <button className="btn-modal-submit" type="button" disabled={transformSubmitting} onClick={handleSaveTransformation}>
+                  {transformSubmitting ? 'Saving...' : 'Save Transformation'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showValidationModal && (
+          <div className="modal-overlay-custom" style={{ zIndex: 1100 }}>
+            <div className="modal-content-custom" style={{ maxWidth: '650px', width: '100%' }}>
+              <div className="modal-header-custom">
+                <h3>{validationFormData.id ? 'Edit Validation Rule' : 'Add Validation Rule'}</h3>
+                <button className="modal-close-btn-custom" onClick={() => setShowValidationModal(false)}><X size={18} /></button>
+              </div>
+              <div className="modal-body-custom" style={{ padding: '20px', maxHeight: '75vh', overflowY: 'auto' }}>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                  <div className="input-group-custom">
+                    <label className="required">Rule Name</label>
+                    <input 
+                      type="text" 
+                      value={validationFormData.rule_name} 
+                      onChange={e => setValidationFormData(prev => ({ ...prev, rule_name: e.target.value }))}
+                      placeholder="e.g. Verify Email Format"
+                    />
+                  </div>
+                  <div className="input-group-custom">
+                    <label className="required">Mapped Attribute</label>
+                    <select 
+                      value={validationFormData.mapping_id} 
+                      onChange={e => setValidationFormData(prev => ({ ...prev, mapping_id: e.target.value }))}
+                      style={{ padding: '8px 12px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', width: '100%' }}
+                    >
+                      <option value="">Select mapped attribute...</option>
+                      {mappingRows.filter(r => r.target_attribute_name).map(r => (
+                        <option key={r.source_field} value={r.source_field}>
+                          {r.target_attribute_name} ({r.source_field})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                  <div className="input-group-custom">
+                    <label className="required">Validation Type</label>
+                    <select 
+                      value={validationFormData.validation_type} 
+                      onChange={e => setValidationFormData(prev => ({ ...prev, validation_type: e.target.value }))}
+                      style={{ padding: '8px 12px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', width: '100%' }}
+                    >
+                      {['Required', 'Email', 'Phone', 'Regex', 'Minimum Length', 'Maximum Length', 'Unique', 'Allowed Values', 'Numeric', 'Date', 'Range', 'Custom Expression'].map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="input-group-custom">
+                    <label className="required">Severity</label>
+                    <select 
+                      value={validationFormData.severity} 
+                      onChange={e => setValidationFormData(prev => ({ ...prev, severity: e.target.value }))}
+                      style={{ padding: '8px 12px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', width: '100%' }}
+                    >
+                      <option value="Error">Error (Fails Ingestion)</option>
+                      <option value="Warning">Warning (Ingests with Flag)</option>
+                      <option value="Info">Info (Audit Log Only)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="input-group-custom" style={{ marginBottom: '16px' }}>
+                  <label className="required">Error Message</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. Email must contain valid structure with domains"
+                    value={validationFormData.error_message} 
+                    onChange={e => setValidationFormData(prev => ({ ...prev, error_message: e.target.value }))}
+                  />
+                </div>
+
+                {/* Conditional Parameter Fields */}
+                {['Minimum Length', 'Maximum Length'].includes(validationFormData.validation_type) && (
+                  <div className="input-group-custom" style={{ marginBottom: '16px' }}>
+                    <label className="required">Length Limit (Number of characters)</label>
+                    <input 
+                      type="number" 
+                      placeholder="e.g. 5"
+                      value={(() => {
+                        try {
+                          const p = JSON.parse(validationFormData.parameters || '{}');
+                          return p.min_length || p.max_length || '';
+                        } catch (e) { return ''; }
+                      })()}
+                      onChange={e => {
+                        const val = parseInt(e.target.value) || 0;
+                        setValidationFormData(prev => {
+                          let curr = {};
+                          try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                          if (prev.validation_type === 'Minimum Length') curr.min_length = val;
+                          else curr.max_length = val;
+                          return { ...prev, parameters: JSON.stringify(curr) };
+                        });
+                      }}
+                    />
+                  </div>
+                )}
+
+                {validationFormData.validation_type === 'Regex' && (
+                  <div className="input-group-custom" style={{ marginBottom: '16px' }}>
+                    <label className="required">Validation Regex Pattern</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. ^[0-9]{5}$"
+                      value={(() => {
+                        try { return JSON.parse(validationFormData.parameters || '{}').pattern || ''; } catch (e) { return ''; }
+                      })()}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setValidationFormData(prev => {
+                          let curr = {};
+                          try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                          curr.pattern = val;
+                          return { ...prev, parameters: JSON.stringify(curr) };
+                        });
+                      }}
+                    />
+                  </div>
+                )}
+
+                {validationFormData.validation_type === 'Allowed Values' && (
+                  <div className="input-group-custom" style={{ marginBottom: '16px' }}>
+                    <label className="required">Allowed Values (Comma-separated list)</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Active, Inactive, Suspended"
+                      value={(() => {
+                        try { return (JSON.parse(validationFormData.parameters || '{}').allowed_values || []).join(', '); } catch (e) { return ''; }
+                      })()}
+                      onChange={e => {
+                        const val = e.target.value.split(',').map(x => x.trim()).filter(Boolean);
+                        setValidationFormData(prev => {
+                          let curr = {};
+                          try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                          curr.allowed_values = val;
+                          return { ...prev, parameters: JSON.stringify(curr) };
+                        });
+                      }}
+                    />
+                  </div>
+                )}
+
+                {validationFormData.validation_type === 'Range' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
+                    <div className="input-group-custom">
+                      <label>Minimum Value</label>
+                      <input 
+                        type="number" 
+                        placeholder="Optional min"
+                        value={(() => {
+                          try { return JSON.parse(validationFormData.parameters || '{}').min ?? ''; } catch (e) { return ''; }
+                        })()}
+                        onChange={e => {
+                          const val = e.target.value !== '' ? parseFloat(e.target.value) : null;
+                          setValidationFormData(prev => {
+                            let curr = {};
+                            try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                            if (val === null) delete curr.min;
+                            else curr.min = val;
+                            return { ...prev, parameters: JSON.stringify(curr) };
+                          });
+                        }}
+                      />
+                    </div>
+                    <div className="input-group-custom">
+                      <label>Maximum Value</label>
+                      <input 
+                        type="number" 
+                        placeholder="Optional max"
+                        value={(() => {
+                          try { return JSON.parse(validationFormData.parameters || '{}').max ?? ''; } catch (e) { return ''; }
+                        })()}
+                        onChange={e => {
+                          const val = e.target.value !== '' ? parseFloat(e.target.value) : null;
+                          setValidationFormData(prev => {
+                            let curr = {};
+                            try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                            if (val === null) delete curr.max;
+                            else curr.max = val;
+                            return { ...prev, parameters: JSON.stringify(curr) };
+                          });
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {validationFormData.validation_type === 'Date' && (
+                  <div className="input-group-custom" style={{ marginBottom: '16px' }}>
+                    <label className="required">Date Format validation</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. %Y-%m-%d"
+                      value={(() => {
+                        try { return JSON.parse(validationFormData.parameters || '{}').format ?? '%Y-%m-%d'; } catch (e) { return '%Y-%m-%d'; }
+                      })()}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setValidationFormData(prev => {
+                          let curr = {};
+                          try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                          curr.format = val;
+                          return { ...prev, parameters: JSON.stringify(curr) };
+                        });
+                      }}
+                    />
+                  </div>
+                )}
+
+                {validationFormData.validation_type === 'Custom Expression' && (
+                  <div className="input-group-custom" style={{ marginBottom: '16px' }}>
+                    <label className="required">Validation Expression (e.g. len(value) &gt; 10)</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. len(value) > 5 and value.startswith('ID')"
+                      value={(() => {
+                        try { return JSON.parse(validationFormData.parameters || '{}').expression || ''; } catch (e) { return ''; }
+                      })()}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setValidationFormData(prev => {
+                          let curr = {};
+                          try { curr = JSON.parse(prev.parameters || '{}'); } catch(err){}
+                          curr.expression = val;
+                          return { ...prev, parameters: JSON.stringify(curr) };
+                        });
+                      }}
+                    />
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                  <div className="input-group-custom">
+                    <label>Execution Order</label>
+                    <input 
+                      type="number" 
+                      value={validationFormData.execution_order} 
+                      onChange={e => setValidationFormData(prev => ({ ...prev, execution_order: parseInt(e.target.value) || 0 }))}
+                    />
+                  </div>
+                  <div className="input-group-custom" style={{ display: 'flex', alignItems: 'center', gap: '8px', alignSelf: 'center', marginTop: '20px' }}>
+                    <input 
+                      type="checkbox" 
+                      id="valEnabledChk"
+                      checked={validationFormData.enabled}
+                      onChange={e => setValidationFormData(prev => ({ ...prev, enabled: e.target.checked }))}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <label htmlFor="valEnabledChk" style={{ margin: 0, cursor: 'pointer', fontWeight: '600' }}>Enable Rule</label>
+                  </div>
+                </div>
+
+                {/* Dry Run validation sandbox */}
+                <div style={{ border: '1px dashed var(--border-color)', padding: '16px', borderRadius: '8px', backgroundColor: 'rgba(0,0,0,0.01)', marginBottom: '16px' }}>
+                  <h5 style={{ margin: '0 0 12px', fontSize: '13px', fontWeight: 'bold' }}>Test Validation Sandbox</h5>
+                  <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                    <input 
+                      type="text" 
+                      placeholder="Enter sample input string to test..."
+                      value={testValidationValue}
+                      onChange={e => setTestValidationValue(e.target.value)}
+                      style={{ flex: 1, padding: '6px 12px', fontSize: '12px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)' }}
+                    />
+                    <button 
+                      className="btn-browse-file" 
+                      type="button"
+                      disabled={testingValidation || !testValidationValue}
+                      onClick={handleTestValidation}
+                      style={{ fontSize: '12px' }}
+                    >
+                      {testingValidation ? 'Testing...' : 'Test Validation'}
+                    </button>
+                  </div>
+                  {testValidationStatus && (
+                    <div style={{ 
+                      fontSize: '12px', 
+                      fontWeight: '600', 
+                      padding: '6px', 
+                      backgroundColor: testValidationStatus === 'Valid' ? 'rgba(16,185,129,0.05)' : 'rgba(239,68,68,0.05)', 
+                      borderRadius: '4px',
+                      color: testValidationStatus === 'Valid' ? 'var(--success)' : 'var(--danger)' 
+                    }}>
+                      Status: {testValidationStatus} {testValidationMessage ? `— ${testValidationMessage}` : ''}
+                    </div>
+                  )}
+                </div>
+
+              </div>
+              <div className="modal-footer-custom" style={{ padding: '16px 20px' }}>
+                <button className="btn-modal-cancel" type="button" onClick={() => setShowValidationModal(false)}>Cancel</button>
+                <button className="btn-modal-submit" type="button" disabled={validationSubmitting} onClick={handleSaveValidation}>
+                  {validationSubmitting ? 'Saving...' : 'Save Validation'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showDeleteConfirm && (
           <div className="modal-overlay-custom">
             <div className="modal-content-custom delete-dialog-content">
@@ -1114,7 +2389,7 @@ const ConnectorWorkspace = () => {
               </div>
             )}
 
-            <div className="drawer-tabs-navigation" style={{ marginBottom: '16px' }}>
+            <div className="drawer-tabs-navigation" style={{ marginBottom: '16px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
               <button className={`drawer-tab-btn ${detailTab === 'info' ? 'active' : ''}`} onClick={() => setDetailTab('info')}>
                 <Info size={13} /> Details
               </button>
@@ -1132,6 +2407,15 @@ const ConnectorWorkspace = () => {
               </button>
               <button className={`drawer-tab-btn ${detailTab === 'mapping' ? 'active' : ''}`} onClick={handleOpenMappingTab}>
                 <ArrowRightLeft size={13} /> Mapping ({mappingRows.filter((r) => r.target_attribute_name).length})
+              </button>
+              <button className={`drawer-tab-btn ${detailTab === 'transformations' ? 'active' : ''}`} onClick={() => setDetailTab('transformations')}>
+                <Sliders size={13} /> Transformations ({transformTotal})
+              </button>
+              <button className={`drawer-tab-btn ${detailTab === 'validations' ? 'active' : ''}`} onClick={() => setDetailTab('validations')}>
+                <ClipboardCheck size={13} /> Validation ({validationTotal})
+              </button>
+              <button className={`drawer-tab-btn ${detailTab === 'preview' ? 'active' : ''}`} onClick={() => setDetailTab('preview')}>
+                <Play size={13} /> Preview
               </button>
             </div>
 
@@ -1441,6 +2725,467 @@ const ConnectorWorkspace = () => {
                               })}
                             </tbody>
                           </table>
+                        )}
+                      </div>
+                    )}
+
+                    {detailTab === 'transformations' && (
+                      <div className="drawer-tab-info-pane">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                          <h5 style={{ margin: 0 }}>Transformation Rules</h5>
+                          {(userRole === 'Platform Administrator' || userRole === 'Data Steward') && (
+                            <button className="btn-primary" onClick={handleOpenTransformAdd} style={{ padding: '6px 12px', fontSize: '12px' }}>
+                              <Plus size={13} /> Add Rule
+                            </button>
+                          )}
+                        </div>
+
+                        {transformLoading ? (
+                          <div className="drawer-loading-box">
+                            <div className="spinner-element"></div>
+                            <p>Loading transformation rules...</p>
+                          </div>
+                        ) : transformations.length === 0 ? (
+                          <div className="drawer-tab-empty-msg" style={{ padding: '40px 0' }}>
+                            <Sliders size={24} className="text-muted" />
+                            <p>No transformation rules configured for this connector source.</p>
+                          </div>
+                        ) : (
+                          <>
+                            <table className="detail-inner-table">
+                              <thead>
+                                <tr>
+                                  <th style={{ textAlign: 'left' }}>Rule Name</th>
+                                  <th style={{ textAlign: 'left' }}>Mapped Attribute</th>
+                                  <th style={{ textAlign: 'left' }}>Transformation Type</th>
+                                  <th style={{ textAlign: 'left' }}>Order</th>
+                                  <th style={{ textAlign: 'left' }}>Status</th>
+                                  <th style={{ textAlign: 'right' }}>Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {transformations.map((rule) => (
+                                  <tr key={rule.id}>
+                                    <td style={{ fontWeight: '600' }}>{rule.rule_name}</td>
+                                    <td>
+                                      <span className="attr-category-tag" style={{ backgroundColor: '#e0e7ff', color: '#4f46e5' }}>
+                                        {rule.mapping?.target_attribute_name || '—'}
+                                      </span>
+                                    </td>
+                                    <td>
+                                      <span className="attr-datatype-badge">{rule.transformation_type}</span>
+                                    </td>
+                                    <td>{rule.execution_order}</td>
+                                    <td>
+                                      <label className="switch-custom" style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
+                                        <input 
+                                          type="checkbox" 
+                                          checked={rule.enabled} 
+                                          onChange={() => handleToggleTransformationEnabled(rule)}
+                                          disabled={userRole !== 'Platform Administrator' && userRole !== 'Data Steward'}
+                                          style={{ marginRight: '6px' }}
+                                        />
+                                        <span style={{ fontSize: '12px', fontWeight: '500' }}>{rule.enabled ? 'Enabled' : 'Disabled'}</span>
+                                      </label>
+                                    </td>
+                                    <td style={{ textAlign: 'right' }}>
+                                      <div style={{ display: 'inline-flex', gap: '8px' }}>
+                                        {(userRole === 'Platform Administrator' || userRole === 'Data Steward') && (
+                                          <>
+                                            <button className="btn-table-action" title="Edit" onClick={() => handleOpenTransformEdit(rule)}>
+                                              <Edit size={12} />
+                                            </button>
+                                            <button className="btn-table-action" title="Duplicate" onClick={() => handleDuplicateTransformation(rule)}>
+                                              <Copy size={12} />
+                                            </button>
+                                          </>
+                                        )}
+                                        {userRole === 'Platform Administrator' && (
+                                          <button className="btn-table-action action-delete" title="Delete" onClick={() => handleDeleteTransformation(rule.id)}>
+                                            <Trash2 size={12} />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+
+                            {transformTotal > transformLimit && (
+                              <div className="pagination-bar" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                <button 
+                                  className="btn-pagination" 
+                                  disabled={transformPage === 1}
+                                  onClick={() => setTransformPage(prev => prev - 1)}
+                                >
+                                  Prev
+                                </button>
+                                <span style={{ fontSize: '13px', alignSelf: 'center' }}>Page {transformPage}</span>
+                                <button 
+                                  className="btn-pagination" 
+                                  disabled={transformPage * transformLimit >= transformTotal}
+                                  onClick={() => setTransformPage(prev => prev + 1)}
+                                >
+                                  Next
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {detailTab === 'validations' && (
+                      <div className="drawer-tab-info-pane">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                          <h5 style={{ margin: 0 }}>Validation Rules</h5>
+                          {(userRole === 'Platform Administrator' || userRole === 'Data Steward') && (
+                            <button className="btn-primary" onClick={handleOpenValidationAdd} style={{ padding: '6px 12px', fontSize: '12px' }}>
+                              <Plus size={13} /> Add Rule
+                            </button>
+                          )}
+                        </div>
+
+                        {validationLoading ? (
+                          <div className="drawer-loading-box">
+                            <div className="spinner-element"></div>
+                            <p>Loading validation rules...</p>
+                          </div>
+                        ) : validations.length === 0 ? (
+                          <div className="drawer-tab-empty-msg" style={{ padding: '40px 0' }}>
+                            <ClipboardCheck size={24} className="text-muted" />
+                            <p>No validation rules configured for this connector source.</p>
+                          </div>
+                        ) : (
+                          <>
+                            <table className="detail-inner-table">
+                              <thead>
+                                <tr>
+                                  <th style={{ textAlign: 'left' }}>Rule Name</th>
+                                  <th style={{ textAlign: 'left' }}>Mapped Attribute</th>
+                                  <th style={{ textAlign: 'left' }}>Validation Type</th>
+                                  <th style={{ textAlign: 'left' }}>Severity</th>
+                                  <th style={{ textAlign: 'left' }}>Order</th>
+                                  <th style={{ textAlign: 'left' }}>Status</th>
+                                  <th style={{ textAlign: 'right' }}>Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {validations.map((rule) => (
+                                  <tr key={rule.id}>
+                                    <td style={{ fontWeight: '600' }}>{rule.rule_name}</td>
+                                    <td>
+                                      <span className="attr-category-tag" style={{ backgroundColor: '#e0e7ff', color: '#4f46e5' }}>
+                                        {rule.mapping?.target_attribute_name || '—'}
+                                      </span>
+                                    </td>
+                                    <td>
+                                      <span className="attr-datatype-badge">{rule.validation_type}</span>
+                                    </td>
+                                    <td>
+                                      <span className={`status-badge ${rule.severity === 'Error' ? 'failed' : rule.severity === 'Warning' ? 'disconnected' : 'connected'}`} style={{ fontSize: '10px', padding: '2px 6px' }}>
+                                        {rule.severity}
+                                      </span>
+                                    </td>
+                                    <td>{rule.execution_order}</td>
+                                    <td>
+                                      <label className="switch-custom" style={{ display: 'inline-flex', alignItems: 'center', cursor: 'pointer' }}>
+                                        <input 
+                                          type="checkbox" 
+                                          checked={rule.enabled} 
+                                          onChange={() => handleToggleValidationEnabled(rule)}
+                                          disabled={userRole !== 'Platform Administrator' && userRole !== 'Data Steward'}
+                                          style={{ marginRight: '6px' }}
+                                        />
+                                        <span style={{ fontSize: '12px', fontWeight: '500' }}>{rule.enabled ? 'Enabled' : 'Disabled'}</span>
+                                      </label>
+                                    </td>
+                                    <td style={{ textAlign: 'right' }}>
+                                      <div style={{ display: 'inline-flex', gap: '8px' }}>
+                                        {(userRole === 'Platform Administrator' || userRole === 'Data Steward') && (
+                                          <>
+                                            <button className="btn-table-action" title="Edit" onClick={() => handleOpenValidationEdit(rule)}>
+                                              <Edit size={12} />
+                                            </button>
+                                            <button className="btn-table-action" title="Duplicate" onClick={() => handleDuplicateValidation(rule)}>
+                                              <Copy size={12} />
+                                            </button>
+                                          </>
+                                        )}
+                                        {userRole === 'Platform Administrator' && (
+                                          <button className="btn-table-action action-delete" title="Delete" onClick={() => handleDeleteValidation(rule.id)}>
+                                            <Trash2 size={12} />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+
+                            {validationTotal > validationLimit && (
+                              <div className="pagination-bar" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                <button 
+                                  className="btn-pagination" 
+                                  disabled={validationPage === 1}
+                                  onClick={() => setValidationPage(prev => prev - 1)}
+                                >
+                                  Prev
+                                </button>
+                                <span style={{ fontSize: '13px', alignSelf: 'center' }}>Page {validationPage}</span>
+                                <button 
+                                  className="btn-pagination" 
+                                  disabled={validationPage * validationLimit >= validationTotal}
+                                  onClick={() => setValidationPage(prev => prev + 1)}
+                                >
+                                  Next
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {detailTab === 'preview' && (
+                      <div className="drawer-tab-info-pane">
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                          <h5 style={{ margin: 0 }}>Import Preview (Dry Run)</h5>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button 
+                              className="btn-primary" 
+                              onClick={handleGeneratePreview}
+                              disabled={generatingPreview || mappingsLoading}
+                              style={{ padding: '6px 12px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              <Play size={12} /> {generatingPreview ? 'Generating...' : 'Generate Preview'}
+                            </button>
+                            <button 
+                              className="btn-modal-cancel" 
+                              onClick={handleClearPreview}
+                              disabled={clearingPreview || previewRecords.length === 0}
+                              style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--border-color)', borderRadius: '6px', color: 'var(--text-main)' }}
+                            >
+                              Clear Preview
+                            </button>
+                          </div>
+                        </div>
+
+                        {previewLoading && previewRecords.length === 0 ? (
+                          <div className="drawer-loading-box">
+                            <div className="spinner-element"></div>
+                            <p>Loading import preview dataset...</p>
+                          </div>
+                        ) : previewRecords.length === 0 ? (
+                          <div className="drawer-tab-empty-msg" style={{ padding: '50px 0' }}>
+                            <Play size={24} className="text-muted" />
+                            <p>No preview records loaded. Click "Generate Preview" to start a dry run.</p>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Summary Statistics Cards */}
+                            {previewSummary && (
+                              <>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '20px' }}>
+                                  <div className="kpi-card" style={{ padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '8px', backgroundColor: 'var(--bg-card)' }}>
+                                    <div style={{ fontSize: '12px', color: 'var(--text-muted, #71717a)', fontWeight: '500' }}>Total Records</div>
+                                    <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text-main)', marginTop: '4px' }}>{previewSummary.total_records}</div>
+                                  </div>
+                                  <div className="kpi-card" style={{ padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '8px', backgroundColor: 'var(--bg-card)' }}>
+                                    <div style={{ fontSize: '12px', color: 'var(--success, #10b981)', fontWeight: '500' }}>Valid Records</div>
+                                    <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--success, #10b981)', marginTop: '4px' }}>{previewSummary.valid_records}</div>
+                                  </div>
+                                  <div className="kpi-card" style={{ padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '8px', backgroundColor: 'var(--bg-card)' }}>
+                                    <div style={{ fontSize: '12px', color: 'var(--warning, #f59e0b)', fontWeight: '500' }}>Warnings</div>
+                                    <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--warning, #f59e0b)', marginTop: '4px' }}>{previewSummary.warning_records}</div>
+                                  </div>
+                                  <div className="kpi-card" style={{ padding: '12px 16px', border: '1px solid var(--border-color)', borderRadius: '8px', backgroundColor: 'var(--bg-card)' }}>
+                                    <div style={{ fontSize: '12px', color: 'var(--danger, #ef4444)', fontWeight: '500' }}>Errors</div>
+                                    <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--danger, #ef4444)', marginTop: '4px' }}>{previewSummary.error_records}</div>
+                                  </div>
+                                </div>
+
+                                {/* Preview Summary Statistics grouped by mapped attributes */}
+                                <div style={{ marginBottom: '24px' }}>
+                                  <h6 style={{ margin: '0 0 10px', fontSize: '13px', fontWeight: '600' }}>Preview Summary Table (Failures by Field)</h6>
+                                  {previewSummary.field_stats.length === 0 ? (
+                                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>All field validations passed successfully!</p>
+                                  ) : (
+                                    <table className="detail-inner-table" style={{ width: '100%' }}>
+                                      <thead>
+                                        <tr>
+                                          <th style={{ textAlign: 'left', width: '40%' }}>Field Name</th>
+                                          <th style={{ textAlign: 'center' }}>Errors Count</th>
+                                          <th style={{ textAlign: 'center' }}>Warnings Count</th>
+                                          <th style={{ textAlign: 'center' }}>Total Failures</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {previewSummary.field_stats.map(stat => (
+                                          <tr key={stat.field_name}>
+                                            <td style={{ fontWeight: '600' }}>{stat.field_name}</td>
+                                            <td style={{ textAlign: 'center', color: stat.errors_count > 0 ? 'var(--danger)' : 'inherit' }}>{stat.errors_count}</td>
+                                            <td style={{ textAlign: 'center', color: stat.warnings_count > 0 ? 'var(--warning)' : 'inherit' }}>{stat.warnings_count}</td>
+                                            <td style={{ textAlign: 'center', fontWeight: '700' }}>{stat.total_failures}</td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  )}
+                                </div>
+                              </>
+                            )}
+
+                            {/* Filters & Export Row */}
+                            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '12px', padding: '12px', backgroundColor: 'rgba(0,0,0,0.02)', borderRadius: '8px' }}>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <select 
+                                  value={previewStatusFilter}
+                                  onChange={e => { setPreviewStatusFilter(e.target.value); setPreviewPage(1); }}
+                                  style={{ padding: '6px 10px', fontSize: '12px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)' }}
+                                >
+                                  <option value="">All Statuses</option>
+                                  <option value="Valid">Valid</option>
+                                  <option value="Warning">Warning</option>
+                                  <option value="Error">Error</option>
+                                </select>
+                                <input 
+                                  type="text"
+                                  placeholder="Search preview records..."
+                                  value={previewSearch}
+                                  onChange={e => { setPreviewSearch(e.target.value); setPreviewPage(1); }}
+                                  style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--border-color)', borderRadius: '6px', width: '220px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)' }}
+                                />
+                                <button className="btn-browse-file" onClick={fetchPreviewData} style={{ padding: '6px 10px' }}>Search</button>
+                              </div>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button className="btn-browse-file" style={{ padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px' }} onClick={() => handleExportPreview('csv')}>
+                                  <FileSpreadsheet size={13} /> Export CSV/Excel
+                                </button>
+                                <button className="btn-browse-file" style={{ padding: '6px 12px', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '12px' }} onClick={() => handleExportPreview('json')}>
+                                  <FileText size={13} /> Export JSON
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Main Preview Grid */}
+                            <div style={{ overflowX: 'auto', border: '1px solid var(--border-color)', borderRadius: '8px', marginBottom: '16px' }}>
+                              <table className="detail-inner-table" style={{ width: '100%', margin: 0 }}>
+                                <thead>
+                                  <tr>
+                                    <th style={{ width: '80px', textAlign: 'center' }}>Record</th>
+                                    <th style={{ width: '100px', textAlign: 'center' }}>Status</th>
+                                    {mappingRows.filter(r => r.target_attribute_name).map(r => (
+                                      <th key={r.target_attribute_name} style={{ textAlign: 'left' }}>
+                                        {r.target_attribute_name}
+                                      </th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {previewRecords.map((rec) => {
+                                    let srcData = {};
+                                    let trsData = {};
+                                    let valData = {};
+                                    try { srcData = JSON.parse(rec.source_data) || {}; } catch(e){}
+                                    try { trsData = JSON.parse(rec.transformed_data) || {}; } catch(e){}
+                                    try { valData = JSON.parse(rec.validation_result) || {}; } catch(e){}
+
+                                    const mappedFields = mappingRows.filter(r => r.target_attribute_name);
+
+                                    return (
+                                      <tr key={rec.id}>
+                                        <td style={{ textAlign: 'center', fontWeight: 'bold' }}>#{rec.record_number}</td>
+                                        <td style={{ textAlign: 'center' }}>
+                                          <span className={`status-badge ${rec.status === 'Valid' ? 'connected' : rec.status === 'Warning' ? 'disconnected' : 'failed'}`}>
+                                            {rec.status}
+                                          </span>
+                                        </td>
+                                        {mappedFields.map(field => {
+                                          const attr = field.target_attribute_name;
+                                          const origVal = srcData[attr] ?? '';
+                                          const transVal = trsData[attr] ?? '';
+                                          const isChanged = origVal !== transVal;
+                                          const fieldIssues = valData[attr] || [];
+                                          const isError = fieldIssues.some(i => i.status === 'Error');
+                                          const isWarning = fieldIssues.some(i => i.status === 'Warning');
+
+                                          let cellStyle = { 
+                                            position: 'relative', 
+                                            padding: '10px',
+                                            transition: 'all 0.2s'
+                                          };
+                                          
+                                          if (isError) {
+                                            cellStyle.backgroundColor = 'rgba(239, 68, 68, 0.08)';
+                                            cellStyle.borderLeft = '3px solid var(--danger, #ef4444)';
+                                          } else if (isWarning) {
+                                            cellStyle.backgroundColor = 'rgba(245, 158, 11, 0.08)';
+                                            cellStyle.borderLeft = '3px solid var(--warning, #f59e0b)';
+                                          } else if (isChanged) {
+                                            cellStyle.backgroundColor = 'rgba(59, 130, 246, 0.06)';
+                                          }
+
+                                          return (
+                                            <td key={attr} style={cellStyle}>
+                                              <div style={{ fontWeight: '500', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                {transVal || <span style={{ opacity: 0.35 }}>[blank]</span>}
+                                                {isChanged && (
+                                                  <span style={{ fontSize: '9px', backgroundColor: '#dbeafe', color: '#1e40af', padding: '1px 4px', borderRadius: '4px', fontWeight: 'bold' }}>
+                                                    Transformed
+                                                  </span>
+                                                )}
+                                              </div>
+                                              {isChanged && (
+                                                <div style={{ fontSize: '10px', opacity: 0.55, textDecoration: 'line-through', marginTop: '2px' }}>
+                                                  Orig: {origVal || '[blank]'}
+                                                </div>
+                                              )}
+                                              {fieldIssues.map((issue, issueIdx) => (
+                                                <div 
+                                                  key={issueIdx} 
+                                                  style={{ 
+                                                    fontSize: '10px', 
+                                                    fontWeight: '600', 
+                                                    color: issue.status === 'Error' ? 'var(--danger)' : 'var(--warning)', 
+                                                    marginTop: '3px' 
+                                                  }}
+                                                >
+                                                  ⚠️ {issue.message}
+                                                </div>
+                                              ))}
+                                            </td>
+                                          );
+                                        })}
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+
+                            {previewTotal > previewLimit && (
+                              <div className="pagination-bar" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                                <button 
+                                  className="btn-pagination" 
+                                  disabled={previewPage === 1}
+                                  onClick={() => { setPreviewPage(prev => prev - 1); fetchPreviewData(); }}
+                                >
+                                  Prev
+                                </button>
+                                <span style={{ fontSize: '13px', alignSelf: 'center' }}>Page {previewPage}</span>
+                                <button 
+                                  className="btn-pagination" 
+                                  disabled={previewPage * previewLimit >= previewTotal}
+                                  onClick={() => { setPreviewPage(prev => prev + 1); fetchPreviewData(); }}
+                                >
+                                  Next
+                                </button>
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     )}

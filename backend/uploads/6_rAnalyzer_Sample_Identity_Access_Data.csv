@@ -1,0 +1,13 @@
+EmployeeID,EmployeeName,Email,Department,JobTitle,Entitlements,BusinessRole,PrimaryApplication,LDAP_GroupDN,AccountStatus,JoinDate,ManagerLevel,PrivilegedAccount
+E001,Alice Johnson,alice.johnson@corp.com,Finance,Financial Analyst,Finance_Read;ERP_View,Finance_Analyst,SAP_FI,"CN=Finance,OU=Groups,DC=corp,DC=local",Enabled,2023-01-15,Manager,No
+E002,Bob Smith,bob.smith@corp.com,IT,System Administrator,AD_Admin;Server_Admin;VPN_Admin,IT_Admin,Active Directory,"CN=ITAdmins,OU=Groups,DC=corp,DC=local",Enabled,2022-07-11,Administrator,Yes
+E003,Charlie Lee,charlie.lee@corp.com,HR,HR Executive,HR_Read;Payroll_View,HR_Executive,Workday,"CN=HR,OU=Groups,DC=corp,DC=local",Enabled,2024-02-10,Employee,No
+E004,Diana Patel,diana.patel@corp.com,Finance,Finance Manager,Finance_Read;Finance_Write;Approve_Payments,Finance_Manager,SAP_FI,"CN=FinanceManagers,OU=Groups,DC=corp,DC=local",Enabled,2021-06-18,Manager,Yes
+E005,Ethan Roy,ethan.roy@corp.com,Sales,Sales Executive,CRM_Read;CRM_Write,Sales_Executive,Salesforce,"CN=Sales,OU=Groups,DC=corp,DC=local",Enabled,2024-04-01,Employee,No
+E006,Farah Khan,farah.khan@corp.com,IT,Security Analyst,SIEM_Read;IAM_Read;VPN_Admin,Security_Analyst,Splunk,"CN=Security,OU=Groups,DC=corp,DC=local",Enabled,2023-09-21,Employee,Yes
+E007,George Miller,george.miller@corp.com,Procurement,Procurement Officer,PO_Create;Vendor_View,Procurement_Officer,Oracle ERP,"CN=Procurement,OU=Groups,DC=corp,DC=local",Disabled,2020-12-05,Employee,No
+E008,Hannah Das,hannah.das@corp.com,Finance,Auditor,Finance_Read;Audit_Read,Auditor,SAP_GRC,"CN=Audit,OU=Groups,DC=corp,DC=local",Enabled,2022-10-30,Auditor,No
+E009,Ivan Kumar,ivan.kumar@corp.com,IT,Developer,Git_Read;Git_Write;Jenkins_User,Developer,GitHub,"CN=Developers,OU=Groups,DC=corp,DC=local",Enabled,2025-01-12,Employee,No
+E010,Julia Chen,julia.chen@corp.com,Finance,Intern,Finance_Read,Intern,SAP_FI,"CN=Finance,OU=Groups,DC=corp,DC=local",Enabled,2025-06-02,Intern,No
+E011,Kevin Brown,kevin.brown@corp.com,IT,Cloud Engineer,AWS_Admin;Azure_Admin;K8s_Admin,Cloud_Engineer,AWS,"CN=Cloud,OU=Groups,DC=corp,DC=local",Enabled,2023-03-14,Engineer,Yes
+E012,Laura Green,laura.green@corp.com,HR,HR Manager,HR_Read;HR_Write;Payroll_Approve,HR_Manager,Workday,"CN=HRManagers,OU=Groups,DC=corp,DC=local",Enabled,2021-11-01,Manager,Yes
