@@ -8,12 +8,12 @@ scheduler = BackgroundScheduler()
 
 def run_scheduled_test(connector_id: int):
     """
-    Runs a real Test Connection for a connector on its configured schedule.
+    Runs a real scheduled Import for a connector on its configured schedule.
     Imported inside the function to avoid circular imports at module load time.
     """
     from app.database import SessionLocal
     from app.models.connector import Connector
-    from app.routes.connectors import test_connector
+    from app.routes.connectors import import_connector_data
 
     db = SessionLocal()
     try:
@@ -25,8 +25,18 @@ def run_scheduled_test(connector_id: int):
         if not connector:
             return
 
-        # Reuses the exact same tested logic as the manual "Test Connection" button
-        test_connector(id=connector_id, db=db, x_user_name="Scheduler")
+        table_name = None
+        if connector.connector_type == "Database":
+            table_name = connector.file_path
+
+        # Reuses the exact same import logic as the manual "Import Now" button
+        import_connector_data(
+            id=connector_id,
+            table_name=table_name,
+            db=db,
+            x_user_name="Scheduler",
+            x_user_role="Platform Administrator"
+        )
 
         # Update next_scheduled_run based on frequency and time
         connector.next_scheduled_run = calculate_next_run(connector.schedule_frequency, connector.schedule_time)

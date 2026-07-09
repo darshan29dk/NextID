@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 
 class ConnectorFieldMappingCreate(BaseModel):
-    connector_id: int
+    connector_id: Optional[int] = None
     source_field: str
     target_module: str
     target_attribute_name: str

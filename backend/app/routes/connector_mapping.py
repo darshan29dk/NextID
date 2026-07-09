@@ -36,7 +36,7 @@ def save_connector_mappings(
 
     new_mappings = []
     for payload in payloads:
-        if payload.connector_id != id:
+        if payload.connector_id is not None and payload.connector_id != id:
             raise HTTPException(status_code=400, detail="Payload connector_id must match the URL id.")
         if not payload.target_attribute_name:
             continue  # skip unmapped fields silently

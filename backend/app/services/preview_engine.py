@@ -234,4 +234,51 @@ class PreviewEngine:
             finally:
                 conn.close()
 
+        elif connector.connector_type == "API Gateway":
+            import requests as requests_lib
+            from app.utils.crypto import decrypt_password
+            
+            url = connector.host
+            if not url:
+                raise Exception("API Gateway URL is required.")
+            
+            headers = {}
+            if connector.file_path:
+                try:
+                    headers = json.loads(connector.file_path)
+                except Exception:
+                    pass
+
+            auth = None
+            if connector.auth_type == "Basic":
+                decrypted_pw = decrypt_password(connector.password) if connector.password else ""
+                auth = (connector.username, decrypted_pw)
+            elif connector.auth_type == "API Key" and connector.username and connector.password:
+                decrypted_pw = decrypt_password(connector.password) if connector.password else ""
+                headers[connector.username] = decrypted_pw
+
+            timeout = connector.connection_timeout or 30
+            resp = requests_lib.get(url, headers=headers, auth=auth, timeout=timeout)
+            if resp.status_code >= 400:
+                raise Exception(f"HTTP Error {resp.status_code}: {resp.text[:100]}")
+            
+            res_json = resp.json()
+            json_key = connector.database_name
+            target_list = res_json
+            if json_key:
+                if json_key in res_json:
+                    target_list = res_json[json_key]
+            
+            if not isinstance(target_list, list):
+                if isinstance(target_list, dict):
+                    target_list = [target_list]
+                else:
+                    target_list = []
+                    
+            for item in target_list:
+                if isinstance(item, dict):
+                    raw_rows.append({str(k).strip(): v for k, v in item.items()})
+                if limit is not None and len(raw_rows) >= limit:
+                    break
+
         return raw_rows

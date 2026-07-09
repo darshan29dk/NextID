@@ -34,7 +34,8 @@ import {
   Sliders,
   ClipboardCheck,
   Play,
-  Clock
+  Clock,
+  Copy
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
@@ -3046,7 +3047,16 @@ const ConnectorWorkspace = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                           <h5 style={{ margin: 0 }}>Transformation Rules</h5>
                           {(userRole === 'Platform Administrator' || userRole === 'Data Steward') && (
-                            <button className="btn-primary" onClick={handleOpenTransformAdd} style={{ padding: '6px 12px', fontSize: '12px' }}>
+                            <button
+                              className="btn-primary"
+                              onClick={handleOpenTransformAdd}
+                              style={{
+                                padding: '6px 12px', fontSize: '12px', border: 'none',
+                                borderRadius: '6px', backgroundColor: 'var(--primary)', color: '#fff',
+                                cursor: 'pointer', fontWeight: '600',
+                                display: 'inline-flex', alignItems: 'center', gap: '4px'
+                              }}
+                            >
                               <Plus size={13} /> Add Rule
                             </button>
                           )}
@@ -3153,7 +3163,16 @@ const ConnectorWorkspace = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                           <h5 style={{ margin: 0 }}>Validation Rules</h5>
                           {(userRole === 'Platform Administrator' || userRole === 'Data Steward') && (
-                            <button className="btn-primary" onClick={handleOpenValidationAdd} style={{ padding: '6px 12px', fontSize: '12px' }}>
+                            <button
+                              className="btn-primary"
+                              onClick={handleOpenValidationAdd}
+                              style={{
+                                padding: '6px 12px', fontSize: '12px', border: 'none',
+                                borderRadius: '6px', backgroundColor: 'var(--primary)', color: '#fff',
+                                cursor: 'pointer', fontWeight: '600',
+                                display: 'inline-flex', alignItems: 'center', gap: '4px'
+                              }}
+                            >
                               <Plus size={13} /> Add Rule
                             </button>
                           )}
@@ -3270,7 +3289,12 @@ const ConnectorWorkspace = () => {
                               className="btn-primary" 
                               onClick={handleGeneratePreview}
                               disabled={generatingPreview || mappingsLoading}
-                              style={{ padding: '6px 12px', fontSize: '12px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                              style={{
+                                padding: '6px 12px', fontSize: '12px', border: 'none',
+                                borderRadius: '6px', backgroundColor: 'var(--primary)', color: '#fff',
+                                cursor: (generatingPreview || mappingsLoading) ? 'default' : 'pointer', fontWeight: '600',
+                                display: 'inline-flex', alignItems: 'center', gap: '4px'
+                              }}
                             >
                               <Play size={12} /> {generatingPreview ? 'Generating...' : 'Generate Preview'}
                             </button>

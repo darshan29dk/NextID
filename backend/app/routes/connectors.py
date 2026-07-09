@@ -696,6 +696,11 @@ def get_connector_schema(
             if not table_name:
                 raise Exception("A table_name query parameter is required to discover schema for a Database connector.")
 
+            # Save the selected database table_name in the unused file_path column
+            # so that it can be used during scheduled imports.
+            connector.file_path = table_name
+            db.commit()
+
             import pymysql
             decrypted_pw = decrypt_password(connector.password) if connector.password else ""
             conn = pymysql.connect(
