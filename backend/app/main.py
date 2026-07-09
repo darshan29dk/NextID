@@ -33,11 +33,14 @@ from app.models.application_account import ApplicationAccount
 from app.models.application_entitlement import ApplicationEntitlement
 from app.models.application_role import ApplicationRole
 from app.models.import_run_history import ImportRunHistory
+from app.models.identity import Identity
+from app.models.application_account_entitlement import ApplicationAccountEntitlement
 from app.services.scheduler import start_scheduler, restore_active_schedules
 from app.routes import transformations, validations, preview
 from app.utils.crypto import encrypt_password
 from datetime import datetime
 from app.routes import application as application_routes
+from app.routes import identity as identity_routes
 
 # Create database tables if they do not exist
 Base.metadata.create_all(bind=engine)
@@ -111,7 +114,8 @@ try:
         "Settings", "SMTP Settings", "Branding", "Audit Logs", "License", "Data Foundation",
         "Role Discovery", "Role Engineering", "Role Catalog", "Governance", "Role Lifecycle",
         "Analytics", "Reports", "Identity Attributes", "Account Attributes", "Entitlement Attributes",
-        "Role Attributes", "Attribute Categories", "License Management"
+        "Role Attributes", "Attribute Categories", "License Management",
+        "Connector Workspace", "Application Workspace", "Identity Repository"
     ]
 
     roles = db.query(PlatformRole).all()
@@ -522,6 +526,7 @@ app.include_router(transformations.router, prefix="/api")
 app.include_router(validations.router, prefix="/api")
 app.include_router(preview.router, prefix="/api")
 app.include_router(application_routes.router, prefix="/api")
+app.include_router(identity_routes.router, prefix="/api")
 
 @app.get("/")
 def read_root():

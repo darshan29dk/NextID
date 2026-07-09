@@ -1,0 +1,918 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Search, Users, UserCheck, UserX, Building2, ChevronLeft, ChevronRight,
+  ArrowLeft, Clock, Link2, History, Eye, RotateCcw,
+  Info, CheckCircle2, AlertCircle, XCircle, User, Shield,
+  Plus, Edit, Trash2, X, UploadCloud, AlertTriangle
+} from 'lucide-react';
+import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
+import DashboardCard from '../../components/DashboardCard/DashboardCard';
+import {
+  getIdentities,
+  getIdentityFilterMeta,
+  getIdentity,
+  getIdentityAccounts,
+  getIdentityTimeline,
+  getIdentityEntitlements,
+  createIdentity,
+  updateIdentity,
+  deleteIdentity,
+  bulkUploadIdentities
+} from '../../services/identityService';
+import { canCreate, canEdit, canDelete } from '../../utils/permissions';
+import './IdentityWorkspace.css';
+
+const IdentityWorkspace = () => {
+  const [view, setView] = useState('list');
+
+  // List state
+  const [identities, setIdentities] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [errorMsg, setErrorMsg] = useState(null);
+
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [search, setSearch] = useState('');
+  const [filterDepartment, setFilterDepartment] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [sortBy, setSortBy] = useState('created_at');
+  const [sortOrder, setSortOrder] = useState('desc');
+
+  const [filterMeta, setFilterMeta] = useState({ departments: [], statuses: [] });
+  const [kpiStats, setKpiStats] = useState({ total: 0, active: 0, inactive: 0, departments: 0 });
+
+  // Detail state
+  const [selectedIdentity, setSelectedIdentity] = useState(null);
+  const [detailTab, setDetailTab] = useState('profile');
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const [accounts, setAccounts] = useState([]);
+  const [accountsLoading, setAccountsLoading] = useState(false);
+  const [correlationNote, setCorrelationNote] = useState(null);
+
+  const [timelineEvents, setTimelineEvents] = useState([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
+
+  const [entitlements, setEntitlements] = useState([]);
+  const [entitlementsLoading, setEntitlementsLoading] = useState(false);
+  const [entitlementsNote, setEntitlementsNote] = useState(null);
+
+  // Add / Edit Identity modal state
+  const INITIAL_IDENTITY_FORM = {
+    employee_id: '', first_name: '', last_name: '', email: '',
+    department: '', job_title: '', manager: '', status: 'Active'
+  };
+  const [showFormModal, setShowFormModal] = useState(false);
+  const [editIdentityId, setEditIdentityId] = useState(null);
+  const [formData, setFormData] = useState(INITIAL_IDENTITY_FORM);
+  const [formBannerError, setFormBannerError] = useState(null);
+  const [formSubmitting, setFormSubmitting] = useState(false);
+
+  // Bulk Upload modal state
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkFile, setBulkFile] = useState(null);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [bulkResult, setBulkResult] = useState(null);
+  const [bulkError, setBulkError] = useState(null);
+
+  // Delete confirm modal state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [identityToDelete, setIdentityToDelete] = useState(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+
+  const fetchIdentitiesList = useCallback(async () => {
+    try {
+      setLoading(true);
+      setErrorMsg(null);
+      const params = {
+        page, limit,
+        search: search.trim() || undefined,
+        department: filterDepartment || undefined,
+        status: filterStatus || undefined,
+        sortBy, sortOrder
+      };
+      const data = await getIdentities(params);
+      setIdentities(data.identities || []);
+      setTotalCount(data.total || 0);
+      setTotalPages(data.total_pages || 0);
+    } catch (err) {
+      console.error('Failed to load identities:', err);
+      setErrorMsg('Failed to load identities. Please verify backend connection.');
+    } finally {
+      setLoading(false);
+    }
+  }, [page, limit, search, filterDepartment, filterStatus, sortBy, sortOrder]);
+
+  const fetchFilterMeta = useCallback(async () => {
+    try {
+      const data = await getIdentityFilterMeta();
+      setFilterMeta({ departments: data.departments || [], statuses: data.statuses || [] });
+    } catch (err) {
+      console.error('Failed to load filter metadata:', err);
+    }
+  }, []);
+
+  const fetchKPIStats = useCallback(async () => {
+    try {
+      const data = await getIdentities({ page: 1, limit: 1000 });
+      const list = data.identities || [];
+      const deptSet = new Set(list.map((i) => i.department).filter(Boolean));
+      setKpiStats({
+        total: list.length,
+        active: list.filter((i) => i.status === 'Active').length,
+        inactive: list.filter((i) => i.status !== 'Active').length,
+        departments: deptSet.size
+      });
+    } catch (err) {
+      console.error('Failed to calculate identity KPIs:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (view === 'list') {
+      fetchIdentitiesList();
+      fetchFilterMeta();
+      fetchKPIStats();
+    }
+  }, [fetchIdentitiesList, fetchFilterMeta, fetchKPIStats, view]);
+
+  const handleSearchChange = (e) => {
+    setSearch(e.target.value);
+    setPage(1);
+  };
+
+  const handleResetFilters = () => {
+    setSearch('');
+    setFilterDepartment('');
+    setFilterStatus('');
+    setSortBy('created_at');
+    setSortOrder('desc');
+    setPage(1);
+  };
+
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+    setPage(1);
+  };
+
+  const handleOpenDetail = async (identity) => {
+    setSelectedIdentity(identity);
+    setDetailTab('profile');
+    setView('detail');
+    setAccounts([]);
+    setCorrelationNote(null);
+    setTimelineEvents([]);
+    setEntitlements([]);
+    setEntitlementsNote(null);
+    try {
+      setDetailLoading(true);
+      const fresh = await getIdentity(identity.id);
+      setSelectedIdentity(fresh);
+    } catch (err) {
+      console.error('Failed to load identity detail:', err);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const handleBackToList = () => {
+    setView('list');
+    setSelectedIdentity(null);
+    fetchIdentitiesList();
+    fetchKPIStats();
+  };
+
+  const fetchAccounts = useCallback(async () => {
+    if (!selectedIdentity) return;
+    try {
+      setAccountsLoading(true);
+      const res = await getIdentityAccounts(selectedIdentity.id);
+      setAccounts(res.accounts || []);
+      setCorrelationNote(res.correlation_note || null);
+    } catch (err) {
+      console.error('Failed to load correlated accounts:', err);
+    } finally {
+      setAccountsLoading(false);
+    }
+  }, [selectedIdentity]);
+
+  useEffect(() => {
+    if (detailTab === 'accounts' && selectedIdentity) {
+      fetchAccounts();
+    }
+  }, [detailTab, fetchAccounts, selectedIdentity]);
+
+  const fetchEntitlements = useCallback(async () => {
+    if (!selectedIdentity) return;
+    try {
+      setEntitlementsLoading(true);
+      const res = await getIdentityEntitlements(selectedIdentity.id);
+      setEntitlements(res.entitlements || []);
+      setEntitlementsNote(res.correlation_note || null);
+    } catch (err) {
+      console.error('Failed to load entitlements:', err);
+    } finally {
+      setEntitlementsLoading(false);
+    }
+  }, [selectedIdentity]);
+
+  useEffect(() => {
+    if (detailTab === 'entitlements' && selectedIdentity) {
+      fetchEntitlements();
+    }
+  }, [detailTab, fetchEntitlements, selectedIdentity]);
+
+  const fetchTimeline = useCallback(async () => {
+    if (!selectedIdentity) return;
+    try {
+      setTimelineLoading(true);
+      const res = await getIdentityTimeline(selectedIdentity.id);
+      setTimelineEvents(res.events || []);
+    } catch (err) {
+      console.error('Failed to load timeline:', err);
+    } finally {
+      setTimelineLoading(false);
+    }
+  }, [selectedIdentity]);
+
+  useEffect(() => {
+    if (detailTab === 'timeline' && selectedIdentity) {
+      fetchTimeline();
+    }
+  }, [detailTab, fetchTimeline, selectedIdentity]);
+
+  const handleOpenAddModal = () => {
+    setEditIdentityId(null);
+    setFormData(INITIAL_IDENTITY_FORM);
+    setFormBannerError(null);
+    setShowFormModal(true);
+  };
+
+  const handleOpenEditModal = (identity, e) => {
+    if (e) e.stopPropagation();
+    setEditIdentityId(identity.id);
+    setFormData({
+      employee_id: identity.employee_id || '',
+      first_name: identity.first_name || '',
+      last_name: identity.last_name || '',
+      email: identity.email || '',
+      department: identity.department || '',
+      job_title: identity.job_title || '',
+      manager: identity.manager || '',
+      status: identity.status || 'Active'
+    });
+    setFormBannerError(null);
+    setShowFormModal(true);
+  };
+
+  const handleFormFieldChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmitIdentityForm = async () => {
+    try {
+      setFormSubmitting(true);
+      setFormBannerError(null);
+      if (editIdentityId) {
+        await updateIdentity(editIdentityId, formData);
+      } else {
+        await createIdentity(formData);
+      }
+      setShowFormModal(false);
+      fetchIdentitiesList();
+      fetchFilterMeta();
+      fetchKPIStats();
+    } catch (err) {
+      console.error('Failed to save identity:', err);
+      setFormBannerError(err.response?.data?.detail || 'Failed to save identity.');
+    } finally {
+      setFormSubmitting(false);
+    }
+  };
+
+  const handleOpenBulkModal = () => {
+    setBulkFile(null);
+    setBulkResult(null);
+    setBulkError(null);
+    setShowBulkModal(true);
+  };
+
+  const handleBulkFileChange = (e) => {
+    const file = e.target.files[0];
+    if (file) setBulkFile(file);
+  };
+
+  const handleSubmitBulkUpload = async () => {
+    if (!bulkFile) return;
+    try {
+      setBulkSubmitting(true);
+      setBulkError(null);
+      setBulkResult(null);
+      const result = await bulkUploadIdentities(bulkFile);
+      setBulkResult(result);
+      fetchIdentitiesList();
+      fetchFilterMeta();
+      fetchKPIStats();
+    } catch (err) {
+      console.error('Bulk upload failed:', err);
+      setBulkError(err.response?.data?.detail || 'Bulk upload failed unexpectedly.');
+    } finally {
+      setBulkSubmitting(false);
+    }
+  };
+
+  const handleOpenDeleteConfirm = (identity, e) => {
+    if (e) e.stopPropagation();
+    setIdentityToDelete(identity);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteSubmit = async () => {
+    if (!identityToDelete) return;
+    try {
+      setDeleteSubmitting(true);
+      await deleteIdentity(identityToDelete.id);
+      setShowDeleteConfirm(false);
+      setIdentityToDelete(null);
+      fetchIdentitiesList();
+      fetchFilterMeta();
+      fetchKPIStats();
+    } catch (err) {
+      console.error('Failed to delete identity:', err);
+      alert(err.response?.data?.detail || 'Failed to delete identity.');
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
+
+  const renderStatusBadge = (status) => {
+    switch (status) {
+      case 'Active':
+        return <span className="status-badge connected"><CheckCircle2 size={12} /> Active</span>;
+      case 'Terminated':
+        return <span className="status-badge failed"><XCircle size={12} /> Terminated</span>;
+      case 'Inactive':
+        return <span className="status-badge disabled"><AlertCircle size={12} /> Inactive</span>;
+      default:
+        return <span className="status-badge draft"><Info size={12} /> {status || 'Unknown'}</span>;
+    }
+  };
+
+  const displayName = (i) => i.display_name || `${i.first_name || ''} ${i.last_name || ''}`.trim() || i.email || `Identity #${i.id}`;
+
+  if (view === 'detail') {
+    return (
+      <div className="connector-workspace-page">
+        <Breadcrumb
+          items={[
+            { label: 'Data Foundation', active: false },
+            { label: 'Identity Repository', active: false, onClick: handleBackToList },
+            { label: selectedIdentity ? displayName(selectedIdentity) : 'Loading...', active: true }
+          ]}
+        />
+
+        <button className="detail-back-btn" onClick={handleBackToList}>
+          <ArrowLeft size={14} />
+          Back to Identity Repository
+        </button>
+
+        {selectedIdentity && (
+          <>
+            <div className="page-header-actions" style={{ marginTop: '16px' }}>
+              <div className="header-title-section">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <User size={18} />
+                  <h2 style={{ margin: 0 }}>{displayName(selectedIdentity)}</h2>
+                  {renderStatusBadge(selectedIdentity.status)}
+                </div>
+                <p>{selectedIdentity.job_title || 'No job title on file'} {selectedIdentity.department ? `· ${selectedIdentity.department}` : ''}</p>
+              </div>
+            </div>
+
+            <div className="drawer-tabs-navigation" style={{ marginBottom: '16px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+              <button className={`drawer-tab-btn ${detailTab === 'profile' ? 'active' : ''}`} onClick={() => setDetailTab('profile')}>
+                <Info size={13} /> Profile
+              </button>
+              <button className={`drawer-tab-btn ${detailTab === 'accounts' ? 'active' : ''}`} onClick={() => setDetailTab('accounts')}>
+                <Link2 size={13} /> Accounts ({accounts.length})
+              </button>
+              <button className={`drawer-tab-btn ${detailTab === 'entitlements' ? 'active' : ''}`} onClick={() => setDetailTab('entitlements')}>
+                <Shield size={13} /> Entitlements ({entitlements.length})
+              </button>
+              <button className={`drawer-tab-btn ${detailTab === 'timeline' ? 'active' : ''}`} onClick={() => setDetailTab('timeline')}>
+                <History size={13} /> Timeline
+              </button>
+            </div>
+
+            <div className="detail-section-card">
+              <div className="detail-section-body">
+                {detailLoading ? (
+                  <div className="drawer-loading-box">
+                    <div className="spinner-element"></div>
+                    <p>Loading identity...</p>
+                  </div>
+                ) : (
+                  <div className="drawer-tab-pane-container">
+                    {detailTab === 'profile' && (
+                      <div className="drawer-tab-info-pane">
+                        <div className="info-summary-group">
+                          <h5>Identity Attributes</h5>
+                          <div className="info-summary-grid">
+                            <div className="summary-item"><label>Employee ID</label><span>{selectedIdentity.employee_id || '—'}</span></div>
+                            <div className="summary-item"><label>First Name</label><span>{selectedIdentity.first_name || '—'}</span></div>
+                            <div className="summary-item"><label>Last Name</label><span>{selectedIdentity.last_name || '—'}</span></div>
+                            <div className="summary-item"><label>Email</label><span>{selectedIdentity.email || '—'}</span></div>
+                            <div className="summary-item"><label>Department</label><span>{selectedIdentity.department || '—'}</span></div>
+                            <div className="summary-item"><label>Job Title</label><span>{selectedIdentity.job_title || '—'}</span></div>
+                            <div className="summary-item"><label>Manager</label><span>{selectedIdentity.manager || '—'}</span></div>
+                            <div className="summary-item"><label>Status</label><span>{renderStatusBadge(selectedIdentity.status)}</span></div>
+                          </div>
+                        </div>
+
+                        <div className="info-summary-group">
+                          <h5>Source &amp; Import Info</h5>
+                          <div className="info-summary-grid">
+                            <div className="summary-item"><label>Source Connector</label><span>{selectedIdentity.source_connector_name || '—'}</span></div>
+                            <div className="summary-item"><label>Imported At</label><span>{selectedIdentity.imported_at ? new Date(selectedIdentity.imported_at).toLocaleString() : '—'}</span></div>
+                            <div className="summary-item"><label>Created At</label><span>{new Date(selectedIdentity.created_at).toLocaleString()}</span></div>
+                            <div className="summary-item"><label>Last Updated</label><span>{new Date(selectedIdentity.updated_at).toLocaleString()}</span></div>
+                          </div>
+                        </div>
+
+                        {selectedIdentity.attributes && Object.keys(selectedIdentity.attributes).length > 0 && (
+                          <div className="info-summary-group">
+                            <h5>All Imported Fields (Raw)</h5>
+                            <div className="info-summary-grid">
+                              {Object.entries(selectedIdentity.attributes).map(([k, v]) => (
+                                <div className="summary-item" key={k}><label>{k}</label><span>{String(v ?? '—')}</span></div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {detailTab === 'accounts' && (
+                      <div className="drawer-tab-info-pane">
+                        <h5>Correlated Application Accounts</h5>
+                        <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px', marginBottom: '16px' }}>
+                          Accounts imported through Applications whose email matches this identity's email.
+                        </p>
+
+                        {correlationNote && (
+                          <div className="error-banner" style={{ marginBottom: '12px' }}>{correlationNote}</div>
+                        )}
+
+                        {accountsLoading ? (
+                          <div className="drawer-loading-box">
+                            <div className="spinner-element"></div>
+                            <p>Loading correlated accounts...</p>
+                          </div>
+                        ) : accounts.length === 0 && !correlationNote ? (
+                          <div className="drawer-tab-empty-msg">
+                            <Link2 size={24} className="text-muted" />
+                            <p>No correlated accounts found. This identity's email does not match any imported application account yet.</p>
+                          </div>
+                        ) : accounts.length > 0 ? (
+                          <table className="detail-inner-table">
+                            <thead>
+                              <tr>
+                                <th style={{ textAlign: 'left' }}>Application</th>
+                                <th style={{ textAlign: 'left' }}>Account ID</th>
+                                <th style={{ textAlign: 'left' }}>Account Name</th>
+                                <th style={{ textAlign: 'left' }}>Status</th>
+                                <th style={{ textAlign: 'left' }}>Imported At</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {accounts.map((a) => (
+                                <tr key={a.id}>
+                                  <td style={{ fontWeight: '600' }}>{a.application_name}</td>
+                                  <td>{a.account_id}</td>
+                                  <td>{a.account_name || '—'}</td>
+                                  <td>{a.status}</td>
+                                  <td className="text-muted">{a.imported_at ? new Date(a.imported_at).toLocaleString() : '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : null}
+                      </div>
+                    )}
+
+                    {detailTab === 'entitlements' && (
+                      <div className="drawer-tab-info-pane">
+                        <h5>Correlated Entitlements</h5>
+                        <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px', marginBottom: '16px' }}>
+                          Entitlements held by this identity's correlated accounts, linked during Account import.
+                        </p>
+
+                        {entitlementsNote && (
+                          <div className="error-banner" style={{ marginBottom: '12px' }}>{entitlementsNote}</div>
+                        )}
+
+                        {entitlementsLoading ? (
+                          <div className="drawer-loading-box">
+                            <div className="spinner-element"></div>
+                            <p>Loading entitlements...</p>
+                          </div>
+                        ) : entitlements.length === 0 && !entitlementsNote ? (
+                          <div className="drawer-tab-empty-msg">
+                            <Shield size={24} className="text-muted" />
+                            <p>No entitlements found for this identity yet.</p>
+                          </div>
+                        ) : entitlements.length > 0 ? (
+                          <table className="detail-inner-table">
+                            <thead>
+                              <tr>
+                                <th style={{ textAlign: 'left' }}>Application</th>
+                                <th style={{ textAlign: 'left' }}>Entitlement</th>
+                                <th style={{ textAlign: 'left' }}>Type</th>
+                                <th style={{ textAlign: 'left' }}>Description</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {entitlements.map((e, idx) => (
+                                <tr key={idx}>
+                                  <td style={{ fontWeight: '600' }}>{e.application_name || '—'}</td>
+                                  <td>
+                                    {e.entitlement_name}
+                                    {!e.matched && (
+                                      <span className="status-badge disabled" style={{ marginLeft: '8px' }}>Unmatched</span>
+                                    )}
+                                  </td>
+                                  <td>{e.entitlement_type || '—'}</td>
+                                  <td className="text-muted">{e.description || '—'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        ) : null}
+                      </div>
+                    )}
+
+                    {detailTab === 'timeline' && (
+                      <div className="drawer-tab-logs-pane">
+                        <h5>Identity Timeline</h5>
+                        {timelineLoading ? (
+                          <div className="drawer-loading-box">
+                            <div className="spinner-element"></div>
+                            <p>Loading timeline...</p>
+                          </div>
+                        ) : timelineEvents.length === 0 ? (
+                          <div className="drawer-tab-empty-msg">
+                            <Clock size={24} className="text-muted" />
+                            <p>No timeline events recorded yet.</p>
+                          </div>
+                        ) : (
+                          <div className="drawer-history-records-list">
+                            {timelineEvents.map((ev, idx) => (
+                              <div key={idx} className="history-record-card audit-card">
+                                <div className="audit-card-header">
+                                  <Clock size={13} className="text-muted" />
+                                  <span className="audit-user-text font-semibold">{ev.event}</span>
+                                </div>
+                                <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', margin: '6px 0' }}>{ev.details}</p>
+                                <span className="audit-time-text">{ev.timestamp ? new Date(ev.timestamp).toLocaleString() : '—'}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="connector-workspace-page">
+      <Breadcrumb
+        items={[
+          { label: 'Data Foundation', active: false },
+          { label: 'Identity Repository', active: true }
+        ]}
+      />
+
+      <div className="page-header-actions">
+        <div className="header-title-section">
+          <h2>Identity Repository</h2>
+          <p>Every identity imported through connectors, created manually, or bulk uploaded, correlated against Application accounts by email.</p>
+        </div>
+        <div className="header-buttons-section">
+          {canCreate('Identity Repository') && (
+            <>
+              <button
+                className="btn-browse-file"
+                onClick={handleOpenBulkModal}
+                style={{ padding: '10px 16px', fontSize: '12.5px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <UploadCloud size={14} />
+                <span>Bulk Upload</span>
+              </button>
+              <button className="btn-add-connector" onClick={handleOpenAddModal}>
+                <Plus size={14} />
+                <span>Add Identity</span>
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+        <DashboardCard title="Total Identities" value={kpiStats.total} icon={Users} color="blue" loading={loading} />
+        <DashboardCard title="Active" value={kpiStats.active} icon={UserCheck} color="green" loading={loading} />
+        <DashboardCard title="Inactive / Other" value={kpiStats.inactive} icon={UserX} color="yellow" loading={loading} />
+        <DashboardCard title="Departments" value={kpiStats.departments} icon={Building2} color="indigo" loading={loading} />
+      </div>
+
+      <div className="controls-card">
+        <div className="search-input-wrapper">
+          <Search size={16} className="text-muted" />
+          <input type="text" className="search-field" value={search} onChange={handleSearchChange} placeholder="Search by name, email, or employee ID..." />
+        </div>
+
+        <div className="filter-dropdowns">
+          <select className="filter-dropdown" value={filterDepartment} onChange={(e) => { setFilterDepartment(e.target.value); setPage(1); }}>
+            <option value="">All Departments</option>
+            {filterMeta.departments.map((d) => <option key={d} value={d}>{d}</option>)}
+          </select>
+          <select className="filter-dropdown" value={filterStatus} onChange={(e) => { setFilterStatus(e.target.value); setPage(1); }}>
+            <option value="">All Statuses</option>
+            {filterMeta.statuses.map((s) => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+
+        {(search || filterDepartment || filterStatus) && (
+          <button className="btn-reset-filters" onClick={handleResetFilters}>
+            <RotateCcw size={13} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+            Reset Filters
+          </button>
+        )}
+      </div>
+
+      <div className="table-card">
+        {errorMsg && <div className="error-banner" style={{ margin: '16px 24px' }}>{errorMsg}</div>}
+
+        <div className="table-wrapper">
+          <table className="users-table">
+            <thead>
+              <tr>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('display_name')}>
+                  Name {sortBy === 'display_name' && (sortOrder === 'asc' ? '▲' : '▼')}
+                </th>
+                <th>Employee ID</th>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('email')}>
+                  Email {sortBy === 'email' && (sortOrder === 'asc' ? '▲' : '▼')}
+                </th>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('department')}>
+                  Department {sortBy === 'department' && (sortOrder === 'asc' ? '▲' : '▼')}
+                </th>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('status')}>
+                  Status {sortBy === 'status' && (sortOrder === 'asc' ? '▲' : '▼')}
+                </th>
+                <th>Source</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan="7">
+                    <div className="table-loading-container">
+                      <div className="spinner-element"></div>
+                      <p>Loading identities...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : identities.length === 0 ? (
+                <tr>
+                  <td colSpan="7">
+                    <div className="table-empty-container">
+                      <Users size={36} className="text-muted" />
+                      <div className="empty-state-text">
+                        <h4>No Identities Found</h4>
+                        <p>No identities match current filters. Import identities from a connector in Data Sources first.</p>
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                identities.map((i) => (
+                  <tr key={i.id} className="row-clickable" onClick={() => handleOpenDetail(i)}>
+                    <td className="connector-name-cell">
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <User size={16} className="type-icon" />
+                        <span className="font-semibold text-main">{displayName(i)}</span>
+                      </div>
+                    </td>
+                    <td>{i.employee_id || '—'}</td>
+                    <td>{i.email || '—'}</td>
+                    <td>{i.department || '—'}</td>
+                    <td>{renderStatusBadge(i.status)}</td>
+                    <td>{i.source_connector_name || '—'}</td>
+                    <td onClick={(e) => e.stopPropagation()}>
+                      <div className="actions-cell-menu">
+                        <button className="btn-row-action" title="View profile" onClick={() => handleOpenDetail(i)}>
+                          <Eye size={13} />
+                        </button>
+                        {canEdit('Identity Repository') && (
+                          <button className="btn-row-action" title="Edit identity" onClick={(e) => handleOpenEditModal(i, e)}>
+                            <Edit size={13} />
+                          </button>
+                        )}
+                        {canDelete('Identity Repository') && (
+                          <button className="btn-row-action delete" title="Delete identity" onClick={(e) => handleOpenDeleteConfirm(i, e)}>
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {totalPages > 1 && (
+          <div className="table-pagination-footer">
+            <div className="pagination-info">
+              Showing page <b>{page}</b> of <b>{totalPages}</b> (Total {totalCount} records)
+            </div>
+            <div className="pagination-buttons">
+              <button className="btn-page-nav" disabled={page === 1} onClick={() => setPage(page - 1)}>
+                <ChevronLeft size={14} />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => (
+                <button key={pNum} className={`btn-page-number ${page === pNum ? 'active' : ''}`} onClick={() => setPage(pNum)}>
+                  {pNum}
+                </button>
+              ))}
+              <button className="btn-page-nav" disabled={page === totalPages} onClick={() => setPage(page + 1)}>
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {showFormModal && (
+        <div className="modal-overlay-custom">
+          <div className="modal-content-custom connector-wizard-content">
+            <div className="modal-header-custom">
+              <h3>{editIdentityId ? 'Edit Identity' : 'Add Identity'}</h3>
+              <button className="modal-close-btn-custom" onClick={() => setShowFormModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-form-custom">
+              <div className="modal-scrollable-body wizard-body-section">
+                {formBannerError && <div className="modal-form-banner-error">{formBannerError}</div>}
+                <div className="wizard-details-form">
+                  <div className="form-row-2col">
+                    <div className="input-group-custom">
+                      <label>Employee ID</label>
+                      <input type="text" name="employee_id" value={formData.employee_id} onChange={handleFormFieldChange} placeholder="e.g. E1006" />
+                    </div>
+                    <div className="input-group-custom">
+                      <label>Status</label>
+                      <select name="status" value={formData.status} onChange={handleFormFieldChange}>
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                        <option value="Terminated">Terminated</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="form-row-2col">
+                    <div className="input-group-custom">
+                      <label>First Name</label>
+                      <input type="text" name="first_name" value={formData.first_name} onChange={handleFormFieldChange} placeholder="e.g. Priya" />
+                    </div>
+                    <div className="input-group-custom">
+                      <label>Last Name</label>
+                      <input type="text" name="last_name" value={formData.last_name} onChange={handleFormFieldChange} placeholder="e.g. Sharma" />
+                    </div>
+                  </div>
+                  <div className="input-group-custom">
+                    <label>Email</label>
+                    <input type="text" name="email" value={formData.email} onChange={handleFormFieldChange} placeholder="e.g. psharma@testcorp.com" />
+                  </div>
+                  <div className="form-row-2col">
+                    <div className="input-group-custom">
+                      <label>Department</label>
+                      <input type="text" name="department" value={formData.department} onChange={handleFormFieldChange} placeholder="e.g. Finance" />
+                    </div>
+                    <div className="input-group-custom">
+                      <label>Job Title</label>
+                      <input type="text" name="job_title" value={formData.job_title} onChange={handleFormFieldChange} placeholder="e.g. Analyst" />
+                    </div>
+                  </div>
+                  <div className="input-group-custom">
+                    <label>Manager</label>
+                    <input type="text" name="manager" value={formData.manager} onChange={handleFormFieldChange} placeholder="e.g. John Doe" />
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer-custom">
+                <button className="btn-modal-cancel" type="button" onClick={() => setShowFormModal(false)}>Cancel</button>
+                <button className="btn-modal-submit" type="button" disabled={formSubmitting} onClick={handleSubmitIdentityForm}>
+                  {formSubmitting ? 'Saving...' : (editIdentityId ? 'Save Changes' : 'Create Identity')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBulkModal && (
+        <div className="modal-overlay-custom">
+          <div className="modal-content-custom connector-wizard-content">
+            <div className="modal-header-custom">
+              <h3>Bulk Upload Identities</h3>
+              <button className="modal-close-btn-custom" onClick={() => setShowBulkModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-form-custom">
+              <div className="modal-scrollable-body wizard-body-section">
+                <p className="subtitle">
+                  Upload a CSV with columns like employee_id, first_name, last_name, email, department, job_title, manager, status.
+                  Rows matching an existing identity's email or employee ID will update that record instead of creating a duplicate.
+                </p>
+                {bulkError && <div className="modal-form-banner-error">{bulkError}</div>}
+                <div className="input-group-custom">
+                  <label className="required">CSV File</label>
+                  <div className="file-drop-area">
+                    <UploadCloud className="upload-icon" size={24} />
+                    <span style={{ marginBottom: '8px' }}>{bulkFile ? bulkFile.name : 'Select or drop CSV file'}</span>
+                    <button type="button" className="btn-browse-file" onClick={(e) => { e.stopPropagation(); document.getElementById('identity-bulk-file-input').click(); }}
+                      style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: '600' }}>
+                      Browse Local File
+                    </button>
+                    <input type="file" id="identity-bulk-file-input" accept=".csv" onChange={handleBulkFileChange} style={{ display: 'none' }} />
+                  </div>
+                </div>
+
+                {bulkResult && (
+                  <div style={{
+                    margin: '16px 0 0', padding: '12px 16px', borderRadius: '8px',
+                    fontSize: '13px', fontWeight: '500',
+                    backgroundColor: 'var(--success-light, #10b98120)', color: 'var(--success, #10b981)',
+                    border: '1px solid var(--success, #10b981)'
+                  }}>
+                    ✓ Processed {bulkResult.total} row(s): {bulkResult.created} created, {bulkResult.updated} updated{bulkResult.errors ? `, ${bulkResult.errors} errors` : ''}.
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer-custom">
+                <button className="btn-modal-cancel" type="button" onClick={() => setShowBulkModal(false)}>Close</button>
+                <button className="btn-modal-submit" type="button" disabled={!bulkFile || bulkSubmitting} onClick={handleSubmitBulkUpload}>
+                  {bulkSubmitting ? 'Uploading...' : 'Upload'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && (
+        <div className="modal-overlay-custom">
+          <div className="modal-content-custom delete-dialog-content">
+            <div className="delete-dialog-body">
+              <div className="delete-dialog-icon"><AlertTriangle size={24} /></div>
+              <div className="delete-dialog-text">
+                <h4>Delete Identity?</h4>
+                <p>
+                  Are you sure you want to delete <b>{identityToDelete ? displayName(identityToDelete) : ''}</b>?
+                  This soft-deletes the identity, but it will no longer show in Identity Repository or account correlation.
+                </p>
+              </div>
+            </div>
+            <div className="modal-footer-custom">
+              <button className="btn-modal-cancel" type="button" disabled={deleteSubmitting} onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
+              <button className="btn-modal-delete" type="button" disabled={deleteSubmitting} onClick={handleDeleteSubmit}>
+                {deleteSubmitting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default IdentityWorkspace;

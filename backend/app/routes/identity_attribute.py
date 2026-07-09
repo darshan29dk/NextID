@@ -15,6 +15,7 @@ from app.schemas.identity_attribute import (
     IdentityAttributePaginatedResponse, IdentityAttributeDetailResponse
 )
 from app.schemas.attribute_category import AttributeCategoryResponse
+from app.utils.permissions import require_permission
 
 router = APIRouter()
 
@@ -64,7 +65,8 @@ def get_identity_attributes(
     is_searchable: Optional[bool] = None,
     sortBy: Optional[str] = "display_order",
     sortOrder: Optional[str] = "asc",
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    _perm: bool = Depends(require_permission("Identity Attributes", "view"))
 ):
     if page < 1:
         page = 1
@@ -123,7 +125,11 @@ def get_identity_attributes(
     )
 
 @router.get("/identity-attributes/{id}", response_model=IdentityAttributeDetailResponse)
-def get_identity_attribute_detail(id: int, db: Session = Depends(get_db)):
+def get_identity_attribute_detail(
+    id: int,
+    db: Session = Depends(get_db),
+    _perm: bool = Depends(require_permission("Identity Attributes", "view"))
+):
     attr = db.query(IdentityAttribute).filter(IdentityAttribute.id == id, IdentityAttribute.is_deleted == False).first()
     if not attr:
         raise HTTPException(status_code=404, detail="Identity attribute not found")
@@ -147,7 +153,8 @@ def get_identity_attribute_detail(id: int, db: Session = Depends(get_db)):
 def create_identity_attribute(
     payload: IdentityAttributeCreate,
     db: Session = Depends(get_db),
-    x_user_name: str = Header(default="Unknown User")
+    x_user_name: str = Header(default="Unknown User"),
+    _perm: bool = Depends(require_permission("Identity Attributes", "create"))
 ):
     # Uniqueness checks
     norm_name = payload.attribute_name.strip().lower().replace(" ", "_")
@@ -217,7 +224,8 @@ def update_identity_attribute(
     id: int,
     payload: IdentityAttributeUpdate,
     db: Session = Depends(get_db),
-    x_user_name: str = Header(default="Unknown User")
+    x_user_name: str = Header(default="Unknown User"),
+    _perm: bool = Depends(require_permission("Identity Attributes", "edit"))
 ):
     attr = db.query(IdentityAttribute).filter(IdentityAttribute.id == id, IdentityAttribute.is_deleted == False).first()
     if not attr:
@@ -306,14 +314,8 @@ def delete_identity_attribute(
     id: int,
     db: Session = Depends(get_db),
     x_user_name: str = Header(default="Unknown User"),
-    x_user_role: str = Header(default="Unknown Role")
+    _perm: bool = Depends(require_permission("Identity Attributes", "delete"))
 ):
-    if x_user_role != "Platform Administrator":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied. Only Platform Administrators can delete identity attributes."
-        )
-
     attr = db.query(IdentityAttribute).filter(IdentityAttribute.id == id, IdentityAttribute.is_deleted == False).first()
     if not attr:
         raise HTTPException(status_code=404, detail="Identity attribute not found")

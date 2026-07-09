@@ -25,6 +25,7 @@ import {
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
 import { useAuth } from '../../context/AuthContext';
+import { canCreate, canEdit, canDelete } from '../../utils/permissions';
 import {
   getIdentityAttributes,
   getIdentityAttribute,
@@ -534,10 +535,12 @@ const IdentityAttributes = () => {
               </div>
             )}
           </div>
-          <button className="btn-add-attribute" onClick={handleOpenAddModal}>
-            <Plus size={14} />
-            <span>Add Attribute</span>
-          </button>
+          {canCreate('Identity Attributes') && (
+            <button className="btn-add-attribute" onClick={handleOpenAddModal}>
+              <Plus size={14} />
+              <span>Add Attribute</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -671,13 +674,17 @@ const IdentityAttributes = () => {
 
                 {/* Actions */}
                 <div className="row-actions-col" onClick={e => e.stopPropagation()}>
-                  <button className="btn-row-action" onClick={(e) => handleOpenEditModal(e, attr)} title="Edit">
-                    <Edit size={13} />
-                  </button>
-                  <button className="btn-row-action" onClick={() => handleDuplicate(attr)} title="Duplicate">
-                    <Copy size={13} />
-                  </button>
-                  {currentUser?.role === 'Platform Administrator' && attr.attribute_type !== 'System' && (
+                  {canEdit('Identity Attributes') && (
+                    <button className="btn-row-action" onClick={(e) => handleOpenEditModal(e, attr)} title="Edit">
+                      <Edit size={13} />
+                    </button>
+                  )}
+                  {canCreate('Identity Attributes') && (
+                    <button className="btn-row-action" onClick={() => handleDuplicate(attr)} title="Duplicate">
+                      <Copy size={13} />
+                    </button>
+                  )}
+                  {canDelete('Identity Attributes') && attr.attribute_type !== 'System' && (
                     <button className="btn-row-action delete" onClick={(e) => handleOpenDeleteConfirm(e, attr)} title="Delete">
                       <Trash2 size={13} />
                     </button>

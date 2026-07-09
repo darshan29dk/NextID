@@ -26,7 +26,10 @@ DEFAULT_MENUS = [
     "Entitlement Attributes",
     "Role Attributes",
     "Attribute Categories",
-    "License Management"
+    "License Management",
+    "Connector Workspace",
+    "Application Workspace",
+    "Identity Repository"
 ]
 
 class PlatformRoleMini(BaseModel):

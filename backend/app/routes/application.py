@@ -5,6 +5,7 @@ from typing import List, Optional
 import json
 import os
 import io
+import re
 import time
 from datetime import datetime
 import openpyxl
@@ -23,6 +24,7 @@ from app.models.import_run_history import ImportRunHistory
 from app.models.application_entitlement import ApplicationEntitlement
 from app.models.application_role import ApplicationRole
 from app.models.application_field_mapping import ApplicationFieldMapping
+from app.models.application_account_entitlement import ApplicationAccountEntitlement
 from app.schemas.application_field_mapping import ApplicationFieldMappingItem, ApplicationFieldMappingResponse
 router = APIRouter()
 
@@ -570,18 +572,36 @@ def import_accounts(
     if not rows:
         return {"success": True, "total": 0, "imported": 0, "errors": 0, "duration_ms": 0}
 
+    # Delete the child rows (account-entitlement links) before the parent
+    # accounts, otherwise MySQL rejects the accounts delete with a foreign
+    # key constraint error.
+    db.query(ApplicationAccountEntitlement).filter(ApplicationAccountEntitlement.application_id == id).delete()
     db.query(ApplicationAccount).filter(ApplicationAccount.application_id == id).delete()
 
     mapping_dict = _get_field_mapping_dict(db, id, "Account")
 
+    # Build a case-insensitive lookup of entitlements already imported for this
+    # application, so account rows carrying an "entitlements" column can be
+    # linked to them by name.
+    existing_entitlements = db.query(ApplicationEntitlement).filter(
+        ApplicationEntitlement.application_id == id,
+        ApplicationEntitlement.is_deleted == False
+    ).all()
+    entitlement_lookup = {e.entitlement_name.strip().lower(): e for e in existing_entitlements if e.entitlement_name}
+
     imported_count = 0
     error_count = 0
+    entitlement_links_created = 0
+    unmatched_entitlement_names = set()
+
     for idx, row in enumerate(rows):
         try:
             account_id_val = _resolve_field(row, mapping_dict, "account_id", ["account_id", "id", "employee_id", "user_id", "emp_id"]) or f"row_{idx + 1}"
             account_name_val = _resolve_field(row, mapping_dict, "account_name", ["account_name", "name", "username", "full_name"])
             email_val = _resolve_field(row, mapping_dict, "email", ["email", "email_address"])
             status_val = _resolve_field(row, mapping_dict, "status", ["status", "active_status"]) or "Active"
+            entitlements_val = _resolve_field(row, mapping_dict, "entitlements", ["entitlements", "entitlement", "groups", "group", "roles", "permissions"])
+
             record = ApplicationAccount(
                 application_id=id,
                 account_id=account_id_val,
@@ -594,6 +614,23 @@ def import_accounts(
             )
             db.add(record)
             imported_count += 1
+
+            if entitlements_val:
+                db.flush()  # assign record.id so the link rows can reference it
+                names = [n.strip() for n in re.split(r"[;,]", entitlements_val) if n.strip()]
+                for name in names:
+                    matched_entitlement = entitlement_lookup.get(name.lower())
+                    link = ApplicationAccountEntitlement(
+                        application_id=id,
+                        account_id=record.id,
+                        entitlement_id=matched_entitlement.id if matched_entitlement else None,
+                        entitlement_name_raw=name,
+                        matched=matched_entitlement is not None
+                    )
+                    db.add(link)
+                    entitlement_links_created += 1
+                    if not matched_entitlement:
+                        unmatched_entitlement_names.add(name)
         except Exception:
             error_count += 1
 
@@ -606,7 +643,7 @@ def import_accounts(
         run_type="Account Import",
         total_records=len(rows),
         valid_records=imported_count,
-        warning_records=0,
+        warning_records=len(unmatched_entitlement_names),
         error_records=error_count,
         status="Completed" if error_count == 0 else "Partial",
         run_by=x_user_name
@@ -629,7 +666,9 @@ def import_accounts(
         "total": len(rows),
         "imported": imported_count,
         "errors": error_count,
-        "duration_ms": duration_ms
+        "duration_ms": duration_ms,
+        "entitlement_assignments_imported": entitlement_links_created,
+        "unmatched_entitlement_names": sorted(unmatched_entitlement_names)
     }
 
 
