@@ -994,61 +994,64 @@ def import_connector_data(
         
         valid_count += 1
 
-        # Check if mapped to "Identity" module and construct IdentityRecord
+        # Check if mapped to "Identity" module and build a real Identity record
         is_identity_mapped = any(m.target_module == "Identity" for m in mappings)
         if is_identity_mapped:
-            # Map target attributes to IdentityRecord properties
-            username = transformed.get("employee_id") or transformed.get("display_name") or transformed.get("username")
-            if not username and transformed.get("first_name"):
-                username = f"{transformed.get('first_name')}.{transformed.get('last_name', '')}".strip(".").lower()
-            if not username:
-                username = f"user_{record_number}"
-                
-            email = transformed.get("email")
-            if not email:
-                email = f"{username.replace(' ', '').lower()}@ranalyzer.io"
-                
-            dept = transformed.get("department") or "General"
-            role = transformed.get("job_title") or transformed.get("role") or "Member"
-            apps = transformed.get("applications") or "Active Directory"
-            
-            try:
-                entitlements_val = int(transformed.get("entitlements_count") or 5)
-            except ValueError:
-                entitlements_val = 5
-                
-            risk = transformed.get("risk_level") or "Low"
-            
-            try:
-                sod = int(transformed.get("sod_conflict") or 0)
-            except ValueError:
-                sod = 0
+            employee_id_val = transformed.get("employee_id") or None
+            first_name_val = transformed.get("first_name") or None
+            last_name_val = transformed.get("last_name") or None
+            display_name_val = transformed.get("display_name") or None
+            if not display_name_val and (first_name_val or last_name_val):
+                display_name_val = f"{first_name_val or ''} {last_name_val or ''}".strip()
+
+            # Note: unlike the old logic, we do NOT invent a fake fallback email
+            # (e.g. "user@ranalyzer.io") — a made-up email would silently break
+            # the Identity Repository's account correlation, which matches on
+            # real email values against imported Application accounts.
+            email_val = transformed.get("email") or None
+            department_val = transformed.get("department") or None
+            job_title_val = transformed.get("job_title") or None
+            manager_val = transformed.get("manager") or None
+            status_val = transformed.get("status") or "Active"
 
             parsed_identities.append({
-                "username": username,
-                "email": email,
-                "department": dept,
-                "role": role,
-                "applications": apps,
-                "entitlements_count": entitlements_val,
-                "risk_level": risk,
-                "sod_conflict": sod
+                "employee_id": employee_id_val,
+                "first_name": first_name_val,
+                "last_name": last_name_val,
+                "display_name": display_name_val,
+                "email": email_val,
+                "department": department_val,
+                "job_title": job_title_val,
+                "manager": manager_val,
+                "status": status_val,
+                "attributes": transformed
             })
 
-    # 5. Save the valid identity records (replacing existing ones if we imported identities)
-    from app.models.dashboard import IdentityRecord, RecentActivity
+    # 5. Save the valid identity records into the stable Identity Repository
+    # table. Only records previously imported BY THIS CONNECTOR are replaced —
+    # other connectors' imported identities are left untouched. This table is
+    # completely separate from the old IdentityRecord/dashboard demo data, so
+    # nothing here can be wiped by the Dashboard's random "Sync API" feature.
+    from app.models.identity import Identity
     if parsed_identities:
-        db.query(IdentityRecord).delete()
+        db.query(Identity).filter(Identity.source_connector_id == id).delete()
         for item in parsed_identities:
-            rec = IdentityRecord(
-                username=item["username"],
+            rec = Identity(
+                employee_id=item["employee_id"],
+                first_name=item["first_name"],
+                last_name=item["last_name"],
+                display_name=item["display_name"],
                 email=item["email"],
                 department=item["department"],
-                role=item["role"],
-                applications=item["applications"],
-                entitlements_count=item["entitlements_count"],
-                risk_level=item["risk_level"],
-                sod_conflict=item["sod_conflict"]
+                job_title=item["job_title"],
+                manager=item["manager"],
+                status=item["status"],
+                attributes=item["attributes"],
+                source_connector_id=id,
+                source_connector_name=connector.connector_name,
+                imported_at=datetime.utcnow(),
+                created_by=x_user_name,
+                modified_by=x_user_name
             )
             db.add(rec)
         db.commit()

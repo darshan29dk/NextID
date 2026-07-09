@@ -63,7 +63,8 @@ const TARGET_ATTRIBUTE_OPTIONS = {
     { value: 'account_id', label: 'Account ID' },
     { value: 'account_name', label: 'Account Name' },
     { value: 'email', label: 'Email' },
-    { value: 'status', label: 'Status' }
+    { value: 'status', label: 'Status' },
+    { value: 'entitlements', label: 'Entitlements (comma-separated)' }
   ],
   Entitlement: [
     { value: 'entitlement_name', label: 'Entitlement Name' },
@@ -1243,6 +1244,20 @@ const ApplicationWorkspace = () => {
                             {importResult.success !== false
                               ? `✓ Imported ${importResult.imported} of ${importResult.total} record(s) in ${importResult.duration_ms}ms${importResult.errors ? ` (${importResult.errors} errors)` : ''}.`
                               : `✗ ${importResult.message}`}
+                          </div>
+                        )}
+
+                        {importResult && importResult.entitlement_assignments_imported > 0 && (
+                          <div style={{
+                            margin: '0 0 16px', padding: '12px 16px', borderRadius: '8px',
+                            fontSize: '12.5px', fontWeight: '500',
+                            backgroundColor: 'var(--primary-light)', color: 'var(--primary)',
+                            border: '1px solid var(--primary)'
+                          }}>
+                            Linked {importResult.entitlement_assignments_imported} entitlement assignment(s) from the "Entitlements" column.
+                            {importResult.unmatched_entitlement_names && importResult.unmatched_entitlement_names.length > 0 && (
+                              <> Could not match: {importResult.unmatched_entitlement_names.join(', ')} — check these exist in the Entitlements tab with matching names.</>
+                            )}
                           </div>
                         )}
 

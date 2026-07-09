@@ -24,7 +24,9 @@ import {
   FolderTree,
   BadgeCheck,
   Settings2,
-  SlidersHorizontal
+  SlidersHorizontal,
+  User,
+  Fingerprint
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -44,6 +46,9 @@ const DATA_SOURCES_GROUP_CHILDREN = [
 const APPLICATIONS_GROUP_CHILDREN = [
   { label: 'Application Workspace', icon: Server, path: 'data-foundation/applications' },
 ];
+const IDENTITY_GROUP_CHILDREN = [
+  { label: 'Identity Workspace', icon: User, path: 'data-foundation/identities' },
+];
 
 const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const location = useLocation();
@@ -62,6 +67,9 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const [isApplicationsOpen, setIsApplicationsOpen] = useState(
     APPLICATIONS_GROUP_CHILDREN.some((child) => child.path === activePath)
   );
+  const [isIdentityOpen, setIsIdentityOpen] = useState(
+    IDENTITY_GROUP_CHILDREN.some((child) => child.path === activePath)
+  );
 
   useEffect(() => {
     if (ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath)) {
@@ -72,6 +80,9 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     }
     if (APPLICATIONS_GROUP_CHILDREN.some((child) => child.path === activePath)) {
       setIsApplicationsOpen(true);
+    }
+    if (IDENTITY_GROUP_CHILDREN.some((child) => child.path === activePath)) {
+      setIsIdentityOpen(true);
     }
   }, [activePath]);
 
@@ -100,6 +111,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const isAttributesGroupActive = ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath);
   const isDataSourcesGroupActive = DATA_SOURCES_GROUP_CHILDREN.some((child) => child.path === activePath);
   const isApplicationsGroupActive = APPLICATIONS_GROUP_CHILDREN.some((child) => child.path === activePath);
+  const isIdentityGroupActive = IDENTITY_GROUP_CHILDREN.some((child) => child.path === activePath);
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="brand">
@@ -252,7 +264,48 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
             })}
           </div>
         )}
-        
+
+        {/* Collapsible "Identity Repository" group */}
+        <div
+          className={`nav-item ${isIdentityGroupActive && !isIdentityOpen ? 'active' : ''}`}
+          onClick={() => {
+            if (isCollapsed) {
+              navigate('/' + IDENTITY_GROUP_CHILDREN[0].path);
+            } else {
+              setIsIdentityOpen((prev) => !prev);
+            }
+          }}
+        >
+          <Fingerprint className="nav-icon" size={18} />
+          {!isCollapsed && (
+            <>
+              <span className="nav-label">Identity Repository</span>
+              {isIdentityOpen ? (
+                <ChevronDown className="nav-arrow" size={12} />
+              ) : (
+                <ChevronRight className="nav-arrow" size={12} />
+              )}
+            </>
+          )}
+        </div>
+
+        {!isCollapsed && isIdentityOpen && (
+          <div className="nav-sub-list">
+            {IDENTITY_GROUP_CHILDREN.map((child) => {
+              const ChildIcon = child.icon;
+              return (
+                <div
+                  key={child.path}
+                  className={`nav-item nav-sub-item ${activePath === child.path ? 'active' : ''}`}
+                  onClick={() => navigate('/' + child.path)}
+                >
+                  <ChildIcon className="nav-icon" size={16} />
+                  <span className="nav-label">{child.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {navItems.map((item, idx) => {
           if (item.type === 'heading') {
