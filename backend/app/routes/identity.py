@@ -219,6 +219,31 @@ def bulk_upload_identities(
     }
 
 
+@router.delete("/identities/bulk-upload/reset")
+def reset_bulk_uploaded_identities(
+    db: Session = Depends(get_db),
+    x_user_name: str = Header(default="System"),
+    _perm: bool = Depends(require_permission("Identity Repository", "delete"))
+):
+    """
+    Soft-deletes every identity whose source is 'Bulk Upload', leaving
+    connector-imported and manually created identities untouched. Lets an
+    admin clear out a test/demo CSV batch without affecting anything else.
+    """
+    matches = db.query(Identity).filter(
+        Identity.source_connector_name == "Bulk Upload",
+        Identity.is_deleted == False
+    ).all()
+
+    count = len(matches)
+    for identity in matches:
+        identity.is_deleted = True
+        identity.modified_by = x_user_name
+    db.commit()
+
+    return {"deleted": count}
+
+
 @router.get("/identities/filters/meta")
 def get_identity_filter_meta(
     db: Session = Depends(get_db),

@@ -17,7 +17,8 @@ import {
   createIdentity,
   updateIdentity,
   deleteIdentity,
-  bulkUploadIdentities
+  bulkUploadIdentities,
+  resetBulkUploadIdentities
 } from '../../services/identityService';
 import { canCreate, canEdit, canDelete } from '../../utils/permissions';
 import './IdentityWorkspace.css';
@@ -81,6 +82,10 @@ const IdentityWorkspace = () => {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [identityToDelete, setIdentityToDelete] = useState(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+
+  // Reset Bulk Upload confirm modal state
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetSubmitting, setResetSubmitting] = useState(false);
 
   const fetchIdentitiesList = useCallback(async () => {
     try {
@@ -353,6 +358,25 @@ const IdentityWorkspace = () => {
     }
   };
 
+  const handleResetBulkUpload = async () => {
+    try {
+      setResetSubmitting(true);
+      const result = await resetBulkUploadIdentities();
+      setShowResetConfirm(false);
+      fetchIdentitiesList();
+      fetchFilterMeta();
+      fetchKPIStats();
+      alert(result.deleted > 0
+        ? `Removed ${result.deleted} bulk-uploaded identit${result.deleted === 1 ? 'y' : 'ies'}. Connector-imported and manually created identities were not affected.`
+        : 'No bulk-uploaded identities were found — nothing to reset.');
+    } catch (err) {
+      console.error('Failed to reset bulk-uploaded identities:', err);
+      alert(err.response?.data?.detail || 'Failed to reset bulk-uploaded identities.');
+    } finally {
+      setResetSubmitting(false);
+    }
+  };
+
   const renderStatusBadge = (status) => {
     switch (status) {
       case 'Active':
@@ -613,6 +637,17 @@ const IdentityWorkspace = () => {
           <p>Every identity imported through connectors, created manually, or bulk uploaded, correlated against Application accounts by email.</p>
         </div>
         <div className="header-buttons-section">
+          {canDelete('Identity Repository') && (
+            <button
+              className="btn-browse-file"
+              onClick={() => setShowResetConfirm(true)}
+              title="Remove identities added via Bulk Upload, leaving connector-imported and manually created identities untouched"
+              style={{ padding: '10px 16px', fontSize: '12.5px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <RotateCcw size={14} />
+              <span>Reset Bulk Upload</span>
+            </button>
+          )}
           {canCreate('Identity Repository') && (
             <>
               <button
@@ -906,6 +941,31 @@ const IdentityWorkspace = () => {
               <button className="btn-modal-cancel" type="button" disabled={deleteSubmitting} onClick={() => setShowDeleteConfirm(false)}>Cancel</button>
               <button className="btn-modal-delete" type="button" disabled={deleteSubmitting} onClick={handleDeleteSubmit}>
                 {deleteSubmitting ? 'Deleting...' : 'Confirm Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showResetConfirm && (
+        <div className="modal-overlay-custom">
+          <div className="modal-content-custom delete-dialog-content">
+            <div className="delete-dialog-body">
+              <div className="delete-dialog-icon"><AlertTriangle size={24} /></div>
+              <div className="delete-dialog-text">
+                <h4>Reset Bulk Upload Data?</h4>
+                <p>
+                  This removes every identity that was added through Bulk Upload in Identity Repository.
+                  Identities imported through a connector or created manually will not be affected, and
+                  correlated Accounts / Entitlements from Application Workspace and Connector Workspace
+                  keep working as normal — they're matched live by email, not stored on the identity.
+                </p>
+              </div>
+            </div>
+            <div className="modal-footer-custom">
+              <button className="btn-modal-cancel" type="button" disabled={resetSubmitting} onClick={() => setShowResetConfirm(false)}>Cancel</button>
+              <button className="btn-modal-delete" type="button" disabled={resetSubmitting} onClick={handleResetBulkUpload}>
+                {resetSubmitting ? 'Resetting...' : 'Confirm Reset'}
               </button>
             </div>
           </div>

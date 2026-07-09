@@ -53,3 +53,8 @@ export const bulkUploadIdentities = async (file) => {
   });
   return response.data;
 };
+
+export const resetBulkUploadIdentities = async () => {
+  const response = await apiClient.delete('/identities/bulk-upload/reset');
+  return response.data;
+};
