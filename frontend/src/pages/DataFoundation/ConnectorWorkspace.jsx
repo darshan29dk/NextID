@@ -79,6 +79,24 @@ import {
 } from '../../services/dashboardService';
 import './ConnectorWorkspace.css';
 
+const formatDateTime = (dateVal) => {
+  if (!dateVal) return '—';
+  let s = String(dateVal);
+  if (!s.endsWith('Z') && !s.includes('+') && !/-\d{2}:\d{2}$/.test(s)) {
+    s += 'Z';
+  }
+  return new Date(s).toLocaleString();
+};
+
+const formatDateOnly = (dateVal) => {
+  if (!dateVal) return '—';
+  let s = String(dateVal);
+  if (!s.endsWith('Z') && !s.includes('+') && !/-\d{2}:\d{2}$/.test(s)) {
+    s += 'Z';
+  }
+  return new Date(s).toLocaleDateString();
+};
+
 const INITIAL_FORM_STATE = {
   connector_name: '',
   connector_type: 'CSV',
@@ -632,11 +650,31 @@ const ConnectorWorkspace = () => {
   const handleOpenMappingTab = async () => {
     setDetailTab('mapping');
     if (!selectedConnector) return;
-    if (schemaFields.length === 0) return;
-    await loadMappingData();
+
+    // Auto-discover schema if not yet loaded, then load mapping data
+    if (schemaFields.length === 0) {
+      try {
+        setSchemaLoading(true);
+        setSchemaError(null);
+        const res = await getConnectorSchema(selectedConnector.id, selectedTableName || undefined);
+        const fields = res.fields || [];
+        setSchemaFields(fields);
+        if (fields.length > 0) {
+          await loadMappingData(fields);
+        }
+      } catch (err) {
+        console.error('Schema auto-discovery failed for mapping tab:', err);
+        setSchemaError(err.response?.data?.detail || 'Schema discovery failed. Please visit the Schema tab first.');
+        setMappingsError('Could not auto-discover schema. Please go to the Schema tab, click "Discover Schema", then come back to Mapping.');
+      } finally {
+        setSchemaLoading(false);
+      }
+    } else {
+      await loadMappingData();
+    }
   };
 
-  const loadMappingData = async () => {
+  const loadMappingData = async (fieldsOverride) => {
     try {
       setMappingsLoading(true);
       setMappingsError(null);
@@ -654,7 +692,9 @@ const ConnectorWorkspace = () => {
         Entitlement: entitlementRes.attributes || [],
         Role: roleRes.attributes || []
       });
-      const rows = schemaFields.map((f) => {
+      // Use fresh fields passed directly (avoids stale React state after auto-discovery)
+      const activeFields = fieldsOverride || schemaFields;
+      const rows = activeFields.map((f) => {
         const existing = existingMappings.find((m) => m.source_field === f.field_name);
         return {
           source_field: f.field_name,
@@ -2641,10 +2681,10 @@ const ConnectorWorkspace = () => {
                   <Clock size={14} className="text-muted" style={{ opacity: 0.7 }} />
                 </div>
                 <div style={{ fontSize: '15px', fontWeight: '700', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {selectedConnector.last_sync ? new Date(selectedConnector.last_sync + 'Z').toLocaleString('en-US') : 'Never'}
+                  {formatDateTime(selectedConnector.last_sync)}
                 </div>
                 <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                  Last Tested: {selectedConnector.last_tested ? new Date(selectedConnector.last_tested + 'Z').toLocaleDateString() : 'Never'}
+                  Last Tested: {formatDateTime(selectedConnector.last_tested)}
                 </div>
               </div>
 
@@ -2732,8 +2772,8 @@ const ConnectorWorkspace = () => {
                             <div className="summary-item"><label>Auth Mechanism</label><span>{selectedConnector.auth_type || 'None'}</span></div>
                             <div className="summary-item"><label>System Version</label><span>v{selectedConnector.version}</span></div>
                             <div className="summary-item"><label>Created By</label><span>{selectedConnector.created_by}</span></div>
-                            <div className="summary-item"><label>Created At</label><span>{new Date(selectedConnector.created_at).toLocaleString()}</span></div>
-                            <div className="summary-item"><label>Last Updated</label><span>{new Date(selectedConnector.updated_at).toLocaleString()}</span></div>
+                            <div className="summary-item"><label>Created At</label><span>{formatDateTime(selectedConnector.created_at)}</span></div>
+                            <div className="summary-item"><label>Last Updated</label><span>{formatDateTime(selectedConnector.updated_at)}</span></div>
                           </div>
                         </div>
 
@@ -2818,7 +2858,7 @@ const ConnectorWorkspace = () => {
                                 <div className="file-meta-row">
                                   <span>Size: {(f.file_size / 1024).toFixed(1)} KB</span>
                                   <span>By: {f.uploaded_by}</span>
-                                  <span>Date: {new Date(f.upload_date).toLocaleDateString()}</span>
+                                  <span>Date: {formatDateOnly(f.upload_date)}</span>
                                 </div>
                               </div>
                             ))}
@@ -2844,7 +2884,7 @@ const ConnectorWorkspace = () => {
                                   <span className="log-action-text font-semibold">{log.action}</span>
                                 </div>
                                 <p className="log-details-text">{log.details}</p>
-                                <span className="log-time-text">{new Date(log.timestamp).toLocaleString()}</span>
+                                <span className="log-time-text">{formatDateTime(log.timestamp)}</span>
                               </div>
                             ))}
                           </div>
@@ -2883,7 +2923,7 @@ const ConnectorWorkspace = () => {
                                     </div>
                                   )}
                                 </div>
-                                <span className="audit-time-text">{new Date(aud.timestamp).toLocaleString()}</span>
+                                <span className="audit-time-text">{formatDateTime(aud.timestamp)}</span>
                               </div>
                             ))}
                           </div>
@@ -3572,7 +3612,7 @@ const ConnectorWorkspace = () => {
                         )}
                         {selectedConnector.next_scheduled_run && scheduleEnabled && (
                           <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                            Next scheduled run: {new Date(selectedConnector.next_scheduled_run + 'Z').toLocaleString('en-US')}
+                            Next scheduled run: {formatDateTime(selectedConnector.next_scheduled_run)}
                           </div>
                         )}
                         {scheduleError && (
@@ -3624,7 +3664,7 @@ const ConnectorWorkspace = () => {
                                       <span className="log-action-text" style={{ fontWeight: '600', fontSize: '13px' }}>{log.action}</span>
                                     </div>
                                     <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                                      {new Date(log.timestamp).toLocaleString()}
+                                      {formatDateTime(log.timestamp)}
                                     </span>
                                   </div>
                                   <p className="log-details-text" style={{ margin: 0, fontSize: '12.5px', color: 'var(--text-main)', lineHeight: '1.4' }}>
@@ -3785,8 +3825,8 @@ const ConnectorWorkspace = () => {
                     <td>{c.connector_type}</td>
                     <td>{renderStatusBadge(c.status)}</td>
                     <td>{c.database_type || '—'}</td>
-                    <td>{c.last_tested ? new Date(c.last_tested).toLocaleString() : 'Never'}</td>
-                    <td>{c.last_sync ? new Date(c.last_sync).toLocaleString() : 'Never'}</td>
+                    <td>{c.last_tested ? formatDateTime(c.last_tested) : 'Never'}</td>
+                    <td>{c.last_sync ? formatDateTime(c.last_sync) : 'Never'}</td>
                     <td>{c.created_by}</td>
                     <td onClick={(e) => e.stopPropagation()}>
                       <div className="actions-cell-menu">

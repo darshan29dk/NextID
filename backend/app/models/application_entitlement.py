@@ -7,7 +7,7 @@ class ApplicationEntitlement(Base):
     __tablename__ = "application_entitlements"
 
     id = Column(Integer, primary_key=True, index=True)
-    application_id = Column(Integer, ForeignKey("applications.id"), nullable=False)
+    application_id = Column(Integer, ForeignKey("applications.id"), index=True, nullable=False)
     entitlement_name = Column(String(150), nullable=False)
     entitlement_type = Column(String(100), nullable=True)  # e.g. "Permission", "Access Right", "Group"
     description = Column(String(255), nullable=True)

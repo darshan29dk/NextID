@@ -262,6 +262,31 @@ def get_identity_filter_meta(
     return {"departments": sorted(departments), "statuses": sorted(statuses)}
 
 
+@router.get("/identities/stats")
+def get_identity_stats(
+    db: Session = Depends(get_db),
+    _perm: bool = Depends(require_permission("Identity Repository", "view"))
+):
+    from sqlalchemy import func
+    total = db.query(func.count(Identity.id)).filter(Identity.is_deleted == False).scalar() or 0
+    active = db.query(func.count(Identity.id)).filter(Identity.is_deleted == False, Identity.status == "Active").scalar() or 0
+    inactive = total - active
+    
+    # Count unique departments
+    depts = db.query(func.count(func.distinct(Identity.department))).filter(
+        Identity.is_deleted == False, 
+        Identity.department != None, 
+        Identity.department != ""
+    ).scalar() or 0
+    
+    return {
+        "total": total,
+        "active": active,
+        "inactive": inactive,
+        "departments": depts
+    }
+
+
 @router.get("/identities/{id}", response_model=IdentityResponse)
 def get_identity(
     id: int,
@@ -479,3 +504,4 @@ def get_identity_timeline(
 
     events.sort(key=lambda e: e["timestamp"] or "", reverse=True)
     return {"events": events}
+

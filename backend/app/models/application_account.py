@@ -7,16 +7,16 @@ class ApplicationAccount(Base):
     __tablename__ = "application_accounts"
 
     id = Column(Integer, primary_key=True, index=True)
-    application_id = Column(Integer, ForeignKey("applications.id"), nullable=False)
+    application_id = Column(Integer, ForeignKey("applications.id"), index=True, nullable=False)
     account_id = Column(String(150), nullable=False)  # external identifier from source system
     account_name = Column(String(150), nullable=True)
-    email = Column(String(150), nullable=True)
+    email = Column(String(150), index=True, nullable=True)
     status = Column(String(50), default="Active", nullable=False)  # "Active", "Inactive", "Disabled"
     raw_data = Column(JSON, nullable=True)  # full imported row, in case source has extra fields
 
     # Correlation Metadata Columns
-    identity_id = Column(Integer, ForeignKey("identities.id", ondelete="SET NULL"), nullable=True)
-    correlation_status = Column(String(50), default="Uncorrelated", nullable=False)  # "Correlated", "Needs Review", "Uncorrelated"
+    identity_id = Column(Integer, ForeignKey("identities.id", ondelete="SET NULL"), index=True, nullable=True)
+    correlation_status = Column(String(50), default="Uncorrelated", index=True, nullable=False)  # "Correlated", "Needs Review", "Uncorrelated"
     correlation_method = Column(String(50), nullable=True)  # "Automatic", "Manual"
     correlation_confidence = Column(Integer, default=0)  # 0 to 100 percentage
 

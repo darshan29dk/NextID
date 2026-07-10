@@ -9,6 +9,7 @@ import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
 import {
   getIdentities,
+  getIdentityStats,
   getIdentityFilterMeta,
   getIdentity,
   getIdentityAccounts,
@@ -132,14 +133,12 @@ const IdentityWorkspace = () => {
 
   const fetchKPIStats = useCallback(async () => {
     try {
-      const data = await getIdentities({ page: 1, limit: 1000 });
-      const list = data.identities || [];
-      const deptSet = new Set(list.map((i) => i.department).filter(Boolean));
+      const stats = await getIdentityStats();
       setKpiStats({
-        total: list.length,
-        active: list.filter((i) => i.status === 'Active').length,
-        inactive: list.filter((i) => i.status !== 'Active').length,
-        departments: deptSet.size
+        total: stats.total || 0,
+        active: stats.active || 0,
+        inactive: stats.inactive || 0,
+        departments: stats.departments || 0
       });
     } catch (err) {
       console.error('Failed to calculate identity KPIs:', err);

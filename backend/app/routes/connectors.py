@@ -896,7 +896,7 @@ def import_connector_data(
     # 3. Read raw records (with a high limit, e.g. 2000, or None to read all)
     from app.services.preview_engine import PreviewEngine
     try:
-        raw_rows = PreviewEngine._read_raw_records(connector, table_name, limit=2000)
+        raw_rows = PreviewEngine._read_raw_records(connector, table_name, limit=None)
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to read source data: {str(e)}")
 

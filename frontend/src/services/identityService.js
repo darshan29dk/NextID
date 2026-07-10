@@ -5,6 +5,11 @@ export const getIdentities = async (params) => {
   return response.data;
 };
 
+export const getIdentityStats = async () => {
+  const response = await apiClient.get('/identities/stats');
+  return response.data;
+};
+
 export const getIdentityFilterMeta = async () => {
   const response = await apiClient.get('/identities/filters/meta');
   return response.data;

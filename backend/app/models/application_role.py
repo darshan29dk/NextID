@@ -7,7 +7,7 @@ class ApplicationRole(Base):
     __tablename__ = "application_roles"
 
     id = Column(Integer, primary_key=True, index=True)
-    application_id = Column(Integer, ForeignKey("applications.id"), nullable=False)
+    application_id = Column(Integer, ForeignKey("applications.id"), index=True, nullable=False)
     role_name = Column(String(150), nullable=False)
     description = Column(String(255), nullable=True)
     raw_data = Column(JSON, nullable=True)

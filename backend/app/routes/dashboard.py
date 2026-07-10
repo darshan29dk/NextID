@@ -19,7 +19,12 @@ router = APIRouter()
 
 @router.get("/dashboard", response_model=DashboardStatsResponse)
 def get_dashboard_stats(db: Session = Depends(get_db)):
-    records = db.query(IdentityRecord).all()
+    records = db.query(
+        IdentityRecord.applications,
+        IdentityRecord.entitlements_count,
+        IdentityRecord.sod_conflict,
+        IdentityRecord.department
+    ).all()
     
     # Calculate base KPI statistics dynamically from the Identity records
     total_users = len(records)
