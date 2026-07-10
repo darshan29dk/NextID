@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, LargeBinary
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database import Base
@@ -21,6 +21,7 @@ class Application(Base):
     csv_encoding = Column(String(20), default="UTF-8", nullable=True)
     excel_sheet_name = Column(String(100), nullable=True)
     file_path = Column(String(255), nullable=True)
+    file_content = Column(LargeBinary(length=16777215), nullable=True)
 
     # Sync statistics
     success_count = Column(Integer, default=0, nullable=False)

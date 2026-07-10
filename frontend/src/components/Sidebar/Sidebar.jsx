@@ -26,7 +26,8 @@ import {
   Settings2,
   SlidersHorizontal,
   User,
-  Fingerprint
+  Fingerprint,
+  Link2
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -48,6 +49,7 @@ const APPLICATIONS_GROUP_CHILDREN = [
 ];
 const IDENTITY_GROUP_CHILDREN = [
   { label: 'Identity Workspace', icon: User, path: 'data-foundation/identities' },
+  { label: 'Correlation Workspace', icon: Link2, path: 'data-foundation/correlation' }
 ];
 
 const Sidebar = ({ isCollapsed, toggleCollapse }) => {

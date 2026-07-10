@@ -355,7 +355,10 @@ def get_identity_correlated_accounts(
                 "account_name": acc.account_name,
                 "email": acc.email,
                 "status": acc.status,
-                "imported_at": acc.imported_at.isoformat() if acc.imported_at else None
+                "imported_at": acc.imported_at.isoformat() if acc.imported_at else None,
+                "correlation_status": acc.correlation_status,
+                "correlation_method": acc.correlation_method,
+                "correlation_confidence": acc.correlation_confidence
             } for acc, app in matches
         ]
     }

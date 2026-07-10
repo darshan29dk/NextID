@@ -281,6 +281,7 @@ async def upload_application_file(
         f.write(content)
 
     application.file_path = f"uploads/{safe_filename}"
+    application.file_content = content
     application.status = "Configured"
     application.modified_by = x_user_name
     application.updated_at = datetime.utcnow()
@@ -343,6 +344,9 @@ def test_application(
     application = db.query(Application).filter(Application.id == id, Application.is_deleted == False).first()
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
+
+    from app.utils.file_storage import restore_file_from_db_if_needed
+    restore_file_from_db_if_needed(db, application)
 
     start_time = time.time()
     success = False
@@ -420,6 +424,9 @@ def get_application_schema(id: int, db: Session = Depends(get_db)):
     application = db.query(Application).filter(Application.id == id, Application.is_deleted == False).first()
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
+
+    from app.utils.file_storage import restore_file_from_db_if_needed
+    restore_file_from_db_if_needed(db, application)
 
     fields = []
 
@@ -562,6 +569,9 @@ def import_accounts(
     application = db.query(Application).filter(Application.id == id, Application.is_deleted == False).first()
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
+
+    from app.utils.file_storage import restore_file_from_db_if_needed
+    restore_file_from_db_if_needed(db, application)
 
     start_time = time.time()
     try:
@@ -735,6 +745,9 @@ def import_entitlements(
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
 
+    from app.utils.file_storage import restore_file_from_db_if_needed
+    restore_file_from_db_if_needed(db, application)
+
     start_time = time.time()
     try:
         rows = _read_all_rows(application)
@@ -868,6 +881,9 @@ def import_roles(
     application = db.query(Application).filter(Application.id == id, Application.is_deleted == False).first()
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
+
+    from app.utils.file_storage import restore_file_from_db_if_needed
+    restore_file_from_db_if_needed(db, application)
 
     start_time = time.time()
     try:

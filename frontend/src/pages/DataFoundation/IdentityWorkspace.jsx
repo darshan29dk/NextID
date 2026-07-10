@@ -18,7 +18,11 @@ import {
   updateIdentity,
   deleteIdentity,
   bulkUploadIdentities,
-  resetBulkUploadIdentities
+  resetBulkUploadIdentities,
+  runAutoCorrelation,
+  manualLinkAccount,
+  manualUnlinkAccount,
+  getUnlinkedAccounts
 } from '../../services/identityService';
 import { canCreate, canEdit, canDelete } from '../../utils/permissions';
 import './IdentityWorkspace.css';
@@ -52,6 +56,13 @@ const IdentityWorkspace = () => {
   const [accounts, setAccounts] = useState([]);
   const [accountsLoading, setAccountsLoading] = useState(false);
   const [correlationNote, setCorrelationNote] = useState(null);
+  
+  const [showLinkModal, setShowLinkModal] = useState(false);
+  const [linkSearch, setLinkSearch] = useState('');
+  const [unlinkedAccounts, setUnlinkedAccounts] = useState([]);
+  const [unlinkedLoading, setUnlinkedLoading] = useState(false);
+  const [linkSubmitting, setLinkSubmitting] = useState(false);
+  const [runningAutoCorrelation, setRunningAutoCorrelation] = useState(false);
 
   const [timelineEvents, setTimelineEvents] = useState([]);
   const [timelineLoading, setTimelineLoading] = useState(false);
@@ -207,6 +218,74 @@ const IdentityWorkspace = () => {
       setAccountsLoading(false);
     }
   }, [selectedIdentity]);
+
+  const handleRunAutoCorrelation = async () => {
+    try {
+      setRunningAutoCorrelation(true);
+      const res = await runAutoCorrelation();
+      alert(res.message || 'Auto-correlation complete!');
+      if (view === 'detail') {
+        fetchAccounts();
+      } else {
+        fetchIdentities();
+      }
+    } catch (err) {
+      console.error('Auto-correlation failed:', err);
+      alert('Auto-correlation failed.');
+    } finally {
+      setRunningAutoCorrelation(false);
+    }
+  };
+
+  const handleOpenLinkModal = () => {
+    setLinkSearch('');
+    setUnlinkedAccounts([]);
+    setShowLinkModal(true);
+    fetchUnlinkedAccounts('');
+  };
+
+  const handleLinkSearchChange = (e) => {
+    const val = e.target.value;
+    setLinkSearch(val);
+    fetchUnlinkedAccounts(val.trim());
+  };
+
+  const fetchUnlinkedAccounts = async (searchVal) => {
+    try {
+      setUnlinkedLoading(true);
+      const res = await getUnlinkedAccounts(searchVal);
+      setUnlinkedAccounts(res.accounts || []);
+    } catch (err) {
+      console.error('Failed to search unlinked accounts:', err);
+    } finally {
+      setUnlinkedLoading(false);
+    }
+  };
+
+  const handleLinkAccount = async (accountId) => {
+    try {
+      setLinkSubmitting(true);
+      await manualLinkAccount(accountId, selectedIdentity.id);
+      setShowLinkModal(false);
+      fetchAccounts();
+    } catch (err) {
+      console.error('Failed to link account:', err);
+      alert('Failed to link account.');
+    } finally {
+      setLinkSubmitting(false);
+    }
+  };
+
+  const handleUnlinkAccount = async (accountId) => {
+    if (!window.confirm('Are you sure you want to break the correlation link for this account?')) return;
+    try {
+      await manualUnlinkAccount(accountId);
+      fetchAccounts();
+    } catch (err) {
+      console.error('Failed to unlink account:', err);
+      alert('Failed to unlink account.');
+    }
+  };
 
   useEffect(() => {
     if (detailTab === 'accounts' && selectedIdentity) {
@@ -486,10 +565,23 @@ const IdentityWorkspace = () => {
 
                     {detailTab === 'accounts' && (
                       <div className="drawer-tab-info-pane">
-                        <h5>Correlated Application Accounts</h5>
-                        <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px', marginBottom: '16px' }}>
-                          Accounts imported through Applications whose email matches this identity's email.
-                        </p>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                          <div>
+                            <h5>Correlated Application Accounts</h5>
+                            <p style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '4px', margin: 0 }}>
+                              Accounts mapped automatically or manually linked to this identity.
+                            </p>
+                          </div>
+                          {canEdit('Identity Repository') && (
+                            <button 
+                              className="btn-add-connector" 
+                              onClick={handleOpenLinkModal}
+                              style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              <Link2 size={13} /> Link Account
+                            </button>
+                          )}
+                        </div>
 
                         {correlationNote && (
                           <div className="error-banner" style={{ marginBottom: '12px' }}>{correlationNote}</div>
@@ -512,8 +604,9 @@ const IdentityWorkspace = () => {
                                 <th style={{ textAlign: 'left' }}>Application</th>
                                 <th style={{ textAlign: 'left' }}>Account ID</th>
                                 <th style={{ textAlign: 'left' }}>Account Name</th>
+                                <th style={{ textAlign: 'left' }}>Correlation</th>
                                 <th style={{ textAlign: 'left' }}>Status</th>
-                                <th style={{ textAlign: 'left' }}>Imported At</th>
+                                <th style={{ textAlign: 'left' }}>Actions</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -522,8 +615,34 @@ const IdentityWorkspace = () => {
                                   <td style={{ fontWeight: '600' }}>{a.application_name}</td>
                                   <td>{a.account_id}</td>
                                   <td>{a.account_name || '—'}</td>
+                                  <td>
+                                    {a.correlation_method === 'Manual' ? (
+                                      <span className="status-badge connected" style={{ fontSize: '11px', padding: '2px 6px' }}>
+                                        Manual (100%)
+                                      </span>
+                                    ) : a.correlation_method === 'Automatic' ? (
+                                      <span className={`status-badge ${a.correlation_status === 'Needs Review' ? 'disabled' : 'connected'}`} style={{ fontSize: '11px', padding: '2px 6px' }}>
+                                        Auto ({a.correlation_confidence}%)
+                                      </span>
+                                    ) : (
+                                      <span className="status-badge draft" style={{ fontSize: '11px', padding: '2px 6px' }}>
+                                        Uncorrelated
+                                      </span>
+                                    )}
+                                  </td>
                                   <td>{a.status}</td>
-                                  <td className="text-muted">{a.imported_at ? new Date(a.imported_at).toLocaleString() : '—'}</td>
+                                  <td>
+                                    {canEdit('Identity Repository') && (
+                                      <button 
+                                        className="btn-row-action delete" 
+                                        title="Unlink account" 
+                                        onClick={() => handleUnlinkAccount(a.id)}
+                                        style={{ padding: '4px 8px', border: '1px solid var(--border-color)', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}
+                                      >
+                                        <Link2 size={11} /> Unlink
+                                      </button>
+                                    )}
+                                  </td>
                                 </tr>
                               ))}
                             </tbody>
@@ -646,6 +765,17 @@ const IdentityWorkspace = () => {
             >
               <RotateCcw size={14} />
               <span>Reset Bulk Upload</span>
+            </button>
+          )}
+          {canEdit('Identity Repository') && (
+            <button
+              className="btn-browse-file"
+              onClick={handleRunAutoCorrelation}
+              disabled={runningAutoCorrelation || loading}
+              style={{ padding: '10px 16px', fontSize: '12.5px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <RotateCcw size={14} className={runningAutoCorrelation ? 'spinner-icon' : ''} />
+              <span>{runningAutoCorrelation ? 'Correlating...' : 'Auto-Correlate'}</span>
             </button>
           )}
           {canCreate('Identity Repository') && (
@@ -967,6 +1097,86 @@ const IdentityWorkspace = () => {
               <button className="btn-modal-delete" type="button" disabled={resetSubmitting} onClick={handleResetBulkUpload}>
                 {resetSubmitting ? 'Resetting...' : 'Confirm Reset'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showLinkModal && (
+        <div className="modal-overlay-custom">
+          <div className="modal-content-custom connector-wizard-content" style={{ maxWidth: '600px' }}>
+            <div className="modal-header-custom">
+              <h3>Link Uncorrelated Account</h3>
+              <button className="modal-close-btn-custom" onClick={() => setShowLinkModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="modal-form-custom">
+              <div className="modal-scrollable-body wizard-body-section" style={{ minHeight: '300px' }}>
+                <p className="subtitle" style={{ marginBottom: '16px' }}>
+                  Search and select an uncorrelated application account to link to <b>{selectedIdentity ? displayName(selectedIdentity) : ''}</b>.
+                </p>
+                <div className="search-input-wrapper" style={{ marginBottom: '16px', width: '100%' }}>
+                  <Search size={16} className="text-muted" />
+                  <input 
+                    type="text" 
+                    className="search-field" 
+                    value={linkSearch} 
+                    onChange={handleLinkSearchChange} 
+                    placeholder="Search by Account ID, Name, Email, or Application..." 
+                    style={{ width: '100%', boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                {unlinkedLoading ? (
+                  <div className="drawer-loading-box" style={{ padding: '20px 0' }}>
+                    <div className="spinner-element"></div>
+                    <p>Searching unlinked accounts...</p>
+                  </div>
+                ) : unlinkedAccounts.length === 0 ? (
+                  <div className="drawer-tab-empty-msg" style={{ padding: '20px 0' }}>
+                    <Link2 size={24} className="text-muted" />
+                    <p>No unlinked accounts found matching "{linkSearch}".</p>
+                  </div>
+                ) : (
+                  <div style={{ maxHeight: '250px', overflowY: 'auto', border: '1px solid var(--border-color)', borderRadius: '6px' }}>
+                    <table className="detail-inner-table" style={{ margin: 0, width: '100%' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ textAlign: 'left', padding: '8px' }}>Application</th>
+                          <th style={{ textAlign: 'left', padding: '8px' }}>Account ID</th>
+                          <th style={{ textAlign: 'left', padding: '8px' }}>Name / Email</th>
+                          <th style={{ textAlign: 'center', padding: '8px' }}>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {unlinkedAccounts.map((ua) => (
+                          <tr key={ua.id}>
+                            <td style={{ padding: '8px', fontWeight: '600' }}>{ua.application_name}</td>
+                            <td style={{ padding: '8px' }}>{ua.account_id}</td>
+                            <td style={{ padding: '8px', fontSize: '12px' }}>
+                              <div>{ua.account_name || '—'}</div>
+                              <div className="text-muted">{ua.email || ''}</div>
+                            </td>
+                            <td style={{ padding: '8px', textAlign: 'center' }}>
+                              <button
+                                className="btn-add-connector"
+                                onClick={() => handleLinkAccount(ua.id)}
+                                disabled={linkSubmitting}
+                                style={{ padding: '4px 8px', fontSize: '11px', cursor: 'pointer' }}
+                              >
+                                Link
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer-custom">
+                <button className="btn-modal-cancel" type="button" onClick={() => setShowLinkModal(false)}>Close</button>
+              </div>
             </div>
           </div>
         </div>

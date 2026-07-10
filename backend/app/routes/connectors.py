@@ -350,7 +350,8 @@ async def upload_connector_file(
         file_type=file.content_type or "application/octet-stream",
         file_size=file_size,
         uploaded_by=x_user_name,
-        upload_date=datetime.utcnow()
+        upload_date=datetime.utcnow(),
+        file_content=content
     )
 
     db.add(conn_file)
@@ -440,6 +441,9 @@ def test_connector(
     connector = db.query(Connector).filter(Connector.id == id, Connector.is_deleted == False).first()
     if not connector:
         raise HTTPException(status_code=404, detail="Connector not found")
+
+    from app.utils.file_storage import restore_file_from_db_if_needed
+    restore_file_from_db_if_needed(db, connector)
 
     start_time = time.time()
     success = False
@@ -632,6 +636,9 @@ def get_connector_schema(
     connector = db.query(Connector).filter(Connector.id == id, Connector.is_deleted == False).first()
     if not connector:
         raise HTTPException(status_code=404, detail="Connector not found")
+
+    from app.utils.file_storage import restore_file_from_db_if_needed
+    restore_file_from_db_if_needed(db, connector)
 
     fields = []
 
@@ -871,6 +878,9 @@ def import_connector_data(
     connector = db.query(Connector).filter(Connector.id == id, Connector.is_deleted == False).first()
     if not connector:
         raise HTTPException(status_code=404, detail="Connector not found")
+
+    from app.utils.file_storage import restore_file_from_db_if_needed
+    restore_file_from_db_if_needed(db, connector)
 
     # 2. Check mappings
     from app.models.connector_field_mapping import ConnectorFieldMapping

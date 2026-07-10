@@ -20,6 +20,9 @@ class PreviewEngine:
         if not connector:
             raise Exception("Connector not found")
 
+        from app.utils.file_storage import restore_file_from_db_if_needed
+        restore_file_from_db_if_needed(db, connector)
+
         # 2. Clear existing preview cache for this connector
         db.query(ImportPreview).filter(ImportPreview.connector_id == connector_id).delete()
         db.commit()

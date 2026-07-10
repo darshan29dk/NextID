@@ -35,15 +35,39 @@ from app.models.application_role import ApplicationRole
 from app.models.import_run_history import ImportRunHistory
 from app.models.identity import Identity
 from app.models.application_account_entitlement import ApplicationAccountEntitlement
+from app.models.correlation_rule import CorrelationRule
 from app.services.scheduler import start_scheduler, restore_active_schedules
 from app.routes import transformations, validations, preview
 from app.utils.crypto import encrypt_password
 from datetime import datetime
 from app.routes import application as application_routes
 from app.routes import identity as identity_routes
+from app.routes import correlation as correlation_routes
 
 # Create database tables if they do not exist
 Base.metadata.create_all(bind=engine)
+
+from sqlalchemy import text
+
+def check_and_add_columns():
+    with engine.begin() as connection:
+        try:
+            result = connection.execute(text("SHOW COLUMNS FROM connector_files LIKE 'file_content'")).fetchone()
+            if not result:
+                print("Adding file_content to connector_files...")
+                connection.execute(text("ALTER TABLE connector_files ADD COLUMN file_content LONGBLOB NULL"))
+        except Exception as e:
+            print(f"Error checking/altering connector_files table: {e}")
+
+        try:
+            result = connection.execute(text("SHOW COLUMNS FROM applications LIKE 'file_content'")).fetchone()
+            if not result:
+                print("Adding file_content to applications...")
+                connection.execute(text("ALTER TABLE applications ADD COLUMN file_content LONGBLOB NULL"))
+        except Exception as e:
+            print(f"Error checking/altering applications table: {e}")
+
+check_and_add_columns()
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -115,7 +139,8 @@ try:
         "Role Discovery", "Role Engineering", "Role Catalog", "Governance", "Role Lifecycle",
         "Analytics", "Reports", "Identity Attributes", "Account Attributes", "Entitlement Attributes",
         "Role Attributes", "Attribute Categories", "License Management",
-        "Connector Workspace", "Application Workspace", "Identity Repository"
+        "Connector Workspace", "Application Workspace", "Identity Repository",
+        "Correlation Workspace"
     ]
 
     roles = db.query(PlatformRole).all()
@@ -177,7 +202,21 @@ try:
         db.commit()
     print("Verified / Seeded menu permissions.")
 
-    # 4. Seed Attribute Categories if empty
+    # 4. Seed default Correlation Rules if empty
+    try:
+        if db.query(CorrelationRule).count() == 0:
+            rules = [
+                CorrelationRule(rule_name="Email Match", identity_attribute="email", account_attribute="email", match_type="Exact", confidence_score=100, is_active=True),
+                CorrelationRule(rule_name="Full Name Match", identity_attribute="display_name", account_attribute="account_name", match_type="Exact", confidence_score=85, is_active=True),
+                CorrelationRule(rule_name="Partial Name Match", identity_attribute="first_name", account_attribute="account_name", match_type="Partial", confidence_score=75, is_active=True)
+            ]
+            db.add_all(rules)
+            db.commit()
+            print("Seeded default correlation rules.")
+    except Exception as e:
+        print(f"Error seeding correlation rules: {e}")
+
+    # 5. Seed Attribute Categories if empty
     try:
         default_categories = [
             ("System", "Standard system-defined attributes used for core integrations."),
@@ -497,7 +536,7 @@ app = FastAPI(title="rAnalyzer API", version="1.0.0")
 # Setup CORS to allow cross-origin requests from the React frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -527,6 +566,7 @@ app.include_router(validations.router, prefix="/api")
 app.include_router(preview.router, prefix="/api")
 app.include_router(application_routes.router, prefix="/api")
 app.include_router(identity_routes.router, prefix="/api")
+app.include_router(correlation_routes.router, prefix="/api")
 
 @app.get("/")
 def read_root():

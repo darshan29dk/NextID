@@ -58,3 +58,30 @@ export const resetBulkUploadIdentities = async () => {
   const response = await apiClient.delete('/identities/bulk-upload/reset');
   return response.data;
 };
+
+export const runAutoCorrelation = async (applicationId) => {
+  const params = applicationId ? { application_id: applicationId } : {};
+  const response = await apiClient.post('/correlation/auto', null, { params });
+  return response.data;
+};
+
+export const manualLinkAccount = async (accountId, identityId) => {
+  const response = await apiClient.post('/correlation/link', {
+    account_id: accountId,
+    identity_id: identityId
+  });
+  return response.data;
+};
+
+export const manualUnlinkAccount = async (accountId) => {
+  const response = await apiClient.post('/correlation/unlink', {
+    account_id: accountId
+  });
+  return response.data;
+};
+
+export const getUnlinkedAccounts = async (search) => {
+  const params = search ? { search } : {};
+  const response = await apiClient.get('/correlation/unlinked-accounts', { params });
+  return response.data;
+};
