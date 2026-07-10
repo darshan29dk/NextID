@@ -30,10 +30,25 @@ const Settings = () => {
       try {
         setLoading(true);
         const data = await getSettings();
-        setFormData(data);
+        setFormData(data || {
+          support_email: '',
+          default_timezone: 'Asia/Kolkata',
+          session_timeout_minutes: 15,
+          otp_expiry_minutes: 10,
+          default_theme: 'light',
+          maintenance_mode: false,
+        });
       } catch (err) {
         console.error('Failed to load settings:', err);
         setErrorMsg('Failed to load settings. Please check backend connection.');
+        setFormData({
+          support_email: '',
+          default_timezone: 'Asia/Kolkata',
+          session_timeout_minutes: 15,
+          otp_expiry_minutes: 10,
+          default_theme: 'light',
+          maintenance_mode: false,
+        });
       } finally {
         setLoading(false);
       }

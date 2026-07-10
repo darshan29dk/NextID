@@ -522,6 +522,27 @@ try:
     except Exception as ex_conn:
         print(f"Error seeding default connectors: {ex_conn}")
 
+    # Seed default Platform Settings if empty
+    try:
+        from app.models.platform_settings import PlatformSettings
+        if db.query(PlatformSettings).count() == 0:
+            default_settings = PlatformSettings(
+                app_name="rAnalyzer",
+                support_email="support@ranalyzer.com",
+                default_timezone="Asia/Kolkata",
+                session_timeout_minutes=15,
+                otp_expiry_minutes=10,
+                default_theme="light",
+                maintenance_mode=False,
+                updated_at=datetime.utcnow(),
+                updated_by="System"
+            )
+            db.add(default_settings)
+            db.commit()
+            print("Seeded default platform settings.")
+    except Exception as ex_settings:
+        print(f"Error seeding default platform settings: {ex_settings}")
+
 except Exception as e:
     print(f"Error seeding database: {e}")
 finally:
