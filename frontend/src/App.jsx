@@ -22,6 +22,7 @@ import ApplicationWorkspace from './pages/DataFoundation/ApplicationWorkspace';
 import IdentityWorkspace from './pages/DataFoundation/IdentityWorkspace';
 import CorrelationWorkspace from './pages/DataFoundation/CorrelationWorkspace';
 import RoleDiscoveryWorkspace from './pages/DataFoundation/RoleDiscoveryWorkspace';
+import CandidateRoleWorkbench from './pages/RoleEngineering/CandidateRoleWorkbench';
 const UnderConstruction = ({ title }) => {
   return (
     <div style={{
@@ -96,7 +97,8 @@ function App() {
                   {/* ── Other modules (under construction) ── */}
                   <Route path="/data-foundation" element={<Navigate to="/data-foundation/identity" replace />} />
                   <Route path="/role-discovery" element={<RoleDiscoveryWorkspace />} />
-                  <Route path="/role-engineering" element={<UnderConstruction title="Role Engineering" />} />
+                  <Route path="/role-engineering" element={<Navigate to="/role-engineering/workbench" replace />} />
+                  <Route path="/role-engineering/workbench" element={<CandidateRoleWorkbench />} />
                   <Route path="/role-catalog" element={<UnderConstruction title="Role Catalog" />} />
                   <Route path="/governance" element={<UnderConstruction title="Governance" />} />
                   <Route path="/role-lifecycle" element={<UnderConstruction title="Role Lifecycle" />} />

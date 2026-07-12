@@ -39,7 +39,13 @@ from app.models.correlation_rule import CorrelationRule
 from app.models.mining_campaign import MiningCampaign
 from app.models.candidate_role import CandidateRole
 from app.models.candidate_role_entitlement import CandidateRoleEntitlement
+from app.models.candidate_role_member import CandidateRoleMember
+from app.models.role_merge_history import RoleMergeHistory
+from app.models.role_merge_source_roles import RoleMergeSourceRole
+from app.models.role_split_history import RoleSplitHistory
+from app.models.role_split_destination_roles import RoleSplitDestinationRole
 from app.models.campaign_account_result import CampaignAccountResult
+from app.models.role_owner_history import RoleOwnerHistory
 from app.services.scheduler import start_scheduler, restore_active_schedules
 from app.routes import transformations, validations, preview
 from app.utils.crypto import encrypt_password
@@ -48,6 +54,8 @@ from app.routes import application as application_routes
 from app.routes import identity as identity_routes
 from app.routes import correlation as correlation_routes
 from app.routes import role_discovery as role_discovery_routes
+from app.routes import candidate_role_workbench as candidate_role_workbench_routes
+from app.routes import role_owner as role_owner_routes
 
 # Create database tables if they do not exist
 Base.metadata.create_all(bind=engine)
@@ -71,6 +79,72 @@ def check_and_add_columns():
                 connection.execute(text("ALTER TABLE applications ADD COLUMN file_content LONGBLOB NULL"))
         except Exception as e:
             print(f"Error checking/altering applications table: {e}")
+
+        # Make campaign_id nullable for manually created/custom candidate roles
+        try:
+            print("Altering candidate_roles.campaign_id to allow NULL...")
+            connection.execute(text("ALTER TABLE candidate_roles MODIFY campaign_id INT NULL"))
+        except Exception as e:
+            print(f"Error altering candidate_roles.campaign_id: {e}")
+
+        # Make cluster_label nullable for manually created/custom candidate roles
+        try:
+            print("Altering candidate_roles.cluster_label to allow NULL...")
+            connection.execute(text("ALTER TABLE candidate_roles MODIFY cluster_label INT NULL"))
+        except Exception as e:
+            print(f"Error altering candidate_roles.cluster_label: {e}")
+
+        # Check and add columns for candidate_roles
+        candidate_roles_cols = {
+            "role_description": "VARCHAR(500) NULL",
+            "role_type": "VARCHAR(50) NOT NULL DEFAULT 'Business'",
+            "risk_level": "VARCHAR(50) NOT NULL DEFAULT 'Low'",
+            "classification": "VARCHAR(100) NULL",
+            "user_count": "INT NOT NULL DEFAULT 0",
+            "entitlement_count": "INT NOT NULL DEFAULT 0",
+            "application_count": "INT NOT NULL DEFAULT 0",
+            "department": "VARCHAR(100) NULL",
+            "business_unit": "VARCHAR(100) NULL",
+            "source": "VARCHAR(100) NOT NULL DEFAULT 'Mining'",
+            "generated_by": "VARCHAR(100) NOT NULL DEFAULT 'System'",
+            "generated_on": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            "sod_violation_count": "INT NOT NULL DEFAULT 0",
+            "updated_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            "created_by": "VARCHAR(100) NOT NULL DEFAULT 'System'",
+            "modified_by": "VARCHAR(100) NOT NULL DEFAULT 'System'",
+            "is_deleted": "TINYINT(1) NOT NULL DEFAULT 0",
+            # RE-005 owner fields (denormalized for fast lookup)
+            "primary_owner_name": "VARCHAR(200) NULL",
+            "primary_owner_email": "VARCHAR(200) NULL",
+            "primary_owner_id": "INT NULL",
+            "backup_owner_name": "VARCHAR(200) NULL",
+            "backup_owner_email": "VARCHAR(200) NULL",
+            "backup_owner_id": "INT NULL",
+            "owner_review_date": "DATETIME NULL"
+        }
+        for col, col_type in candidate_roles_cols.items():
+            try:
+                res = connection.execute(text(f"SHOW COLUMNS FROM candidate_roles LIKE '{col}'")).fetchone()
+                if not res:
+                    print(f"Adding {col} to candidate_roles...")
+                    connection.execute(text(f"ALTER TABLE candidate_roles ADD COLUMN {col} {col_type}"))
+            except Exception as e:
+                print(f"Error checking/altering candidate_roles column {col}: {e}")
+
+        # Check and add columns for candidate_role_entitlements
+        candidate_role_entitlements_cols = {
+            "application_name": "VARCHAR(150) NULL",
+            "risk": "VARCHAR(50) NOT NULL DEFAULT 'Low'",
+            "created_at": "DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+        }
+        for col, col_type in candidate_role_entitlements_cols.items():
+            try:
+                res = connection.execute(text(f"SHOW COLUMNS FROM candidate_role_entitlements LIKE '{col}'")).fetchone()
+                if not res:
+                    print(f"Adding {col} to candidate_role_entitlements...")
+                    connection.execute(text(f"ALTER TABLE candidate_role_entitlements ADD COLUMN {col} {col_type}"))
+            except Exception as e:
+                print(f"Error checking/altering candidate_role_entitlements column {col}: {e}")
 
 check_and_add_columns()
 
@@ -102,6 +176,7 @@ try:
         ("SEC_ADMIN", "Security Administrator", "Manages users, roles, and security settings", "System", "High", True, True),
         ("COMP_OFFICER", "Compliance Officer", "Reviews governance and compliance", "Business", "Medium", False, True),
         ("SEC_AUDITOR", "Security Auditor", "Read-only access to reports and audit logs", "System", "Low", False, True),
+        ("ROLE_ENGINEER", "Role Engineer", "Can create, edit, and classify candidate roles", "Business", "Medium", False, True),
         ("READ_ONLY", "Read Only User", "Can only view dashboards", "Shared", "Low", False, True)
     ]
 
@@ -190,6 +265,13 @@ try:
                     if menu_name in ["Dashboard", "Administration", "Platform Users", "Platform Roles", "Menu Permissions", "Audit Logs", "Reports"]:
                         can_view = True
                         can_export = True
+                elif role.role_code == "ROLE_ENGINEER":
+                    if menu_name in ["Dashboard", "Role Engineering"]:
+                        can_view = True
+                        can_create = True
+                        can_edit = True
+                        can_export = True
+                        can_approve = True
 
                 new_perm = MenuPermission(
                     role_id=role.id,
@@ -548,6 +630,104 @@ try:
     except Exception as ex_settings:
         print(f"Error seeding default platform settings: {ex_settings}")
 
+    # Seed default Candidate Roles if empty
+    try:
+        if db.query(CandidateRole).filter(CandidateRole.role_name == "Billing Administrator").count() == 0:
+            print("Seeding default Candidate Roles...")
+            identities = db.query(Identity).limit(10).all()
+            apps = db.query(Application).limit(5).all()
+            
+            role_data = [
+                ("Billing Administrator", "Access to create and approve billing reports", "Business", "High", "Birthright", "Draft", "Finance", "Corporate"),
+                ("IT Helpdesk Specialist", "Support ticket management and standard system access", "Technical", "Medium", "Requestable", "Reviewed", "Information Technology", "Global IT"),
+                ("HR Generalist", "Read and edit access to HR employee records", "Business", "Low", "Business", "Draft", "Human Resources", "People"),
+                ("Database Auditor", "Read-only database logs monitoring and auditing", "Technical", "Medium", "Technical", "Approved", "Security", "Risk"),
+                ("Financial Analyst", "Analytical access to financial forecasting tools", "Hybrid", "High", None, "Draft", "Finance", "Investment")
+            ]
+            
+            for name, desc, r_type, risk, classification, status, dept, bu in role_data:
+                role = CandidateRole(
+                    role_name=name,
+                    role_description=desc,
+                    role_type=r_type,
+                    risk_level=risk,
+                    classification=classification,
+                    status=status,
+                    confidence_score=85.5,
+                    job_function=name,
+                    member_count=len(identities) if identities else 3,
+                    user_count=len(identities) if identities else 3,
+                    entitlement_count=3,
+                    application_count=2,
+                    department=dept,
+                    business_unit=bu,
+                    source="Mining" if name != "Financial Analyst" else "Manual",
+                    generated_by="System" if name != "Financial Analyst" else "admin",
+                    created_by="System",
+                    modified_by="System",
+                    is_deleted=False
+                )
+                db.add(role)
+                db.flush()
+                
+                # Seed entitlements
+                app_name_1 = apps[0].application_name if len(apps) > 0 else "Active Directory"
+                app_name_2 = apps[1].application_name if len(apps) > 1 else "Salesforce"
+                
+                if name == "Billing Administrator":
+                    ent_data = [
+                        (app_name_1, f"Billing_Write", "High", True),
+                        (app_name_1, f"Billing_Approve", "High", True),
+                        (app_name_2, "Standard_View", "Low", False)
+                    ]
+                else:
+                    ent_data = [
+                        (app_name_1, f"{dept}_Access", "Medium", True),
+                        (app_name_2, "Standard_User", "Low", True),
+                        (app_name_2, "Read_Only", "Low", False)
+                    ]
+                    
+                for app, ent, ent_risk, is_core in ent_data:
+                    db.add(CandidateRoleEntitlement(
+                        candidate_role_id=role.id,
+                        application_name=app,
+                        entitlement_name=ent,
+                        risk=ent_risk,
+                        member_coverage_pct=95.0 if is_core else 35.0,
+                        is_core=is_core,
+                        created_at=datetime.utcnow()
+                    ))
+                    
+                # Seed members
+                if identities:
+                    for ident in identities[:3]:
+                        db.add(CandidateRoleMember(
+                            candidate_role_id=role.id,
+                            identity_id=ident.id,
+                            employee_id=ident.employee_id,
+                            employee_name=ident.display_name or f"{ident.first_name or ''} {ident.last_name or ''}".strip(),
+                            department=ident.department,
+                            created_at=datetime.utcnow()
+                        ))
+                else:
+                    # Fallback dummy identity
+                    first_id = db.query(Identity.id).first()
+                    if first_id:
+                        db.add(CandidateRoleMember(
+                            candidate_role_id=role.id,
+                            identity_id=first_id[0],
+                            employee_id="EMP123",
+                            employee_name="Darshan Kumar",
+                            department=dept,
+                            created_at=datetime.utcnow()
+                        ))
+                            
+            db.commit()
+            print("Successfully seeded Candidate Roles, Entitlements, and Members.")
+    except Exception as ex_seed:
+        db.rollback()
+        print(f"Error seeding candidate roles: {ex_seed}")
+
 except Exception as e:
     print(f"Error seeding database: {e}")
 finally:
@@ -593,7 +773,9 @@ app.include_router(preview.router, prefix="/api")
 app.include_router(application_routes.router, prefix="/api")
 app.include_router(identity_routes.router, prefix="/api")
 app.include_router(correlation_routes.router, prefix="/api")
+app.include_router(candidate_role_workbench_routes.router, prefix="/api")
 app.include_router(role_discovery_routes.router, prefix="/api")
+app.include_router(role_owner_routes.router, prefix="/api")
 
 @app.get("/")
 def read_root():
