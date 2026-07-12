@@ -53,6 +53,7 @@ const MENU_LIST = [
   'Connector Workspace',
   'Application Workspace',
   'Identity Repository',
+  'Role Discovery',
   'Platform Users',
   'Platform Roles',
   'Audit Logs',

@@ -10,3 +10,5 @@ openpyxl
 email-validator
 apscheduler
 requests
+scikit-learn
+numpy

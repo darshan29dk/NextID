@@ -36,6 +36,10 @@ from app.models.import_run_history import ImportRunHistory
 from app.models.identity import Identity
 from app.models.application_account_entitlement import ApplicationAccountEntitlement
 from app.models.correlation_rule import CorrelationRule
+from app.models.mining_campaign import MiningCampaign
+from app.models.candidate_role import CandidateRole
+from app.models.candidate_role_entitlement import CandidateRoleEntitlement
+from app.models.campaign_account_result import CampaignAccountResult
 from app.services.scheduler import start_scheduler, restore_active_schedules
 from app.routes import transformations, validations, preview
 from app.utils.crypto import encrypt_password
@@ -43,6 +47,7 @@ from datetime import datetime
 from app.routes import application as application_routes
 from app.routes import identity as identity_routes
 from app.routes import correlation as correlation_routes
+from app.routes import role_discovery as role_discovery_routes
 
 # Create database tables if they do not exist
 Base.metadata.create_all(bind=engine)
@@ -588,6 +593,7 @@ app.include_router(preview.router, prefix="/api")
 app.include_router(application_routes.router, prefix="/api")
 app.include_router(identity_routes.router, prefix="/api")
 app.include_router(correlation_routes.router, prefix="/api")
+app.include_router(role_discovery_routes.router, prefix="/api")
 
 @app.get("/")
 def read_root():
