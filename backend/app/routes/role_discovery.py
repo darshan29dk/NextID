@@ -236,7 +236,7 @@ def get_candidate_roles(
     }
 
 
-@router.get("/candidate-roles/{id}")
+@router.get("/role-discovery/candidate-roles/{id}")
 def get_candidate_role_detail(
     id: int,
     db: Session = Depends(get_db),
@@ -286,7 +286,7 @@ def get_candidate_role_detail(
 # RD-004: Role Comparison
 # ---------------------------------------------------------------------------
 
-@router.get("/candidate-roles/compare")
+@router.get("/role-discovery/candidate-roles/compare")
 def compare_candidate_roles(
     ids: str,  # comma-separated candidate role ids, e.g. "3,7"
     db: Session = Depends(get_db),

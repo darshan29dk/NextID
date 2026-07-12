@@ -106,7 +106,9 @@ class MergeRoleService:
                     identity_held[ident_id].add((app_name, ent_name))
 
             coverage_pcts = []
-            for app_name, ent_name in unique_entitlements_list:
+            for ent_item in unique_entitlements_list:
+                app_name = ent_item["application_name"]
+                ent_name = ent_item["entitlement_name"]
                 holders = sum(1 for ident_id in identity_ids if (app_name, ent_name) in identity_held[ident_id])
                 coverage_pcts.append((holders / total_unique_members) * 100.0)
 

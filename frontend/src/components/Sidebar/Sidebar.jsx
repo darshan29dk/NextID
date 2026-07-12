@@ -51,9 +51,6 @@ const IDENTITY_GROUP_CHILDREN = [
   { label: 'Identity Workspace', icon: User, path: 'data-foundation/identities' },
   { label: 'Correlation Workspace', icon: Link2, path: 'data-foundation/correlation' }
 ];
-const ROLE_ENGINEERING_GROUP_CHILDREN = [
-  { label: 'Candidate Role Workbench', icon: Wrench, path: 'role-engineering/workbench' },
-];
 
 const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const location = useLocation();
@@ -75,9 +72,6 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const [isIdentityOpen, setIsIdentityOpen] = useState(
     IDENTITY_GROUP_CHILDREN.some((child) => child.path === activePath)
   );
-  const [isRoleEngineeringOpen, setIsRoleEngineeringOpen] = useState(
-    ROLE_ENGINEERING_GROUP_CHILDREN.some((child) => child.path === activePath)
-  );
 
   useEffect(() => {
     if (ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath)) {
@@ -92,16 +86,13 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     if (IDENTITY_GROUP_CHILDREN.some((child) => child.path === activePath)) {
       setIsIdentityOpen(true);
     }
-    if (ROLE_ENGINEERING_GROUP_CHILDREN.some((child) => child.path === activePath)) {
-      setIsRoleEngineeringOpen(true);
-    }
   }, [activePath]);
 
   const navItems = [
     { type: 'heading', label: 'ROLE DISCOVERY' },
     { type: 'item', label: 'Role Discovery', icon: Search, path: 'role-discovery', hasSub: true },
     { type: 'heading', label: 'ROLE ENGINEERING' },
-    { type: 'item', label: 'Role Engineering', icon: Wrench, path: 'role-engineering', hasSub: true },
+    { type: 'item', label: 'Role Engineering', icon: Wrench, path: 'role-engineering/workbench' },
     { type: 'heading', label: 'ROLE CATALOG' },
     { type: 'item', label: 'Role Catalog', icon: BookOpen, path: 'role-catalog', hasSub: true },
     { type: 'heading', label: 'GOVERNANCE' },
@@ -322,54 +313,6 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
           if (item.type === 'heading') {
             if (isCollapsed) return null;
             return <div key={`heading-${idx}`} className="nav-heading">{item.label}</div>;
-          }
-
-          if (item.label === 'Role Engineering') {
-            const isRoleEngineeringGroupActive = ROLE_ENGINEERING_GROUP_CHILDREN.some((child) => child.path === activePath);
-            return (
-              <React.Fragment key={`item-${idx}`}>
-                <div
-                  className={`nav-item ${isRoleEngineeringGroupActive && !isRoleEngineeringOpen ? 'active' : ''}`}
-                  onClick={() => {
-                    if (isCollapsed) {
-                      navigate('/' + ROLE_ENGINEERING_GROUP_CHILDREN[0].path);
-                    } else {
-                      setIsRoleEngineeringOpen((prev) => !prev);
-                    }
-                  }}
-                >
-                  <Wrench className="nav-icon" size={18} />
-                  {!isCollapsed && (
-                    <>
-                      <span className="nav-label">Role Engineering</span>
-                      {isRoleEngineeringOpen ? (
-                        <ChevronDown className="nav-arrow" size={12} />
-                      ) : (
-                        <ChevronRight className="nav-arrow" size={12} />
-                      )}
-                    </>
-                  )}
-                </div>
-
-                {!isCollapsed && isRoleEngineeringOpen && (
-                  <div className="nav-sub-list">
-                    {ROLE_ENGINEERING_GROUP_CHILDREN.map((child) => {
-                      const ChildIcon = child.icon;
-                      return (
-                        <div
-                          key={child.path}
-                          className={`nav-item nav-sub-item ${activePath === child.path ? 'active' : ''}`}
-                          onClick={() => navigate('/' + child.path)}
-                        >
-                          <ChildIcon className="nav-icon" size={16} />
-                          <span className="nav-label">{child.label}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </React.Fragment>
-            );
           }
 
           const Icon = item.icon;

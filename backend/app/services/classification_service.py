@@ -56,7 +56,7 @@ class ClassificationService:
         if not role:
             raise ValueError("Candidate role not found")
 
-        allowed_classifications = ["Birthright", "Requestable", "Business", "Technical"]
+        allowed_classifications = ["Birthright", "Application", "Privileged"]
         if classification not in allowed_classifications:
             raise ValueError(f"Invalid classification. Must be one of {allowed_classifications}")
 
@@ -93,7 +93,7 @@ class ClassificationService:
 
     @staticmethod
     def bulk_classify_roles(db: Session, role_ids: List[int], classification: str, user: str) -> int:
-        allowed_classifications = ["Birthright", "Requestable", "Business", "Technical"]
+        allowed_classifications = ["Birthright", "Application", "Privileged"]
         if classification not in allowed_classifications:
             raise ValueError(f"Invalid classification. Must be one of {allowed_classifications}")
 

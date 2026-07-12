@@ -31,12 +31,12 @@ export const getCandidateRoles = async (campaignId, params) => {
 };
 
 export const getCandidateRoleDetail = async (id) => {
-  const response = await apiClient.get(`/candidate-roles/${id}`);
+  const response = await apiClient.get(`/role-discovery/candidate-roles/${id}`);
   return response.data;
 };
 
 export const compareCandidateRoles = async (ids) => {
-  const response = await apiClient.get('/candidate-roles/compare', { params: { ids: ids.join(',') } });
+  const response = await apiClient.get('/role-discovery/candidate-roles/compare', { params: { ids: ids.join(',') } });
   return response.data;
 };
 

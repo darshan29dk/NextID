@@ -111,16 +111,18 @@ class RoleMiningEngine:
         account_ids = [acc.id for acc, _ in scoped]
         acc_id_to_identity: Dict[int, Identity] = {acc.id: ident for acc, ident in scoped}
 
-        # Load details of all entitlements with their application name and risk level
+        # Load details of all entitlements with their application name.
+        # Note: ApplicationEntitlement has no risk classification field, so every
+        # entitlement defaults to "Low" risk here until a real risk-scoring
+        # feature exists at the application/entitlement level.
         ent_details = db.query(
             ApplicationEntitlement.id,
             ApplicationEntitlement.entitlement_name,
-            ApplicationEntitlement.risk_level,
             Application.application_name
         ).join(Application, ApplicationEntitlement.application_id == Application.id).all()
 
         ent_id_to_app_name = {ent.id: ent.application_name for ent in ent_details}
-        ent_id_to_risk = {ent.id: ent.risk_level for ent in ent_details}
+        ent_id_to_risk = {ent.id: "Low" for ent in ent_details}
 
         # Pull every entitlement link for these accounts in one query.
         links = db.query(ApplicationAccountEntitlement).filter(

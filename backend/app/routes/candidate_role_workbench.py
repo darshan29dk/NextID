@@ -393,7 +393,7 @@ def delete_candidate_role(
 def get_classifications(
     _perm: bool = Depends(require_permission("Role Engineering", "view"))
 ):
-    return ["Birthright", "Requestable", "Business", "Technical"]
+    return ["Birthright", "Application", "Privileged"]
 
 
 @router.put("/candidate-roles/{role_id}/classification")

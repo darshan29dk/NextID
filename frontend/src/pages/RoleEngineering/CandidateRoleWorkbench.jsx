@@ -33,7 +33,9 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
-  Gauge
+  Gauge,
+  GitMerge,
+  Scissors
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
@@ -56,7 +58,11 @@ import {
   getRolePreview,
   exportRolePreviewJSON,
   exportRolePreviewCSV,
-  exportRolePreviewExcel
+  exportRolePreviewExcel,
+  previewMerge,
+  executeMerge,
+  previewSplit,
+  executeSplit
 } from '../../services/candidateRoleWorkbenchService';
 import './CandidateRoleWorkbench.css';
 
@@ -86,7 +92,27 @@ const CandidateRoleWorkbench = () => {
   // Selection state for Bulk Actions
   const [selectedRoleIds, setSelectedRoleIds] = useState([]);
   const [showBulkMenu, setShowBulkMenu] = useState(false);
-  
+
+  // RE-002: Merge Roles state
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [mergePreviewData, setMergePreviewData] = useState(null);
+  const [mergePreviewLoading, setMergePreviewLoading] = useState(false);
+  const [mergePreviewError, setMergePreviewError] = useState('');
+  const [mergeDestinationName, setMergeDestinationName] = useState('');
+  const [mergeDescription, setMergeDescription] = useState('');
+  const [mergeReason, setMergeReason] = useState('');
+  const [mergeSubmitting, setMergeSubmitting] = useState(false);
+
+  // RE-003: Split Role state
+  const [showSplitModal, setShowSplitModal] = useState(false);
+  const [splitTargetRole, setSplitTargetRole] = useState(null);
+  const [splitMethod, setSplitMethod] = useState('application');
+  const [splitPreviewData, setSplitPreviewData] = useState(null);
+  const [splitPreviewLoading, setSplitPreviewLoading] = useState(false);
+  const [splitPreviewError, setSplitPreviewError] = useState('');
+  const [splitReason, setSplitReason] = useState('');
+  const [splitSubmitting, setSplitSubmitting] = useState(false);
+
   // UI Loading/Error states
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -166,10 +192,9 @@ const CandidateRoleWorkbench = () => {
       
       setKpiStats({
         total: statsRes.total || 0,
-        business: rolesList.filter(r => r.role_type === 'Business').length,
-        technical: rolesList.filter(r => r.role_type === 'Technical').length,
         birthright: rolesList.filter(r => r.classification === 'Birthright').length,
-        requestable: rolesList.filter(r => r.classification === 'Requestable').length,
+        application: rolesList.filter(r => r.classification === 'Application').length,
+        privileged: rolesList.filter(r => r.classification === 'Privileged').length,
         draft: rolesList.filter(r => r.status === 'Draft').length
       });
 
@@ -365,6 +390,128 @@ const CandidateRoleWorkbench = () => {
       setErrorMsg("Failed to execute bulk classification. Please try again.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  // ── RE-002: Merge Roles ────────────────────────────────────────────────────
+  const handleOpenMergeModal = async () => {
+    if (selectedRoleIds.length < 2) return;
+    setShowMergeModal(true);
+    setMergePreviewData(null);
+    setMergePreviewError('');
+    setMergeDestinationName('');
+    setMergeDescription('');
+    setMergeReason('');
+    try {
+      setMergePreviewLoading(true);
+      const data = await previewMerge(selectedRoleIds);
+      setMergePreviewData(data);
+    } catch (err) {
+      console.error("Failed to preview merge:", err);
+      setMergePreviewError(err.response?.data?.detail || "Failed to load merge preview.");
+    } finally {
+      setMergePreviewLoading(false);
+    }
+  };
+
+  const handleCloseMergeModal = () => {
+    setShowMergeModal(false);
+    setMergePreviewData(null);
+    setMergePreviewError('');
+  };
+
+  const handleConfirmMerge = async () => {
+    if (!mergeDestinationName.trim()) {
+      setMergePreviewError("Destination role name is required.");
+      return;
+    }
+    try {
+      setMergeSubmitting(true);
+      setMergePreviewError('');
+      await executeMerge({
+        roleIds: selectedRoleIds,
+        destinationName: mergeDestinationName.trim(),
+        description: mergeDescription.trim(),
+        mergeReason: mergeReason.trim()
+      });
+      handleCloseMergeModal();
+      setSelectedRoleIds([]);
+      fetchRolesData();
+      fetchKPIStats();
+    } catch (err) {
+      console.error("Failed to execute merge:", err);
+      setMergePreviewError(err.response?.data?.detail || "Failed to merge the selected roles. Please try again.");
+    } finally {
+      setMergeSubmitting(false);
+    }
+  };
+
+  // ── RE-003: Split Role ─────────────────────────────────────────────────────
+  const handleOpenSplitModal = (role) => {
+    setSplitTargetRole(role);
+    setShowSplitModal(true);
+    setSplitMethod('application');
+    setSplitPreviewData(null);
+    setSplitPreviewError('');
+    setSplitReason('');
+    fetchSplitPreview(role.id, 'application');
+  };
+
+  const fetchSplitPreview = async (roleId, method) => {
+    try {
+      setSplitPreviewLoading(true);
+      setSplitPreviewError('');
+      const data = await previewSplit(roleId, method);
+      setSplitPreviewData(data);
+    } catch (err) {
+      console.error("Failed to preview split:", err);
+      setSplitPreviewError(err.response?.data?.detail || "Failed to load split preview.");
+      setSplitPreviewData(null);
+    } finally {
+      setSplitPreviewLoading(false);
+    }
+  };
+
+  const handleSplitMethodChange = (method) => {
+    setSplitMethod(method);
+    if (splitTargetRole) {
+      fetchSplitPreview(splitTargetRole.id, method);
+    }
+  };
+
+  const handleCloseSplitModal = () => {
+    setShowSplitModal(false);
+    setSplitTargetRole(null);
+    setSplitPreviewData(null);
+    setSplitPreviewError('');
+  };
+
+  const handleConfirmSplit = async () => {
+    if (!splitPreviewData || !splitPreviewData.splits || splitPreviewData.splits.length < 2) {
+      setSplitPreviewError("This role can't be split into at least two groups with the selected method. Try a different method.");
+      return;
+    }
+    try {
+      setSplitSubmitting(true);
+      setSplitPreviewError('');
+      await executeSplit(splitTargetRole.id, {
+        splitMethod,
+        splits: splitPreviewData.splits.map(s => ({
+          role_name: s.role_name,
+          role_description: s.role_description,
+          entitlements: s.entitlements,
+          members: s.members
+        })),
+        splitReason: splitReason.trim()
+      });
+      handleCloseSplitModal();
+      fetchRolesData();
+      fetchKPIStats();
+    } catch (err) {
+      console.error("Failed to execute split:", err);
+      setSplitPreviewError(err.response?.data?.detail || "Failed to split this role. Please try again.");
+    } finally {
+      setSplitSubmitting(false);
     }
   };
 
@@ -652,35 +799,29 @@ const CandidateRoleWorkbench = () => {
           icon={Layers} 
           color="blue" 
         />
-        <DashboardCard 
-          title="Business Roles" 
-          value={kpiStats.business} 
-          icon={User} 
-          color="purple" 
+        <DashboardCard
+          title="Birthright Roles"
+          value={kpiStats.birthright}
+          icon={BadgeCheck}
+          color="green"
         />
-        <DashboardCard 
-          title="Technical Roles" 
-          value={kpiStats.technical} 
-          icon={Folder} 
-          color="yellow" 
+        <DashboardCard
+          title="Application Roles"
+          value={kpiStats.application}
+          icon={Shield}
+          color="purple"
         />
-        <DashboardCard 
-          title="Birthright Roles" 
-          value={kpiStats.birthright} 
-          icon={BadgeCheck} 
-          color="green" 
+        <DashboardCard
+          title="Privileged Roles"
+          value={kpiStats.privileged}
+          icon={ShieldAlert}
+          color="yellow"
         />
-        <DashboardCard 
-          title="Requestable Roles" 
-          value={kpiStats.requestable} 
-          icon={Info} 
-          color="info" 
-        />
-        <DashboardCard 
-          title="Draft Roles" 
-          value={kpiStats.draft} 
-          icon={History} 
-          color="red" 
+        <DashboardCard
+          title="Draft Roles"
+          value={kpiStats.draft}
+          icon={History}
+          color="red"
         />
       </div>
 
@@ -736,18 +877,23 @@ const CandidateRoleWorkbench = () => {
                     <button className="bulk-dropdown-item" onClick={() => handleBulkClassify('Birthright')}>
                       Mark as Birthright
                     </button>
-                    <button className="bulk-dropdown-item" onClick={() => handleBulkClassify('Requestable')}>
-                      Mark as Requestable
+                    <button className="bulk-dropdown-item" onClick={() => handleBulkClassify('Application')}>
+                      Mark as Application Role
                     </button>
-                    <button className="bulk-dropdown-item" onClick={() => handleBulkClassify('Business')}>
-                      Mark as Business
-                    </button>
-                    <button className="bulk-dropdown-item" onClick={() => handleBulkClassify('Technical')}>
-                      Mark as Technical
+                    <button className="bulk-dropdown-item" onClick={() => handleBulkClassify('Privileged')}>
+                      Mark as Privileged Role
                     </button>
                   </div>
                 )}
               </div>
+            )}
+
+            {/* RE-002: Merge Roles trigger — needs at least 2 roles selected */}
+            {selectedRoleIds.length >= 2 && (
+              <button className="btn-action-premium primary" onClick={handleOpenMergeModal}>
+                <GitMerge size={14} />
+                <span>Merge Selected ({selectedRoleIds.length})</span>
+              </button>
             )}
           </div>
         </div>
@@ -760,9 +906,8 @@ const CandidateRoleWorkbench = () => {
               <select value={classificationFilter} onChange={(e) => { setClassificationFilter(e.target.value); setPage(1); }}>
                 <option value="">All Classifications</option>
                 <option value="Birthright">Birthright</option>
-                <option value="Requestable">Requestable</option>
-                <option value="Business">Business</option>
-                <option value="Technical">Technical</option>
+                <option value="Application">Application Role</option>
+                <option value="Privileged">Privileged Role</option>
                 <option value="None">None / Unassigned</option>
               </select>
             </div>
@@ -936,6 +1081,9 @@ const CandidateRoleWorkbench = () => {
                           <button className="btn-row-action" onClick={() => handleOpenEditModal(r)} title="Edit Role">
                             <Edit size={13} />
                           </button>
+                          <button className="btn-row-action" onClick={() => handleOpenSplitModal(r)} title="Split Role">
+                            <Scissors size={13} />
+                          </button>
                           <button className="btn-row-action delete" onClick={() => handleOpenDeleteConfirm(r)} title="Delete Role">
                             <Trash2 size={13} />
                           </button>
@@ -1082,7 +1230,7 @@ const CandidateRoleWorkbench = () => {
                       <div className="classification-editor-panel">
                         <h5>Role Classification</h5>
                         <div className="classification-options-layout">
-                          {['Birthright', 'Requestable', 'Business', 'Technical'].map(opt => (
+                          {['Birthright', 'Application', 'Privileged'].map(opt => (
                             <div 
                               key={opt}
                               className={`classification-option-row ${editClassification === opt ? 'selected' : ''}`}
@@ -1097,10 +1245,9 @@ const CandidateRoleWorkbench = () => {
                               <div className="classification-option-label">
                                 <span>{opt}</span>
                                 <span className="classification-option-desc">
-                                  {opt === 'Birthright' && 'Assigned automatically to all new identities matching criteria.'}
-                                  {opt === 'Requestable' && 'Visible in catalogs and available for self-service requests.'}
-                                  {opt === 'Business' && 'Core business operations, organization context.'}
-                                  {opt === 'Technical' && 'System specific roles, technical administrator rights.'}
+                                  {opt === 'Birthright' && 'Assigned automatically to all new identities matching their job function.'}
+                                  {opt === 'Application' && 'Governs access to a specific enterprise application.'}
+                                  {opt === 'Privileged' && 'Elevated permissions requiring additional justification and oversight.'}
                                 </span>
                               </div>
                             </div>
@@ -1948,6 +2095,225 @@ const CandidateRoleWorkbench = () => {
                 disabled={ownerSubmitting || (!selectedOwnerUser && !ownerSearchQuery.trim())}
               >
                 {ownerSubmitting ? 'Assigning...' : `Assign ${assignOwnerType} Owner`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RE-002: Merge Roles Modal */}
+      {showMergeModal && (
+        <div className="modal-overlay-custom">
+          <div className="modal-dialog-panel" style={{ maxWidth: '620px' }}>
+            <div className="modal-dialog-header">
+              <h4>Merge {selectedRoleIds.length} Candidate Roles</h4>
+              <button type="button" className="btn-drawer-close" onClick={handleCloseMergeModal}>
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="modal-dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '65vh', overflowY: 'auto' }}>
+              {mergePreviewLoading ? (
+                <div className="text-muted" style={{ padding: '20px', textAlign: 'center' }}>Loading merge preview...</div>
+              ) : mergePreviewData ? (
+                <>
+                  <div>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)' }}>Source Roles</label>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                      {mergePreviewData.source_roles.map(r => (
+                        <span key={r.id} className={`status-badge ${r.status.toLowerCase()}`} style={{ fontSize: '11px' }}>
+                          {r.role_name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                    <div className="form-input-group">
+                      <label>Combined Users</label>
+                      <div style={{ fontSize: '18px', fontWeight: 700 }}>{mergePreviewData.combined_user_count}</div>
+                    </div>
+                    <div className="form-input-group">
+                      <label>Combined Entitlements</label>
+                      <div style={{ fontSize: '18px', fontWeight: 700 }}>{mergePreviewData.combined_entitlement_count}</div>
+                    </div>
+                    <div className="form-input-group">
+                      <label>Combined Applications</label>
+                      <div style={{ fontSize: '18px', fontWeight: 700 }}>{mergePreviewData.combined_application_count}</div>
+                    </div>
+                    <div className="form-input-group">
+                      <label>Duplicate Users</label>
+                      <div style={{ fontSize: '18px', fontWeight: 700 }}>{mergePreviewData.duplicate_user_count}</div>
+                    </div>
+                    <div className="form-input-group">
+                      <label>Duplicate Entitlements</label>
+                      <div style={{ fontSize: '18px', fontWeight: 700 }}>{mergePreviewData.duplicate_entitlement_count}</div>
+                    </div>
+                    <div className="form-input-group">
+                      <label>Est. Confidence</label>
+                      <div style={{ fontSize: '18px', fontWeight: 700 }}>{mergePreviewData.estimated_confidence_score}%</div>
+                    </div>
+                  </div>
+
+                  {mergePreviewData.sod_violation_count > 0 && (
+                    <div style={{
+                      display: 'flex', alignItems: 'flex-start', gap: '8px',
+                      padding: '10px 12px', borderRadius: '6px',
+                      backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid var(--danger)',
+                      color: 'var(--danger)', fontSize: '12px'
+                    }}>
+                      <AlertTriangle size={14} style={{ marginTop: '1px', flexShrink: 0 }} />
+                      <span>{mergePreviewData.sod_violation_count} Segregation of Duties conflict(s) would exist in the merged role. Review before confirming.</span>
+                    </div>
+                  )}
+
+                  <div className="form-input-group">
+                    <label>Destination Role Name *</label>
+                    <input
+                      type="text"
+                      placeholder="Name for the merged role..."
+                      value={mergeDestinationName}
+                      onChange={e => setMergeDestinationName(e.target.value)}
+                      autoFocus
+                    />
+                  </div>
+
+                  <div className="form-input-group">
+                    <label>Description <span className="text-muted">(optional)</span></label>
+                    <input
+                      type="text"
+                      placeholder="Describe the merged role..."
+                      value={mergeDescription}
+                      onChange={e => setMergeDescription(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="form-input-group">
+                    <label>Merge Reason <span className="text-muted">(optional)</span></label>
+                    <input
+                      type="text"
+                      placeholder="Why are these roles being merged?"
+                      value={mergeReason}
+                      onChange={e => setMergeReason(e.target.value)}
+                    />
+                  </div>
+                </>
+              ) : null}
+
+              {mergePreviewError && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '8px 12px', borderRadius: '6px',
+                  backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid var(--danger)',
+                  color: 'var(--danger)', fontSize: '12px'
+                }}>
+                  <AlertTriangle size={14} />
+                  {mergePreviewError}
+                </div>
+              )}
+            </div>
+
+            <div className="modal-dialog-footer">
+              <button type="button" className="btn-action-premium" onClick={handleCloseMergeModal} disabled={mergeSubmitting}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-action-premium primary"
+                onClick={handleConfirmMerge}
+                disabled={mergeSubmitting || mergePreviewLoading || !mergePreviewData}
+              >
+                {mergeSubmitting ? 'Merging...' : 'Confirm Merge'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* RE-003: Split Role Modal */}
+      {showSplitModal && splitTargetRole && (
+        <div className="modal-overlay-custom">
+          <div className="modal-dialog-panel" style={{ maxWidth: '680px' }}>
+            <div className="modal-dialog-header">
+              <h4>Split Role — {splitTargetRole.role_name}</h4>
+              <button type="button" className="btn-drawer-close" onClick={handleCloseSplitModal}>
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="modal-dialog-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxHeight: '65vh', overflowY: 'auto' }}>
+              <div className="form-input-group">
+                <label>Split Method</label>
+                <select value={splitMethod} onChange={e => handleSplitMethodChange(e.target.value)}>
+                  <option value="application">By Application</option>
+                  <option value="department">By Department</option>
+                  <option value="business_unit">By Business Unit</option>
+                  <option value="entitlement_group">By Entitlement Risk Level</option>
+                  <option value="manual">Manual (split in half)</option>
+                </select>
+              </div>
+
+              {splitPreviewLoading ? (
+                <div className="text-muted" style={{ padding: '20px', textAlign: 'center' }}>Loading split preview...</div>
+              ) : splitPreviewData ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {splitPreviewData.splits.map((s, idx) => (
+                    <div key={idx} style={{
+                      border: '1px solid var(--border-color)', borderRadius: '8px', padding: '12px',
+                      backgroundColor: 'var(--bg-hover)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <strong style={{ fontSize: '13px' }}>{s.role_name}</strong>
+                        <span className="text-muted" style={{ fontSize: '11px' }}>{s.estimated_confidence_score}% confidence</span>
+                      </div>
+                      <p className="text-muted" style={{ fontSize: '12px', marginBottom: '8px' }}>{s.role_description}</p>
+                      <div style={{ display: 'flex', gap: '16px', fontSize: '12px' }}>
+                        <span>{s.user_count} users</span>
+                        <span>{s.entitlement_count} entitlements</span>
+                        <span>{s.application_count} apps</span>
+                        {s.sod_violation_count > 0 && (
+                          <span style={{ color: 'var(--danger)' }}>{s.sod_violation_count} SoD conflict(s)</span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="form-input-group">
+                <label>Split Reason <span className="text-muted">(optional)</span></label>
+                <input
+                  type="text"
+                  placeholder="Why is this role being split?"
+                  value={splitReason}
+                  onChange={e => setSplitReason(e.target.value)}
+                />
+              </div>
+
+              {splitPreviewError && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  padding: '8px 12px', borderRadius: '6px',
+                  backgroundColor: 'rgba(239,68,68,0.08)', border: '1px solid var(--danger)',
+                  color: 'var(--danger)', fontSize: '12px'
+                }}>
+                  <AlertTriangle size={14} />
+                  {splitPreviewError}
+                </div>
+              )}
+            </div>
+
+            <div className="modal-dialog-footer">
+              <button type="button" className="btn-action-premium" onClick={handleCloseSplitModal} disabled={splitSubmitting}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-action-premium primary"
+                onClick={handleConfirmSplit}
+                disabled={splitSubmitting || splitPreviewLoading || !splitPreviewData || splitPreviewData.splits.length < 2}
+              >
+                {splitSubmitting ? 'Splitting...' : 'Confirm Split'}
               </button>
             </div>
           </div>

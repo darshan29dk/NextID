@@ -54,6 +54,7 @@ const MENU_LIST = [
   'Application Workspace',
   'Identity Repository',
   'Role Discovery',
+  'Role Engineering',
   'Platform Users',
   'Platform Roles',
   'Audit Logs',

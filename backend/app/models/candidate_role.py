@@ -17,7 +17,7 @@ class CandidateRole(Base):
     role_description = Column(String(500), nullable=True)
     role_type = Column(String(50), default="Business", nullable=False)  # "Business", "Technical", "Hybrid"
     risk_level = Column(String(50), default="Low", nullable=False)  # "Low", "Medium", "High"
-    classification = Column(String(100), nullable=True)  # "Birthright", "Requestable", "Business", "Technical"
+    classification = Column(String(100), nullable=True)  # "Birthright", "Application", "Privileged" (per BR-006)
     status = Column(String(50), default="Draft", nullable=False)  # "Draft", "Reviewed", "Approved", "Rejected", "Published"
     confidence_score = Column(Float, default=0.0, nullable=False)  # 0-100
 
