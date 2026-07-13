@@ -65,8 +65,13 @@ import {
   executeSplit
 } from '../../services/candidateRoleWorkbenchService';
 import './CandidateRoleWorkbench.css';
+import { useAuth } from '../../context/AuthContext';
+import SubmitApprovalModal from '../../components/SubmitApprovalModal/SubmitApprovalModal';
 
 const CandidateRoleWorkbench = () => {
+  const { currentUser } = useAuth();
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
+
   // Query & lists state
   const [roles, setRoles] = useState([]);
   const [total, setTotal] = useState(0);
@@ -1131,14 +1136,25 @@ const CandidateRoleWorkbench = () => {
       <div className={`drawer-panel-custom ${showDrawer ? 'open' : ''}`}>
         {selectedRole && (
           <>
-            <div className="drawer-header-section">
+            <div className="drawer-header-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div className="drawer-title-sub">
                 <h4>{selectedRole.role_name}</h4>
                 <p>ID: {selectedRole.id} • Job Cluster: {selectedRole.job_function || 'Custom'}</p>
               </div>
-              <button className="btn-drawer-close" onClick={handleCloseDrawer}>
-                <X size={16} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {currentUser?.role !== 'Viewer' && ['Draft', 'Reviewed'].includes(selectedRole.status) && (
+                  <button
+                    className="btn-action-premium primary"
+                    style={{ fontSize: '11px', padding: '4px 10px', height: 'auto' }}
+                    onClick={() => setShowSubmitModal(true)}
+                  >
+                    Submit for Approval
+                  </button>
+                )}
+                <button className="btn-drawer-close" onClick={handleCloseDrawer}>
+                  <X size={16} />
+                </button>
+              </div>
             </div>
 
             <div className="drawer-tabs-navigation">
@@ -2319,6 +2335,17 @@ const CandidateRoleWorkbench = () => {
           </div>
         </div>
       )}
+
+      {/* Submit Approval Modal */}
+      <SubmitApprovalModal
+        isOpen={showSubmitModal}
+        onClose={() => setShowSubmitModal(false)}
+        role={selectedRole}
+        onSubmitSuccess={() => {
+          fetchData();
+          handleCloseDrawer();
+        }}
+      />
     </div>
   );
 };

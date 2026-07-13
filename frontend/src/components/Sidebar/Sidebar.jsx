@@ -52,6 +52,12 @@ const IDENTITY_GROUP_CHILDREN = [
   { label: 'Correlation Workspace', icon: Link2, path: 'data-foundation/correlation' }
 ];
 
+const APPROVAL_WORKFLOW_GROUP_CHILDREN = [
+  { label: 'Approval Requests', icon: FileText, path: 'approval-workflow/requests' },
+  { label: 'Business Approval', icon: BadgeCheck, path: 'approval-workflow/business' },
+  { label: 'Security Approval', icon: KeyRound, path: 'approval-workflow/security' },
+];
+
 const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -72,6 +78,9 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const [isIdentityOpen, setIsIdentityOpen] = useState(
     IDENTITY_GROUP_CHILDREN.some((child) => child.path === activePath)
   );
+  const [isApprovalWorkflowOpen, setIsApprovalWorkflowOpen] = useState(
+    APPROVAL_WORKFLOW_GROUP_CHILDREN.some((child) => child.path === activePath)
+  );
 
   useEffect(() => {
     if (ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath)) {
@@ -86,15 +95,21 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     if (IDENTITY_GROUP_CHILDREN.some((child) => child.path === activePath)) {
       setIsIdentityOpen(true);
     }
+    if (APPROVAL_WORKFLOW_GROUP_CHILDREN.some((child) => child.path === activePath)) {
+      setIsApprovalWorkflowOpen(true);
+    }
   }, [activePath]);
 
-  const navItems = [
+  const navItemsBefore = [
     { type: 'heading', label: 'ROLE DISCOVERY' },
     { type: 'item', label: 'Role Discovery', icon: Search, path: 'role-discovery', hasSub: true },
     { type: 'heading', label: 'ROLE ENGINEERING' },
     { type: 'item', label: 'Role Engineering', icon: Wrench, path: 'role-engineering/workbench' },
     { type: 'heading', label: 'ROLE CATALOG' },
     { type: 'item', label: 'Role Catalog', icon: BookOpen, path: 'role-catalog', hasSub: true },
+  ];
+
+  const navItemsAfter = [
     { type: 'heading', label: 'GOVERNANCE' },
     { type: 'item', label: 'Governance', icon: Shield, path: 'governance', hasSub: true },
     { type: 'heading', label: 'ROLE LIFECYCLE' },
@@ -114,6 +129,33 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const isDataSourcesGroupActive = DATA_SOURCES_GROUP_CHILDREN.some((child) => child.path === activePath);
   const isApplicationsGroupActive = APPLICATIONS_GROUP_CHILDREN.some((child) => child.path === activePath);
   const isIdentityGroupActive = IDENTITY_GROUP_CHILDREN.some((child) => child.path === activePath);
+  const isApprovalWorkflowGroupActive = APPROVAL_WORKFLOW_GROUP_CHILDREN.some((child) => child.path === activePath);
+
+  // Reusable renderer for flat nav item arrays
+  const renderNavItems = (items) => items.map((item, idx) => {
+    if (item.type === 'heading') {
+      if (isCollapsed) return null;
+      return <div key={`heading-${idx}`} className="nav-heading">{item.label}</div>;
+    }
+    const Icon = item.icon;
+    const isDisabled = item.disabled;
+    return (
+      <div
+        key={`item-${idx}`}
+        className={`nav-item ${activePath === item.path ? 'active' : ''} ${isDisabled ? 'disabled' : ''}`}
+        onClick={() => { if (!isDisabled) navigate('/' + item.path); }}
+        style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+      >
+        <Icon className="nav-icon" size={18} />
+        {!isCollapsed && (
+          <>
+            <span className="nav-label">{item.label}</span>
+            {item.hasSub && <ChevronRight className="nav-arrow" size={12} />}
+          </>
+        )}
+      </div>
+    );
+  });
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="brand">
@@ -309,29 +351,54 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
           </div>
         )}
 
-        {navItems.map((item, idx) => {
-          if (item.type === 'heading') {
-            if (isCollapsed) return null;
-            return <div key={`heading-${idx}`} className="nav-heading">{item.label}</div>;
-          }
+        {renderNavItems(navItemsBefore)}
 
-          const Icon = item.icon;
-          return (
-            <div 
-              key={`item-${idx}`} 
-              className={`nav-item ${activePath === item.path ? 'active' : ''}`}
-              onClick={() => navigate('/' + item.path)}
-            >
-              <Icon className="nav-icon" size={18} />
-              {!isCollapsed && (
-                <>
-                  <span className="nav-label">{item.label}</span>
-                  {item.hasSub && <ChevronRight className="nav-arrow" size={12} />}
-                </>
-              )}
-            </div>
-          );
-        })}
+        {/* Collapsible "Approval Workflow" group */}
+        {!isCollapsed && <div className="nav-heading">APPROVAL WORKFLOW</div>}
+
+        <div
+          className={`nav-item ${isApprovalWorkflowGroupActive && !isApprovalWorkflowOpen ? 'active' : ''}`}
+          onClick={() => {
+            if (isCollapsed) {
+              navigate('/' + APPROVAL_WORKFLOW_GROUP_CHILDREN[0].path);
+            } else {
+              setIsApprovalWorkflowOpen((prev) => !prev);
+            }
+          }}
+        >
+          <ShieldAlert className="nav-icon" size={18} />
+          {!isCollapsed && (
+            <>
+              <span className="nav-label">Approval Workflow</span>
+              {isApprovalWorkflowOpen
+                ? <ChevronDown className="nav-arrow" size={12} />
+                : <ChevronRight className="nav-arrow" size={12} />
+              }
+            </>
+          )}
+        </div>
+
+        {!isCollapsed && isApprovalWorkflowOpen && (
+          <div className="nav-sub-list">
+            {APPROVAL_WORKFLOW_GROUP_CHILDREN.map((child) => {
+              const ChildIcon = child.icon;
+              const isDisabled = child.disabled;
+              return (
+                <div
+                  key={child.path}
+                  className={`nav-item nav-sub-item ${activePath === child.path ? 'active' : ''} ${isDisabled ? 'disabled' : ''}`}
+                  onClick={() => { if (!isDisabled) navigate('/' + child.path); }}
+                  style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                >
+                  <ChildIcon className="nav-icon" size={16} />
+                  <span className="nav-label">{child.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {renderNavItems(navItemsAfter)}
       </nav>
 
       <div className="sidebar-footer">

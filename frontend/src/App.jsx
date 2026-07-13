@@ -23,6 +23,9 @@ import IdentityWorkspace from './pages/DataFoundation/IdentityWorkspace';
 import CorrelationWorkspace from './pages/DataFoundation/CorrelationWorkspace';
 import RoleDiscoveryWorkspace from './pages/DataFoundation/RoleDiscoveryWorkspace';
 import CandidateRoleWorkbench from './pages/RoleEngineering/CandidateRoleWorkbench';
+import ApprovalRequests from './pages/Governance/ApprovalRequests';
+import BusinessApproval from './pages/Governance/BusinessApproval';
+import SecurityApproval from './pages/Governance/SecurityApproval';
 const UnderConstruction = ({ title }) => {
   return (
     <div style={{
@@ -99,8 +102,11 @@ function App() {
                   <Route path="/role-discovery" element={<RoleDiscoveryWorkspace />} />
                   <Route path="/role-engineering" element={<Navigate to="/role-engineering/workbench" replace />} />
                   <Route path="/role-engineering/workbench" element={<CandidateRoleWorkbench />} />
+                  <Route path="/approval-workflow/requests" element={<ApprovalRequests />} />
+                  <Route path="/approval-workflow/business" element={<BusinessApproval />} />
+                  <Route path="/approval-workflow/security" element={<SecurityApproval />} />
                   <Route path="/role-catalog" element={<UnderConstruction title="Role Catalog" />} />
-                  <Route path="/governance" element={<UnderConstruction title="Governance" />} />
+                  <Route path="/governance" element={<Navigate to="/approval-workflow/requests" replace />} />
                   <Route path="/role-lifecycle" element={<UnderConstruction title="Role Lifecycle" />} />
                   <Route path="/analytics" element={<UnderConstruction title="Analytics" />} />
 

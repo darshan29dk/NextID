@@ -176,3 +176,86 @@ export const exportRolePreviewExcel = async (roleId) => {
   return response.data;
 };
 
+// ─── APR-001 & APR-002: Approval Workflow APIs ────────────────────────────────
+
+export const submitRoleForApproval = async (payload) => {
+  const response = await apiClient.post('/approval/submit', payload);
+  return response.data;
+};
+
+export const getApprovalRequests = async (params) => {
+  const response = await apiClient.get('/approval/requests', { params });
+  return response.data;
+};
+
+export const getApprovalRequestById = async (requestId) => {
+  const response = await apiClient.get(`/approval/requests/${requestId}`);
+  return response.data;
+};
+
+export const approveApprovalRequest = async (requestId, payload) => {
+  const response = await apiClient.put(`/approval/business/${requestId}/approve`, payload);
+  return response.data;
+};
+
+export const rejectApprovalRequest = async (requestId, payload) => {
+  const response = await apiClient.put(`/approval/business/${requestId}/reject`, payload);
+  return response.data;
+};
+
+export const returnApprovalRequest = async (requestId, payload) => {
+  const response = await apiClient.put(`/approval/business/${requestId}/return`, payload);
+  return response.data;
+};
+
+export const cancelApprovalRequest = async (requestId) => {
+  const response = await apiClient.post(`/approval/requests/${requestId}/cancel`);
+  return response.data;
+};
+
+export const bulkApproveRequests = async (payload) => {
+  const response = await apiClient.post('/approval/business/bulk/approve', payload);
+  return response.data;
+};
+
+export const bulkRejectRequests = async (payload) => {
+  const response = await apiClient.post('/approval/business/bulk/reject', payload);
+  return response.data;
+};
+
+export const bulkReturnRequests = async (payload) => {
+  const response = await apiClient.post('/approval/business/bulk/return', payload);
+  return response.data;
+};
+
+// ── APR-003 Security Approval ─────────────────────────────────────────────────
+
+export const getSecurityApprovalKpi = async () => {
+  const response = await apiClient.get('/approval/security/kpi');
+  return response.data;
+};
+
+export const getSecurityApprovals = async (params) => {
+  const response = await apiClient.get('/approval/security', { params });
+  return response.data;
+};
+
+export const getSecurityApprovalById = async (requestId) => {
+  const response = await apiClient.get(`/approval/security/${requestId}`);
+  return response.data;
+};
+
+export const approveSecurityRequest = async (requestId, payload) => {
+  const response = await apiClient.put(`/approval/security/${requestId}/approve`, payload);
+  return response.data;
+};
+
+export const rejectSecurityRequest = async (requestId, payload) => {
+  const response = await apiClient.put(`/approval/security/${requestId}/reject`, payload);
+  return response.data;
+};
+
+export const returnSecurityRequest = async (requestId, payload) => {
+  const response = await apiClient.put(`/approval/security/${requestId}/return`, payload);
+  return response.data;
+};

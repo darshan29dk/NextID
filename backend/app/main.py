@@ -46,6 +46,8 @@ from app.models.role_split_history import RoleSplitHistory
 from app.models.role_split_destination_roles import RoleSplitDestinationRole
 from app.models.campaign_account_result import CampaignAccountResult
 from app.models.role_owner_history import RoleOwnerHistory
+from app.models.approval_request import ApprovalRequest
+from app.models.approval_step import ApprovalStep
 from app.services.scheduler import start_scheduler, restore_active_schedules
 from app.routes import transformations, validations, preview
 from app.utils.crypto import encrypt_password
@@ -56,6 +58,7 @@ from app.routes import correlation as correlation_routes
 from app.routes import role_discovery as role_discovery_routes
 from app.routes import candidate_role_workbench as candidate_role_workbench_routes
 from app.routes import role_owner as role_owner_routes
+from app.routes import role_approval as role_approval_routes
 
 # Create database tables if they do not exist
 Base.metadata.create_all(bind=engine)
@@ -146,7 +149,26 @@ def check_and_add_columns():
             except Exception as e:
                 print(f"Error checking/altering candidate_role_entitlements column {col}: {e}")
 
+        # APR-003: Security Review columns on approval_requests
+        approval_request_security_cols = {
+            "security_review_started_at": "DATETIME NULL",
+            "security_review_completed_at": "DATETIME NULL",
+            "security_reviewer_id": "INT NULL",
+            "security_reviewer_name": "VARCHAR(200) NULL",
+            "security_decision": "VARCHAR(50) NULL",
+            "security_remarks": "TEXT NULL",
+        }
+        for col, col_type in approval_request_security_cols.items():
+            try:
+                res = connection.execute(text(f"SHOW COLUMNS FROM approval_requests LIKE '{col}'")).fetchone()
+                if not res:
+                    print(f"Adding {col} to approval_requests...")
+                    connection.execute(text(f"ALTER TABLE approval_requests ADD COLUMN {col} {col_type}"))
+            except Exception as e:
+                print(f"Error checking/altering approval_requests column {col}: {e}")
+
 check_and_add_columns()
+
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -776,6 +798,7 @@ app.include_router(correlation_routes.router, prefix="/api")
 app.include_router(candidate_role_workbench_routes.router, prefix="/api")
 app.include_router(role_discovery_routes.router, prefix="/api")
 app.include_router(role_owner_routes.router, prefix="/api")
+app.include_router(role_approval_routes.router, prefix="/api")
 
 @app.get("/")
 def read_root():
