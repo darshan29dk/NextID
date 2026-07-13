@@ -193,6 +193,25 @@ export const getApprovalRequestById = async (requestId) => {
   return response.data;
 };
 
+// ─── APR-004: Approval Comments APIs ────────────────────────────────────────
+
+export const getApprovalComments = async (requestId) => {
+  const response = await apiClient.get(`/approval/requests/${requestId}/comments`);
+  return response.data;
+};
+
+export const addApprovalComment = async (requestId, commentText) => {
+  const response = await apiClient.post(`/approval/requests/${requestId}/comments`, {
+    comment_text: commentText
+  });
+  return response.data;
+};
+
+export const deleteApprovalComment = async (commentId) => {
+  const response = await apiClient.delete(`/approval/comments/${commentId}`);
+  return response.data;
+};
+
 export const approveApprovalRequest = async (requestId, payload) => {
   const response = await apiClient.put(`/approval/business/${requestId}/approve`, payload);
   return response.data;

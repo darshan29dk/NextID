@@ -163,6 +163,12 @@ class CandidateRoleService:
             "generated_on": role.generated_on.isoformat() if role.generated_on else None,
             "sod_violation_count": role.sod_violation_count,
             "created_at": role.created_at.isoformat() if role.created_at else None,
+            "primary_owner_id": role.primary_owner_id,
+            "primary_owner_name": role.primary_owner_name,
+            "primary_owner_email": role.primary_owner_email,
+            "backup_owner_id": role.backup_owner_id,
+            "backup_owner_name": role.backup_owner_name,
+            "backup_owner_email": role.backup_owner_email,
             "entitlements": [
                 {
                     "id": e.id,

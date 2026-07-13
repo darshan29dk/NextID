@@ -35,7 +35,8 @@ import {
   AlertCircle,
   Gauge,
   GitMerge,
-  Scissors
+  Scissors,
+  BookOpen
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
@@ -64,6 +65,7 @@ import {
   previewSplit,
   executeSplit
 } from '../../services/candidateRoleWorkbenchService';
+import { publishRole } from '../../services/roleCatalogService';
 import './CandidateRoleWorkbench.css';
 import { useAuth } from '../../context/AuthContext';
 import SubmitApprovalModal from '../../components/SubmitApprovalModal/SubmitApprovalModal';
@@ -71,6 +73,7 @@ import SubmitApprovalModal from '../../components/SubmitApprovalModal/SubmitAppr
 const CandidateRoleWorkbench = () => {
   const { currentUser } = useAuth();
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   // Query & lists state
   const [roles, setRoles] = useState([]);
@@ -517,6 +520,25 @@ const CandidateRoleWorkbench = () => {
       setSplitPreviewError(err.response?.data?.detail || "Failed to split this role. Please try again.");
     } finally {
       setSplitSubmitting(false);
+    }
+  };
+
+  // RC-001: Publish a role that's finished Security Approval ("Ready For Publish")
+  // to the Role Catalog.
+  const handlePublishToCatalog = async () => {
+    if (!selectedRole) return;
+    if (!window.confirm(`Publish '${selectedRole.role_name}' to the Role Catalog? It will become visible in Published/Business/Technical Role views.`)) return;
+    try {
+      setPublishing(true);
+      await publishRole(selectedRole.id);
+      await handleOpenDrawer(selectedRole.id);
+      fetchRolesData();
+      fetchKPIStats();
+    } catch (err) {
+      console.error("Failed to publish role to catalog:", err);
+      alert(err.response?.data?.detail || "Failed to publish this role. Please try again.");
+    } finally {
+      setPublishing(false);
     }
   };
 
@@ -1149,6 +1171,17 @@ const CandidateRoleWorkbench = () => {
                     onClick={() => setShowSubmitModal(true)}
                   >
                     Submit for Approval
+                  </button>
+                )}
+                {currentUser?.role !== 'Viewer' && ['Ready For Publish', 'Published'].includes(selectedRole.status) && (
+                  <button
+                    className="btn-action-premium primary"
+                    style={{ fontSize: '11px', padding: '4px 10px', height: 'auto', display: 'flex', alignItems: 'center', gap: '4px' }}
+                    onClick={handlePublishToCatalog}
+                    disabled={publishing}
+                  >
+                    <BookOpen size={12} />
+                    {publishing ? 'Publishing...' : selectedRole.status === 'Published' ? 'Re-publish to Catalog' : 'Publish to Catalog'}
                   </button>
                 )}
                 <button className="btn-drawer-close" onClick={handleCloseDrawer}>
@@ -2342,7 +2375,8 @@ const CandidateRoleWorkbench = () => {
         onClose={() => setShowSubmitModal(false)}
         role={selectedRole}
         onSubmitSuccess={() => {
-          fetchData();
+          fetchRolesData();
+          fetchKPIStats();
           handleCloseDrawer();
         }}
       />

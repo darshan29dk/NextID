@@ -48,6 +48,8 @@ from app.models.campaign_account_result import CampaignAccountResult
 from app.models.role_owner_history import RoleOwnerHistory
 from app.models.approval_request import ApprovalRequest
 from app.models.approval_step import ApprovalStep
+from app.models.approval_comment import ApprovalComment
+from app.models.role_version_history import RoleVersionHistory
 from app.services.scheduler import start_scheduler, restore_active_schedules
 from app.routes import transformations, validations, preview
 from app.utils.crypto import encrypt_password
@@ -59,6 +61,7 @@ from app.routes import role_discovery as role_discovery_routes
 from app.routes import candidate_role_workbench as candidate_role_workbench_routes
 from app.routes import role_owner as role_owner_routes
 from app.routes import role_approval as role_approval_routes
+from app.routes import role_catalog as role_catalog_routes
 
 # Create database tables if they do not exist
 Base.metadata.create_all(bind=engine)
@@ -123,7 +126,11 @@ def check_and_add_columns():
             "backup_owner_name": "VARCHAR(200) NULL",
             "backup_owner_email": "VARCHAR(200) NULL",
             "backup_owner_id": "INT NULL",
-            "owner_review_date": "DATETIME NULL"
+            "owner_review_date": "DATETIME NULL",
+            # RC-001: Role Catalog publish tracking
+            "published_at": "DATETIME NULL",
+            "published_by": "VARCHAR(100) NULL",
+            "current_version": "INT NOT NULL DEFAULT 0"
         }
         for col, col_type in candidate_roles_cols.items():
             try:
@@ -799,6 +806,7 @@ app.include_router(candidate_role_workbench_routes.router, prefix="/api")
 app.include_router(role_discovery_routes.router, prefix="/api")
 app.include_router(role_owner_routes.router, prefix="/api")
 app.include_router(role_approval_routes.router, prefix="/api")
+app.include_router(role_catalog_routes.router, prefix="/api")
 
 @app.get("/")
 def read_root():

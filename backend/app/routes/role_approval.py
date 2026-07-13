@@ -8,6 +8,7 @@ from app.utils.permissions import require_permission
 from app.services.approval_workflow_service import ApprovalWorkflowService
 from app.services.business_approval_service import BusinessApprovalService
 from app.services.security_approval_service import SecurityApprovalService
+from app.services.approval_comment_service import ApprovalCommentService
 
 router = APIRouter(prefix="/approval")
 
@@ -25,6 +26,10 @@ class ActionRequest(BaseModel):
 class BulkActionRequest(BaseModel):
     request_ids: List[int]
     remarks: Optional[str] = None
+
+
+class CommentRequest(BaseModel):
+    comment_text: str
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -384,6 +389,65 @@ def security_return(
         )
     except PermissionError as pe:
         raise HTTPException(status_code=http_status.HTTP_403_FORBIDDEN, detail=str(pe))
+    except ValueError as ve:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# APR-004 Approval Comments APIs
+# ─────────────────────────────────────────────────────────────────────────────
+
+@router.get("/requests/{request_id}/comments")
+def get_comments(
+    request_id: int,
+    db: Session = Depends(get_db),
+    _perm: bool = Depends(require_permission("Role Engineering", "view"))
+):
+    """Returns all discussion comments for an approval request, oldest first."""
+    try:
+        return ApprovalCommentService.get_comments(db, request_id)
+    except ValueError as ve:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post("/requests/{request_id}/comments", status_code=201)
+def add_comment(
+    request_id: int,
+    payload: CommentRequest,
+    db: Session = Depends(get_db),
+    x_user_name: str = Header(default="System"),
+    x_user_role: str = Header(default="Role Engineer"),
+    _perm: bool = Depends(require_permission("Role Engineering", "edit"))
+):
+    """Posts a new comment to an approval request's discussion thread."""
+    try:
+        return ApprovalCommentService.add_comment(
+            db=db, request_id=request_id, user=x_user_name,
+            user_role=x_user_role, comment_text=payload.comment_text
+        )
+    except ValueError as ve:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.delete("/comments/{comment_id}")
+def delete_comment(
+    comment_id: int,
+    db: Session = Depends(get_db),
+    x_user_name: str = Header(default="System"),
+    x_user_role: str = Header(default="Role Engineer"),
+    _perm: bool = Depends(require_permission("Role Engineering", "edit"))
+):
+    """Deletes a comment. Author or Platform Admin only."""
+    try:
+        return ApprovalCommentService.delete_comment(
+            db=db, comment_id=comment_id, user=x_user_name, user_role=x_user_role
+        )
     except ValueError as ve:
         raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(ve))
     except Exception as e:

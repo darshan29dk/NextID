@@ -8,6 +8,7 @@ from app.models.approval_request import ApprovalRequest
 from app.models.approval_step import ApprovalStep
 from app.models.audit_log import AuditLog
 from app.models.dashboard import RecentActivity
+from app.models.notification import Notification
 
 # Roles allowed to take action on Security Review
 _SECURITY_ACTION_ROLES = {"Platform Administrator", "Security Administrator"}
@@ -236,6 +237,12 @@ class SecurityApprovalService:
                         new_value=f"Security-approved role '{role_name}'. Now Ready For Publish.", timestamp=now))
         db.add(RecentActivity(user=user, action=f"Security-approved '{role_name}' -- Ready For Publish.",
                               status="success", created_at=now))
+        db.add(Notification(
+            title=f"Role Approved: {role_name}",
+            message=f"{user} security-approved role '{role_name}'. It is now Ready For Publish.",
+            status="unread",
+            created_at=now
+        ))
 
         try:
             db.commit()
@@ -299,6 +306,12 @@ class SecurityApprovalService:
                         new_value=f"Rejected role '{role_name}' at Security Review. Remarks: '{remarks}'", timestamp=now))
         db.add(RecentActivity(user=user, action=f"Security-rejected role '{role_name}'.",
                               status="danger", created_at=now))
+        db.add(Notification(
+            title=f"Role Rejected: {role_name}",
+            message=f"{user} rejected role '{role_name}' at Security Review. Remarks: '{remarks}'.",
+            status="unread",
+            created_at=now
+        ))
 
         try:
             db.commit()
@@ -362,6 +375,12 @@ class SecurityApprovalService:
                         new_value=f"Returned role '{role_name}' from Security Review. Remarks: '{remarks}'", timestamp=now))
         db.add(RecentActivity(user=user, action=f"Returned '{role_name}' from Security Review for rework.",
                               status="warning", created_at=now))
+        db.add(Notification(
+            title=f"Returned For Rework: {role_name}",
+            message=f"{user} returned role '{role_name}' from Security Review for rework. Remarks: '{remarks}'.",
+            status="unread",
+            created_at=now
+        ))
 
         try:
             db.commit()

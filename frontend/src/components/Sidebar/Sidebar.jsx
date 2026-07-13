@@ -27,7 +27,9 @@ import {
   SlidersHorizontal,
   User,
   Fingerprint,
-  Link2
+  Link2,
+  Briefcase,
+  Cpu
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -58,6 +60,12 @@ const APPROVAL_WORKFLOW_GROUP_CHILDREN = [
   { label: 'Security Approval', icon: KeyRound, path: 'approval-workflow/security' },
 ];
 
+const ROLE_CATALOG_GROUP_CHILDREN = [
+  { label: 'Published Roles', icon: BookOpen, path: 'role-catalog/published' },
+  { label: 'Business Roles', icon: Briefcase, path: 'role-catalog/business' },
+  { label: 'Technical Roles', icon: Cpu, path: 'role-catalog/technical' },
+];
+
 const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -81,6 +89,9 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const [isApprovalWorkflowOpen, setIsApprovalWorkflowOpen] = useState(
     APPROVAL_WORKFLOW_GROUP_CHILDREN.some((child) => child.path === activePath)
   );
+  const [isRoleCatalogOpen, setIsRoleCatalogOpen] = useState(
+    ROLE_CATALOG_GROUP_CHILDREN.some((child) => child.path === activePath)
+  );
 
   useEffect(() => {
     if (ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath)) {
@@ -98,6 +109,9 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     if (APPROVAL_WORKFLOW_GROUP_CHILDREN.some((child) => child.path === activePath)) {
       setIsApprovalWorkflowOpen(true);
     }
+    if (ROLE_CATALOG_GROUP_CHILDREN.some((child) => child.path === activePath)) {
+      setIsRoleCatalogOpen(true);
+    }
   }, [activePath]);
 
   const navItemsBefore = [
@@ -105,8 +119,6 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     { type: 'item', label: 'Role Discovery', icon: Search, path: 'role-discovery', hasSub: true },
     { type: 'heading', label: 'ROLE ENGINEERING' },
     { type: 'item', label: 'Role Engineering', icon: Wrench, path: 'role-engineering/workbench' },
-    { type: 'heading', label: 'ROLE CATALOG' },
-    { type: 'item', label: 'Role Catalog', icon: BookOpen, path: 'role-catalog', hasSub: true },
   ];
 
   const navItemsAfter = [
@@ -130,6 +142,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const isApplicationsGroupActive = APPLICATIONS_GROUP_CHILDREN.some((child) => child.path === activePath);
   const isIdentityGroupActive = IDENTITY_GROUP_CHILDREN.some((child) => child.path === activePath);
   const isApprovalWorkflowGroupActive = APPROVAL_WORKFLOW_GROUP_CHILDREN.some((child) => child.path === activePath);
+  const isRoleCatalogGroupActive = ROLE_CATALOG_GROUP_CHILDREN.some((child) => child.path === activePath);
 
   // Reusable renderer for flat nav item arrays
   const renderNavItems = (items) => items.map((item, idx) => {
@@ -352,6 +365,49 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
         )}
 
         {renderNavItems(navItemsBefore)}
+
+        {/* Collapsible "Role Catalog" group */}
+        {!isCollapsed && <div className="nav-heading">ROLE CATALOG</div>}
+
+        <div
+          className={`nav-item ${isRoleCatalogGroupActive && !isRoleCatalogOpen ? 'active' : ''}`}
+          onClick={() => {
+            if (isCollapsed) {
+              navigate('/' + ROLE_CATALOG_GROUP_CHILDREN[0].path);
+            } else {
+              setIsRoleCatalogOpen((prev) => !prev);
+            }
+          }}
+        >
+          <BookOpen className="nav-icon" size={18} />
+          {!isCollapsed && (
+            <>
+              <span className="nav-label">Role Catalog</span>
+              {isRoleCatalogOpen
+                ? <ChevronDown className="nav-arrow" size={12} />
+                : <ChevronRight className="nav-arrow" size={12} />
+              }
+            </>
+          )}
+        </div>
+
+        {!isCollapsed && isRoleCatalogOpen && (
+          <div className="nav-sub-list">
+            {ROLE_CATALOG_GROUP_CHILDREN.map((child) => {
+              const ChildIcon = child.icon;
+              return (
+                <div
+                  key={child.path}
+                  className={`nav-item nav-sub-item ${activePath === child.path ? 'active' : ''}`}
+                  onClick={() => navigate('/' + child.path)}
+                >
+                  <ChildIcon className="nav-icon" size={16} />
+                  <span className="nav-label">{child.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
 
         {/* Collapsible "Approval Workflow" group */}
         {!isCollapsed && <div className="nav-heading">APPROVAL WORKFLOW</div>}

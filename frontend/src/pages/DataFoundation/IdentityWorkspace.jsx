@@ -20,6 +20,7 @@ import {
   deleteIdentity,
   bulkUploadIdentities,
   resetBulkUploadIdentities,
+  bulkDeleteIdentities,
   runAutoCorrelation,
   manualLinkAccount,
   manualUnlinkAccount,
@@ -98,6 +99,11 @@ const IdentityWorkspace = () => {
   // Reset Bulk Upload confirm modal state
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetSubmitting, setResetSubmitting] = useState(false);
+
+  // Bulk multi-select delete state
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [bulkDeleteSubmitting, setBulkDeleteSubmitting] = useState(false);
 
   const fetchIdentitiesList = useCallback(async () => {
     try {
@@ -455,6 +461,41 @@ const IdentityWorkspace = () => {
     }
   };
 
+  // ---------------------------------------------------------------
+  // Bulk multi-select delete
+  // ---------------------------------------------------------------
+  const toggleSelectRow = (id, e) => {
+    if (e) e.stopPropagation();
+    setSelectedIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
+  };
+
+  const toggleSelectAllOnPage = () => {
+    const pageIds = identities.map((i) => i.id);
+    const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
+    setSelectedIds((prev) => allSelected
+      ? prev.filter((id) => !pageIds.includes(id))
+      : [...new Set([...prev, ...pageIds])]);
+  };
+
+  const handleBulkDeleteSubmit = async () => {
+    if (selectedIds.length === 0) return;
+    try {
+      setBulkDeleteSubmitting(true);
+      const result = await bulkDeleteIdentities(selectedIds);
+      setShowBulkDeleteConfirm(false);
+      setSelectedIds([]);
+      fetchIdentitiesList();
+      fetchFilterMeta();
+      fetchKPIStats();
+      alert(`Deleted ${result.deleted} identit${result.deleted === 1 ? 'y' : 'ies'}.`);
+    } catch (err) {
+      console.error('Failed to bulk delete identities:', err);
+      alert(err.response?.data?.detail || 'Failed to delete selected identities.');
+    } finally {
+      setBulkDeleteSubmitting(false);
+    }
+  };
+
   const renderStatusBadge = (status) => {
     switch (status) {
       case 'Active':
@@ -755,6 +796,16 @@ const IdentityWorkspace = () => {
           <p>Every identity imported through connectors, created manually, or bulk uploaded, correlated against Application accounts by email.</p>
         </div>
         <div className="header-buttons-section">
+          {canDelete('Identity Repository') && selectedIds.length > 0 && (
+            <button
+              className="btn-browse-file"
+              onClick={() => setShowBulkDeleteConfirm(true)}
+              style={{ padding: '10px 16px', fontSize: '12.5px', border: '1px solid var(--failed, #ef4444)', borderRadius: 'var(--border-radius)', backgroundColor: 'var(--bg-card)', color: 'var(--failed, #ef4444)', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}
+            >
+              <Trash2 size={14} />
+              <span>Delete Selected ({selectedIds.length})</span>
+            </button>
+          )}
           {canDelete('Identity Repository') && (
             <button
               className="btn-browse-file"
@@ -835,10 +886,21 @@ const IdentityWorkspace = () => {
           <table className="users-table">
             <thead>
               <tr>
+                {canDelete('Identity Repository') && (
+                  <th style={{ width: '36px' }}>
+                    <input
+                      type="checkbox"
+                      checked={identities.length > 0 && identities.every((i) => selectedIds.includes(i.id))}
+                      onChange={toggleSelectAllOnPage}
+                    />
+                  </th>
+                )}
                 <th style={{ cursor: 'pointer' }} onClick={() => handleSort('display_name')}>
                   Name {sortBy === 'display_name' && (sortOrder === 'asc' ? '▲' : '▼')}
                 </th>
-                <th>Employee ID</th>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('employee_id')}>
+                  Employee ID {sortBy === 'employee_id' && (sortOrder === 'asc' ? '▲' : '▼')}
+                </th>
                 <th style={{ cursor: 'pointer' }} onClick={() => handleSort('email')}>
                   Email {sortBy === 'email' && (sortOrder === 'asc' ? '▲' : '▼')}
                 </th>
@@ -855,7 +917,7 @@ const IdentityWorkspace = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="7">
+                  <td colSpan="8">
                     <div className="table-loading-container">
                       <div className="spinner-element"></div>
                       <p>Loading identities...</p>
@@ -864,7 +926,7 @@ const IdentityWorkspace = () => {
                 </tr>
               ) : identities.length === 0 ? (
                 <tr>
-                  <td colSpan="7">
+                  <td colSpan="8">
                     <div className="table-empty-container">
                       <Users size={36} className="text-muted" />
                       <div className="empty-state-text">
@@ -877,6 +939,15 @@ const IdentityWorkspace = () => {
               ) : (
                 identities.map((i) => (
                   <tr key={i.id} className="row-clickable" onClick={() => handleOpenDetail(i)}>
+                    {canDelete('Identity Repository') && (
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(i.id)}
+                          onChange={(e) => toggleSelectRow(i.id, e)}
+                        />
+                      </td>
+                    )}
                     <td className="connector-name-cell">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <User size={16} className="type-icon" />
@@ -1095,6 +1166,30 @@ const IdentityWorkspace = () => {
               <button className="btn-modal-cancel" type="button" disabled={resetSubmitting} onClick={() => setShowResetConfirm(false)}>Cancel</button>
               <button className="btn-modal-delete" type="button" disabled={resetSubmitting} onClick={handleResetBulkUpload}>
                 {resetSubmitting ? 'Resetting...' : 'Confirm Reset'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showBulkDeleteConfirm && (
+        <div className="modal-overlay-custom">
+          <div className="modal-content-custom delete-dialog-content">
+            <div className="delete-dialog-body">
+              <div className="delete-dialog-icon"><AlertTriangle size={24} /></div>
+              <div className="delete-dialog-text">
+                <h4>Delete {selectedIds.length} Identit{selectedIds.length === 1 ? 'y' : 'ies'}?</h4>
+                <p>
+                  This removes the selected identit{selectedIds.length === 1 ? 'y' : 'ies'} from Identity Repository.
+                  Correlated Accounts / Entitlements in Application Workspace and Connector Workspace are not
+                  affected — this only deletes the identity record itself.
+                </p>
+              </div>
+            </div>
+            <div className="modal-footer-custom">
+              <button className="btn-modal-cancel" type="button" disabled={bulkDeleteSubmitting} onClick={() => setShowBulkDeleteConfirm(false)}>Cancel</button>
+              <button className="btn-modal-delete" type="button" disabled={bulkDeleteSubmitting} onClick={handleBulkDeleteSubmit}>
+                {bulkDeleteSubmitting ? 'Deleting...' : 'Confirm Delete'}
               </button>
             </div>
           </div>

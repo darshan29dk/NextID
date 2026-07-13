@@ -1,23 +1,20 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './ApprovalInbox.css';
 import { ShieldCheck, RotateCw, AlertTriangle, Eye, CheckCircle2, XCircle, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getApprovalRequests } from '../../services/candidateRoleWorkbenchService';
-import ApprovalDetailDrawer from '../../components/ApprovalDetailDrawer/ApprovalDetailDrawer';
 import BusinessActionModal from '../../components/BusinessActionModal/BusinessActionModal';
 
 const BusinessApproval = () => {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   // Selection state for Bulk Actions
   const [selectedIds, setSelectedIds] = useState([]);
-
-  // Detail drawer state
-  const [selectedReqId, setSelectedReqId] = useState(null);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   // Business Action Modal state
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
@@ -103,8 +100,7 @@ const BusinessApproval = () => {
   };
 
   const handleViewDetails = (id) => {
-    setSelectedReqId(id);
-    setIsDrawerOpen(true);
+    navigate(`/approval-workflow/requests/${id}`);
   };
 
   // Determine if a row can be actioned by the current user
@@ -301,13 +297,6 @@ const BusinessApproval = () => {
           </tbody>
         </table>
       </div>
-
-      {/* Detail Drawer */}
-      <ApprovalDetailDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        requestId={selectedReqId}
-      />
 
       {/* Action Modal */}
       <BusinessActionModal

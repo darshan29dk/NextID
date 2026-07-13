@@ -1,4 +1,5 @@
 ﻿import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import "./ApprovalInbox.css";
 import {
   ShieldAlert, RotateCw, AlertTriangle, Eye,
@@ -10,7 +11,6 @@ import {
   getSecurityApprovalKpi,
   getSecurityApprovals,
 } from "../../services/candidateRoleWorkbenchService";
-import ApprovalDetailDrawer from "../../components/ApprovalDetailDrawer/ApprovalDetailDrawer";
 import SecurityActionModal from "../../components/SecurityActionModal/SecurityActionModal";
 
 // Helper: convert status string to CSS class
@@ -42,6 +42,7 @@ const KpiCard = ({ label, value, icon: Icon, color }) => (
 
 const SecurityApproval = () => {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
 
   const [requests, setRequests] = useState([]);
   const [kpi, setKpi] = useState({});
@@ -52,10 +53,6 @@ const SecurityApproval = () => {
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterPriority, setFilterPriority] = useState("");
-
-  // Drawer
-  const [selectedReqId, setSelectedReqId] = useState(null);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   // Action modal
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -102,8 +99,7 @@ const SecurityApproval = () => {
   };
 
   const openDrawer = (id) => {
-    setSelectedReqId(id);
-    setIsDrawerOpen(true);
+    navigate(`/approval-workflow/requests/${id}`);
   };
 
   const securityStatuses = [
@@ -301,13 +297,6 @@ const SecurityApproval = () => {
           </tbody>
         </table>
       </div>
-
-      {/* Detail Drawer */}
-      <ApprovalDetailDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        requestId={selectedReqId}
-      />
 
       {/* Security Action Modal */}
       <SecurityActionModal

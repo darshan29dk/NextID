@@ -26,6 +26,11 @@ import CandidateRoleWorkbench from './pages/RoleEngineering/CandidateRoleWorkben
 import ApprovalRequests from './pages/Governance/ApprovalRequests';
 import BusinessApproval from './pages/Governance/BusinessApproval';
 import SecurityApproval from './pages/Governance/SecurityApproval';
+import ApprovalRequestDetail from './pages/Governance/ApprovalRequestDetail';
+import PublishedRoles from './pages/RoleCatalog/PublishedRoles';
+import BusinessRoles from './pages/RoleCatalog/BusinessRoles';
+import TechnicalRoles from './pages/RoleCatalog/TechnicalRoles';
+import RoleCatalogDetail from './pages/RoleCatalog/RoleCatalogDetail';
 const UnderConstruction = ({ title }) => {
   return (
     <div style={{
@@ -103,9 +108,14 @@ function App() {
                   <Route path="/role-engineering" element={<Navigate to="/role-engineering/workbench" replace />} />
                   <Route path="/role-engineering/workbench" element={<CandidateRoleWorkbench />} />
                   <Route path="/approval-workflow/requests" element={<ApprovalRequests />} />
+                  <Route path="/approval-workflow/requests/:id" element={<ApprovalRequestDetail />} />
                   <Route path="/approval-workflow/business" element={<BusinessApproval />} />
                   <Route path="/approval-workflow/security" element={<SecurityApproval />} />
-                  <Route path="/role-catalog" element={<UnderConstruction title="Role Catalog" />} />
+                  <Route path="/role-catalog" element={<Navigate to="/role-catalog/published" replace />} />
+                  <Route path="/role-catalog/published" element={<PublishedRoles />} />
+                  <Route path="/role-catalog/business" element={<BusinessRoles />} />
+                  <Route path="/role-catalog/technical" element={<TechnicalRoles />} />
+                  <Route path="/role-catalog/:id" element={<RoleCatalogDetail />} />
                   <Route path="/governance" element={<Navigate to="/approval-workflow/requests" replace />} />
                   <Route path="/role-lifecycle" element={<UnderConstruction title="Role Lifecycle" />} />
                   <Route path="/analytics" element={<UnderConstruction title="Analytics" />} />

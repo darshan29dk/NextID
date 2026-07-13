@@ -64,6 +64,11 @@ export const resetBulkUploadIdentities = async () => {
   return response.data;
 };
 
+export const bulkDeleteIdentities = async (ids) => {
+  const response = await apiClient.post('/identities/bulk-delete', { ids });
+  return response.data;
+};
+
 export const runAutoCorrelation = async (applicationId) => {
   const params = applicationId ? { application_id: applicationId } : {};
   const response = await apiClient.post('/correlation/auto', null, { params });

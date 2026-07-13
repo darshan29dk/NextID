@@ -52,3 +52,9 @@ class CandidateRole(Base):
     modified_by = Column(String(100), default="System", nullable=False)
     is_deleted = Column(Boolean, default=False, nullable=False)
 
+    # RC-001: Role Catalog publish tracking. A role becomes catalog-visible once
+    # published (status flips from "Ready For Publish" to "Published").
+    published_at = Column(DateTime, nullable=True)
+    published_by = Column(String(100), nullable=True)
+    current_version = Column(Integer, default=0, nullable=False)  # bumped on each publish/republish snapshot
+

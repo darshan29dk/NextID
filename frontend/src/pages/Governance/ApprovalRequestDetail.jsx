@@ -1,10 +1,25 @@
 import React, { useState, useEffect } from 'react';
-import { X, Shield, Users, Layers, Award, FileText, CheckCircle, Clock, AlertTriangle, Play, HelpCircle, Activity, Loader2, XCircle, MessageSquare, Send, Trash2 } from 'lucide-react';
-import { getRolePreview, getApprovalRequestById, getApprovalComments, addApprovalComment, deleteApprovalComment } from '../../services/candidateRoleWorkbenchService';
+import { useParams, useNavigate } from 'react-router-dom';
+import {
+  ArrowLeft, CheckCircle, Clock, AlertTriangle, Loader2, XCircle,
+  MessageSquare, Send, Trash2
+} from 'lucide-react';
+import {
+  getRolePreview, getApprovalRequestById,
+  getApprovalComments, addApprovalComment, deleteApprovalComment
+} from '../../services/candidateRoleWorkbenchService';
 import { useAuth } from '../../context/AuthContext';
 
-const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
+// Full-page version of the approval request detail view.
+// Built to replace the slide-in ApprovalDetailDrawer, whose "View Details" eye
+// icon could not be reliably triggered in testing (see APR module test notes).
+// Same data + same tabs, just rendered as a normal routed page instead of an
+// overlay panel, so there's no drawer/portal/z-index machinery that can fail silently.
+const ApprovalRequestDetail = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
   const { currentUser } = useAuth();
+
   const [activeTab, setActiveTab] = useState('general');
   const [request, setRequest] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -18,31 +33,23 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
   const [postingComment, setPostingComment] = useState(false);
 
   useEffect(() => {
-    if (isOpen && requestId) {
+    if (id) {
       setActiveTab('general');
       fetchDetails();
     }
-  }, [isOpen, requestId]);
-
-  useEffect(() => {
-    if (isOpen && requestId && activeTab === 'comments') {
-      fetchComments();
-    }
-  }, [isOpen, requestId, activeTab]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const fetchDetails = async () => {
     try {
       setLoading(true);
       setError('');
-      // Get request details
-      const reqData = await getApprovalRequestById(requestId);
+      const reqData = await getApprovalRequestById(id);
       setRequest(reqData);
 
-      // Get role preview metrics (Risk score, readiness checks)
       const prevData = await getRolePreview(reqData.candidate_role_id);
       setPreview(prevData);
 
-      // Prefetch comments too, so the tab's count badge is accurate right away
       fetchComments();
     } catch (err) {
       console.error("Failed to load approval request details:", err);
@@ -55,7 +62,7 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
   const fetchComments = async () => {
     try {
       setCommentsLoading(true);
-      const data = await getApprovalComments(requestId);
+      const data = await getApprovalComments(id);
       setComments(data || []);
     } catch (err) {
       console.error("Failed to load comments:", err);
@@ -68,7 +75,7 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
     if (!newComment.trim()) return;
     try {
       setPostingComment(true);
-      await addApprovalComment(requestId, newComment.trim());
+      await addApprovalComment(id, newComment.trim());
       setNewComment('');
       fetchComments();
     } catch (err) {
@@ -88,23 +95,20 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
     }
   };
 
-  if (!isOpen) return null;
-
-  // Helper: Status badge color resolver
   const getStatusBadge = (status) => {
     let bg = 'rgba(156,163,175,0.1)';
     let color = 'var(--text-muted)';
-    
-    if (status === 'Business Approved' || status === 'Approved') {
+
+    if (status === 'Business Approved' || status === 'Security Approved' || status === 'Approved') {
       bg = 'rgba(16,185,129,0.1)';
       color = 'var(--success)';
-    } else if (status === 'Business Rejected' || status === 'Rejected') {
+    } else if (status === 'Business Rejected' || status === 'Security Rejected' || status === 'Rejected') {
       bg = 'rgba(239,68,68,0.1)';
       color = 'var(--danger)';
     } else if (status === 'Returned For Rework' || status === 'Returned') {
       bg = 'rgba(245,158,11,0.1)';
       color = 'var(--warning)';
-    } else if (status === 'Submitted' || status === 'Business Review') {
+    } else if (status === 'Business Review' || status === 'Security Review') {
       bg = 'rgba(59,130,246,0.1)';
       color = 'var(--primary)';
     }
@@ -127,32 +131,36 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
   };
 
   return (
-    <div className={`detail-drawer-panel ${isOpen ? 'open' : ''}`} style={{ zIndex: 1050, width: '640px', maxWidth: '100%' }}>
-      <div className="drawer-header-custom" style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '16px 20px', borderBottom: '1px solid var(--border-color)',
-        backgroundColor: 'var(--bg-card)'
-      }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>
-            {loading ? 'Loading Details...' : (request?.role_name || `Request #${requestId}`)}
-          </h3>
+    <div className="workbench-container" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <button
+          type="button"
+          className="btn-action-premium"
+          onClick={() => navigate(-1)}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          <ArrowLeft size={14} /> Back
+        </button>
+        <div>
+          <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>
+            {loading ? 'Loading Details...' : (request?.role_name || `Request #${id}`)}
+          </h2>
           {request && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', marginTop: '4px' }}>
               <span className="text-muted">Request ID: #{request.id}</span>
               <span>•</span>
               {getStatusBadge(request.status)}
             </div>
           )}
         </div>
-        <button type="button" className="btn-drawer-close" onClick={onClose}>
-          <X size={16} />
-        </button>
       </div>
 
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '300px' }}>
-          <LoaderSpinner />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+            <Loader2 className="animate-spin" size={24} style={{ color: 'var(--primary)' }} />
+            <span className="text-muted" style={{ fontSize: '12px' }}>Loading...</span>
+          </div>
         </div>
       ) : error ? (
         <div style={{ padding: '20px', color: 'var(--danger)', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -162,7 +170,7 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
       ) : request && (
         <>
           {/* Tabs header */}
-          <div className="workbench-tabs-header" style={{ borderBottom: '1px solid var(--border-color)', padding: '0 20px', display: 'flex', gap: '20px', backgroundColor: 'var(--bg-card)' }}>
+          <div className="workbench-tabs-header" style={{ borderBottom: '1px solid var(--border-color)', display: 'flex', gap: '20px', backgroundColor: 'var(--bg-card)', padding: '0 4px' }}>
             <button className={`tab-link-premium ${activeTab === 'general' ? 'active' : ''}`} onClick={() => setActiveTab('general')}>General</button>
             <button className={`tab-link-premium ${activeTab === 'preview' ? 'active' : ''}`} onClick={() => setActiveTab('preview')}>Role Preview</button>
             <button className={`tab-link-premium ${activeTab === 'entitlements' ? 'active' : ''}`} onClick={() => setActiveTab('entitlements')}>Entitlements ({preview?.entitlements?.length || 0})</button>
@@ -172,11 +180,9 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
           </div>
 
           {/* Tab contents */}
-          <div className="drawer-body-custom" style={{ padding: '20px', overflowY: 'auto', height: 'calc(100vh - 120px)' }}>
+          <div style={{ padding: '4px', maxWidth: '900px' }}>
             {activeTab === 'general' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                
-                {/* Meta details */}
                 <div className="grid-details-premium" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div className="detail-item-box">
                     <span className="label text-muted">Submitted By</span>
@@ -201,7 +207,6 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
 
                 <hr style={{ border: 'none', borderTop: '1px solid var(--border-color)', margin: '4px 0' }} />
 
-                {/* Role Details */}
                 <div>
                   <h4 style={{ fontSize: '13px', margin: '0 0 10px 0', fontWeight: 600 }}>Role Profile</h4>
                   <div className="grid-details-premium" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
@@ -243,13 +248,11 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
 
             {activeTab === 'preview' && preview && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {/* Composite Risk Score Gauge */}
                 <div style={{
                   display: 'flex', alignItems: 'center', gap: '20px',
                   padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)',
                   backgroundColor: 'var(--bg-hover)'
                 }}>
-                  {/* Circle score indicator */}
                   <div style={{
                     width: '64px', height: '64px', borderRadius: '50%',
                     border: '4px solid ' + (preview.role.risk_score > 70 ? 'var(--danger)' : preview.role.risk_score > 40 ? 'var(--warning)' : 'var(--success)'),
@@ -266,13 +269,12 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
                   </div>
                 </div>
 
-                {/* Readiness Validation Checks */}
                 <div>
                   <h4 style={{ fontSize: '13px', margin: '0 0 10px 0', fontWeight: 600 }}>Readiness Checks ({preview.readiness.passed} / {preview.readiness.total} Passed)</h4>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {preview.readiness.checks.map((chk, i) => (
                       <div key={i} style={{
-                        display: 'flex', alignItems: 'center', justifyBehavior: 'space-between',
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                         padding: '10px 14px', borderRadius: '6px',
                         border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-card)'
                       }}>
@@ -280,7 +282,7 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
                           {chk.passed ? (
                             <CheckCircle size={14} style={{ color: 'var(--success)' }} />
                           ) : chk.severity === 'error' ? (
-                            <XCircleIcon size={14} />
+                            <XCircle size={14} style={{ color: 'var(--danger)' }} />
                           ) : (
                             <AlertTriangle size={14} style={{ color: 'var(--warning)' }} />
                           )}
@@ -304,7 +306,7 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
                     <div key={idx} style={{
                       padding: '10px 14px', borderRadius: '6px',
                       border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-card)',
-                      display: 'flex', alignItems: 'center', justifyBehavior: 'space-between'
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between'
                     }}>
                       <div>
                         <div style={{ fontWeight: 600, fontSize: '13px' }}>{e.entitlement_name}</div>
@@ -329,7 +331,7 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
                     <div key={idx} style={{
                       padding: '10px 14px', borderRadius: '6px',
                       border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-card)',
-                      display: 'flex', alignItems: 'center', justifyBehavior: 'space-between'
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between'
                     }}>
                       <div>
                         <div style={{ fontWeight: 600, fontSize: '13px' }}>{m.employee_name}</div>
@@ -344,23 +346,20 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
             {activeTab === 'timeline' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <h4 style={{ fontSize: '13px', margin: 0, fontWeight: 600 }}>Approval Timeline Stepper</h4>
-                
+
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', position: 'relative', paddingLeft: '24px' }}>
-                  
-                  {/* Left connector line */}
                   <div style={{
                     position: 'absolute', left: '7px', top: '8px', bottom: '8px',
                     width: '2px', backgroundColor: 'var(--border-color)', zIndex: 1
                   }} />
 
-                  {/* Submission stage */}
                   <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '4px', zIndex: 2 }}>
                     <div style={{
                       position: 'absolute', left: '-24px', top: '2px',
                       width: '16px', height: '16px', borderRadius: '50%',
                       backgroundColor: 'var(--success)', border: '4px solid var(--bg-card)'
                     }} />
-                    <div style={{ display: 'flex', justifyBehavior: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <strong style={{ fontSize: '13px' }}>Role Submitted</strong>
                       <span className="text-muted" style={{ fontSize: '11px' }}>
                         {request.submitted_at ? new Date(request.submitted_at).toLocaleDateString() : ''}
@@ -369,7 +368,6 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
                     <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>By Submitter: {request.submitted_by}</span>
                   </div>
 
-                  {/* Steps mapping */}
                   {request.steps.map((st, idx) => {
                     let dotColor = 'var(--border-color)';
                     if (st.status === 'Approved') dotColor = 'var(--success)';
@@ -384,7 +382,7 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
                           width: '16px', height: '16px', borderRadius: '50%',
                           backgroundColor: dotColor, border: '4px solid var(--bg-card)'
                         }} />
-                        <div style={{ display: 'flex', justifyBehavior: 'space-between', alignItems: 'center' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                           <strong style={{ fontSize: '13px' }}>{st.step_name} ({st.status})</strong>
                           {st.action_at && (
                             <span className="text-muted" style={{ fontSize: '11px' }}>
@@ -415,7 +413,6 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <h4 style={{ fontSize: '13px', margin: 0, fontWeight: 600 }}>Discussion ({comments.length})</h4>
 
-                {/* New comment composer */}
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
                   <textarea
                     value={newComment}
@@ -438,7 +435,6 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
                   </button>
                 </div>
 
-                {/* Comment thread */}
                 {commentsLoading ? (
                   <div style={{ display: 'flex', justifyContent: 'center', padding: '24px' }}>
                     <Loader2 className="animate-spin text-muted" size={20} />
@@ -495,17 +491,4 @@ const ApprovalDetailDrawer = ({ isOpen, onClose, requestId }) => {
   );
 };
 
-// Simple spinner helper
-const LoaderSpinner = () => (
-  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-    <Loader2 className="animate-spin" size={24} style={{ color: 'var(--primary)' }} />
-    <span className="text-muted" style={{ fontSize: '12px' }}>Loading...</span>
-  </div>
-);
-
-// XCircle fallback icon helper
-const XCircleIcon = ({ size }) => (
-  <XCircle size={size} style={{ color: 'var(--danger)' }} />
-);
-
-export default ApprovalDetailDrawer;
+export default ApprovalRequestDetail;

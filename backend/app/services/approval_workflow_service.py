@@ -8,6 +8,7 @@ from app.models.approval_request import ApprovalRequest
 from app.models.approval_step import ApprovalStep
 from app.models.audit_log import AuditLog
 from app.models.dashboard import RecentActivity
+from app.models.notification import Notification
 
 
 class ApprovalWorkflowService:
@@ -117,6 +118,16 @@ class ApprovalWorkflowService:
             user=user,
             action=f"Submitted role '{role.role_name}' for Business Review",
             status="success",
+            created_at=now
+        ))
+        db.add(Notification(
+            title=f"Approval Needed: {role.role_name}",
+            message=(
+                f"{user} submitted role '{role.role_name}' for approval. "
+                f"Business Review is pending from '{role.primary_owner_name}'. "
+                f"Due by {due.strftime('%d %b %Y')}."
+            ),
+            status="unread",
             created_at=now
         ))
 

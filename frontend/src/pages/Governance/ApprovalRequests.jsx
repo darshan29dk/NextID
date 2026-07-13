@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './ApprovalInbox.css';
 import { Search, RotateCw, Filter, ShieldAlert, CheckCircle, XCircle, RefreshCw, AlertTriangle, Eye, Ban, Calendar, Clock } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getApprovalRequests, cancelApprovalRequest } from '../../services/candidateRoleWorkbenchService';
-import ApprovalDetailDrawer from '../../components/ApprovalDetailDrawer/ApprovalDetailDrawer';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
 
 const ApprovalRequests = () => {
   const { currentUser } = useAuth();
+  const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -37,10 +38,6 @@ const ApprovalRequests = () => {
   const [actioningId, setActioningId] = useState(null);
   const [error, setError] = useState('');
   
-  // Drawer state
-  const [selectedRequestId, setSelectedRequestId] = useState(null);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-
   useEffect(() => {
     fetchData();
   }, [page, status, priority, submittedBy, sortBy, sortOrder]);
@@ -69,10 +66,10 @@ const ApprovalRequests = () => {
       const list = allRes.requests || [];
       setKpiStats({
         total: list.length,
-        submitted: list.filter(r => r.status === 'Submitted').length,
         businessReview: list.filter(r => r.status === 'Business Review').length,
-        approved: list.filter(r => r.status === 'Business Approved').length,
-        rejected: list.filter(r => r.status === 'Business Rejected').length,
+        securityReview: list.filter(r => r.status === 'Security Review').length,
+        approved: list.filter(r => r.status === 'Security Approved').length,
+        rejected: list.filter(r => r.status === 'Business Rejected' || r.status === 'Security Rejected').length,
         returned: list.filter(r => r.status === 'Returned For Rework').length
       });
     } catch (err) {
@@ -104,8 +101,7 @@ const ApprovalRequests = () => {
   };
 
   const handleViewDetails = (requestId) => {
-    setSelectedRequestId(requestId);
-    setIsDrawerOpen(true);
+    navigate(`/approval-workflow/requests/${requestId}`);
   };
 
   return (
@@ -122,8 +118,8 @@ const ApprovalRequests = () => {
       {/* KPI Cards Panel */}
       <div className="workbench-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '16px' }}>
         <DashboardCard title="Total Requests" value={kpiStats.total} icon={ShieldAlert} trend="" />
-        <DashboardCard title="Submitted" value={kpiStats.submitted} icon={Clock} trend="" />
-        <DashboardCard title="Business Review" value={kpiStats.businessReview} icon={Filter} trend="" />
+        <DashboardCard title="Business Review" value={kpiStats.businessReview} icon={Clock} trend="" />
+        <DashboardCard title="Security Review" value={kpiStats.securityReview} icon={Filter} trend="" />
         <DashboardCard title="Approved" value={kpiStats.approved} icon={CheckCircle} trend="" />
         <DashboardCard title="Rejected" value={kpiStats.rejected} icon={XCircle} trend="" />
         <DashboardCard title="Returned" value={kpiStats.returned} icon={RefreshCw} trend="" />
@@ -151,10 +147,11 @@ const ApprovalRequests = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <select value={status} onChange={e => { setStatus(e.target.value); setPage(1); }} style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-main)', fontSize: '13px' }}>
             <option value="">All Statuses</option>
-            <option value="Submitted">Submitted</option>
             <option value="Business Review">Business Review</option>
-            <option value="Business Approved">Business Approved</option>
+            <option value="Security Review">Security Review</option>
+            <option value="Security Approved">Security Approved</option>
             <option value="Business Rejected">Business Rejected</option>
+            <option value="Security Rejected">Security Rejected</option>
             <option value="Returned For Rework">Returned For Rework</option>
           </select>
 
@@ -299,13 +296,6 @@ const ApprovalRequests = () => {
           </div>
         )}
       </div>
-
-      {/* Drawer */}
-      <ApprovalDetailDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        requestId={selectedRequestId}
-      />
     </div>
   );
 };

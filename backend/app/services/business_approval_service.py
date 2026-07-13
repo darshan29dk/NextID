@@ -7,6 +7,7 @@ from app.models.approval_request import ApprovalRequest
 from app.models.approval_step import ApprovalStep
 from app.models.audit_log import AuditLog
 from app.models.dashboard import RecentActivity
+from app.models.notification import Notification
 
 
 class BusinessApprovalService:
@@ -110,6 +111,15 @@ class BusinessApprovalService:
             status="success",
             created_at=now
         ))
+        db.add(Notification(
+            title=f"Security Review Needed: {role_name}",
+            message=(
+                f"{user} approved role '{role_name}' at Business Review. "
+                f"It is now pending Security Review."
+            ),
+            status="unread",
+            created_at=now
+        ))
 
         try:
             db.commit()
@@ -173,6 +183,15 @@ class BusinessApprovalService:
             status="danger",
             created_at=now
         ))
+        db.add(Notification(
+            title=f"Role Rejected: {role_name}",
+            message=(
+                f"{user} rejected role '{role_name}' at Business Review. "
+                f"Remarks: '{remarks or 'None'}'."
+            ),
+            status="unread",
+            created_at=now
+        ))
 
         try:
             db.commit()
@@ -233,6 +252,15 @@ class BusinessApprovalService:
             user=user,
             action=f"Returned role '{role_name}' for rework",
             status="warning",
+            created_at=now
+        ))
+        db.add(Notification(
+            title=f"Returned For Rework: {role_name}",
+            message=(
+                f"{user} returned role '{role_name}' for rework. "
+                f"Remarks: '{remarks or 'None'}'."
+            ),
+            status="unread",
             created_at=now
         ))
 

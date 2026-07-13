@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, asc, desc
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
+from pydantic import BaseModel
 import csv
 import io
 
@@ -16,6 +17,10 @@ from app.schemas.identity import IdentityResponse, IdentityPaginatedResponse, Id
 from app.utils.permissions import require_permission
 
 router = APIRouter()
+
+
+class BulkDeleteRequest(BaseModel):
+    ids: List[int]
 
 
 @router.get("/identities", response_model=IdentityPaginatedResponse)
@@ -56,6 +61,7 @@ def get_identities(
 
     sort_fields = {
         "display_name": Identity.display_name,
+        "employee_id": Identity.employee_id,
         "email": Identity.email,
         "department": Identity.department,
         "status": Identity.status,
@@ -232,6 +238,36 @@ def reset_bulk_uploaded_identities(
     """
     matches = db.query(Identity).filter(
         Identity.source_connector_name == "Bulk Upload",
+        Identity.is_deleted == False
+    ).all()
+
+    count = len(matches)
+    for identity in matches:
+        identity.is_deleted = True
+        identity.modified_by = x_user_name
+    db.commit()
+
+    return {"deleted": count}
+
+
+@router.post("/identities/bulk-delete")
+def bulk_delete_identities(
+    payload: BulkDeleteRequest,
+    db: Session = Depends(get_db),
+    x_user_name: str = Header(default="System"),
+    _perm: bool = Depends(require_permission("Identity Repository", "delete"))
+):
+    """
+    Soft-deletes a specific set of identities, chosen via checkboxes on the
+    Identity Repository list — regardless of source (connector, manual,
+    bulk upload). Used for general test-data cleanup, unlike the narrower
+    Reset Bulk Upload button which only targets source='Bulk Upload' rows.
+    """
+    if not payload.ids:
+        return {"deleted": 0}
+
+    matches = db.query(Identity).filter(
+        Identity.id.in_(payload.ids),
         Identity.is_deleted == False
     ).all()
 
