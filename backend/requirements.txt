@@ -12,3 +12,6 @@ apscheduler
 requests
 scikit-learn
 numpy
+passlib
+bcrypt
+
