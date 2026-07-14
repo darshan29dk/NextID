@@ -1,0 +1,24 @@
+services:
+  backend:
+    build: ./backend
+    container_name: ranalyzer-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # MySQL stays external on the Azure VM (already configured via
+        # DATABASE_URL in backend/.env) — no db service needed here.
+        # Change this if the VM's IP/port ever changes.
+        VITE_API_BASE_URL: http://4.240.74.5:8000/api
+    container_name: ranalyzer-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
