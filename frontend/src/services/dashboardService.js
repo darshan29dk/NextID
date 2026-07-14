@@ -1,6 +1,10 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+// Configurable so the same build can talk to a local backend (dev) or a
+// deployed backend on a server (e.g. the Azure VM), without editing code.
+// Set VITE_API_BASE_URL in a .env file to override; falls back to localhost
+// for local development if it's not set.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,

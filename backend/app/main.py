@@ -771,7 +771,13 @@ app = FastAPI(title="rAnalyzer API", version="1.0.0")
 # Setup CORS to allow cross-origin requests from the React frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://127.0.0.1:5173", "http://127.0.0.1:5174"],
+    allow_origins=[
+        "http://localhost:5173", "http://localhost:5174",
+        "http://127.0.0.1:5173", "http://127.0.0.1:5174",
+        # Azure VM deployment — add whatever port the frontend actually gets served
+        # on here once that's decided (this covers the Vite default of 5173).
+        "http://4.240.74.5:5173", "http://4.240.74.5",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
