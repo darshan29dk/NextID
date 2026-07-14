@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import "./ApprovalInbox.css";
 import {
@@ -192,7 +192,7 @@ const SecurityApproval = () => {
       {/* Table */}
       <div
         className="table-responsive-wrapper"
-        style={{ border: "1px solid var(--border-color)", borderRadius: "8px", overflow: "hidden", backgroundColor: "var(--bg-card)" }}
+        style={{ border: "1px solid var(--border-color)", borderRadius: "8px", overflowX: "auto", backgroundColor: "var(--bg-card)" }}
       >
         <table className="table-premium">
           <thead>

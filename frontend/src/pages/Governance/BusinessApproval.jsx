@@ -170,7 +170,7 @@ const BusinessApproval = () => {
       )}
 
       {/* Main Inbox Table */}
-      <div className="table-responsive-wrapper" style={{ border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden', backgroundColor: 'var(--bg-card)' }}>
+      <div className="table-responsive-wrapper" style={{ border: '1px solid var(--border-color)', borderRadius: '8px', overflowX: 'auto', backgroundColor: 'var(--bg-card)' }}>
         <table className="table-premium">
           <thead>
             <tr>

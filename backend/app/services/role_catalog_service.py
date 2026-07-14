@@ -10,6 +10,7 @@ from app.models.role_version_history import RoleVersionHistory
 from app.models.audit_log import AuditLog
 from app.models.dashboard import RecentActivity
 from app.models.notification import Notification
+from app.models.mining_campaign import MiningCampaign
 
 
 class RoleCatalogService:
@@ -172,7 +173,7 @@ class RoleCatalogService:
                     "application_count": r.application_count,
                     "primary_owner_name": r.primary_owner_name,
                     "current_version": r.current_version,
-                    "published_at": r.published_at.isoformat() if r.published_at else None,
+                    "published_at": (r.published_at.isoformat() + "Z") if r.published_at else None,
                     "published_by": r.published_by
                 }
                 for r in roles
@@ -232,7 +233,7 @@ class RoleCatalogService:
             "primary_owner_name": role.primary_owner_name,
             "backup_owner_name": role.backup_owner_name,
             "current_version": role.current_version,
-            "published_at": role.published_at.isoformat() if role.published_at else None,
+            "published_at": (role.published_at.isoformat() + "Z") if role.published_at else None,
             "published_by": role.published_by,
             "entitlements": [
                 {
@@ -282,7 +283,7 @@ class RoleCatalogService:
                 "application_count": v.application_count,
                 "primary_owner_name": v.primary_owner_name,
                 "changed_by": v.changed_by,
-                "created_at": v.created_at.isoformat() if v.created_at else None
+                "created_at": (v.created_at.isoformat() + "Z") if v.created_at else None
             }
             for v in versions
         ]

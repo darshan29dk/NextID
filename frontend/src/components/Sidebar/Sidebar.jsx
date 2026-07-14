@@ -366,49 +366,6 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
 
         {renderNavItems(navItemsBefore)}
 
-        {/* Collapsible "Role Catalog" group */}
-        {!isCollapsed && <div className="nav-heading">ROLE CATALOG</div>}
-
-        <div
-          className={`nav-item ${isRoleCatalogGroupActive && !isRoleCatalogOpen ? 'active' : ''}`}
-          onClick={() => {
-            if (isCollapsed) {
-              navigate('/' + ROLE_CATALOG_GROUP_CHILDREN[0].path);
-            } else {
-              setIsRoleCatalogOpen((prev) => !prev);
-            }
-          }}
-        >
-          <BookOpen className="nav-icon" size={18} />
-          {!isCollapsed && (
-            <>
-              <span className="nav-label">Role Catalog</span>
-              {isRoleCatalogOpen
-                ? <ChevronDown className="nav-arrow" size={12} />
-                : <ChevronRight className="nav-arrow" size={12} />
-              }
-            </>
-          )}
-        </div>
-
-        {!isCollapsed && isRoleCatalogOpen && (
-          <div className="nav-sub-list">
-            {ROLE_CATALOG_GROUP_CHILDREN.map((child) => {
-              const ChildIcon = child.icon;
-              return (
-                <div
-                  key={child.path}
-                  className={`nav-item nav-sub-item ${activePath === child.path ? 'active' : ''}`}
-                  onClick={() => navigate('/' + child.path)}
-                >
-                  <ChildIcon className="nav-icon" size={16} />
-                  <span className="nav-label">{child.label}</span>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
         {/* Collapsible "Approval Workflow" group */}
         {!isCollapsed && <div className="nav-heading">APPROVAL WORKFLOW</div>}
 
@@ -445,6 +402,49 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
                   className={`nav-item nav-sub-item ${activePath === child.path ? 'active' : ''} ${isDisabled ? 'disabled' : ''}`}
                   onClick={() => { if (!isDisabled) navigate('/' + child.path); }}
                   style={isDisabled ? { opacity: 0.5, cursor: 'not-allowed' } : {}}
+                >
+                  <ChildIcon className="nav-icon" size={16} />
+                  <span className="nav-label">{child.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Collapsible "Role Catalog" group */}
+        {!isCollapsed && <div className="nav-heading">ROLE CATALOG</div>}
+
+        <div
+          className={`nav-item ${isRoleCatalogGroupActive && !isRoleCatalogOpen ? 'active' : ''}`}
+          onClick={() => {
+            if (isCollapsed) {
+              navigate('/' + ROLE_CATALOG_GROUP_CHILDREN[0].path);
+            } else {
+              setIsRoleCatalogOpen((prev) => !prev);
+            }
+          }}
+        >
+          <BookOpen className="nav-icon" size={18} />
+          {!isCollapsed && (
+            <>
+              <span className="nav-label">Role Catalog</span>
+              {isRoleCatalogOpen
+                ? <ChevronDown className="nav-arrow" size={12} />
+                : <ChevronRight className="nav-arrow" size={12} />
+              }
+            </>
+          )}
+        </div>
+
+        {!isCollapsed && isRoleCatalogOpen && (
+          <div className="nav-sub-list">
+            {ROLE_CATALOG_GROUP_CHILDREN.map((child) => {
+              const ChildIcon = child.icon;
+              return (
+                <div
+                  key={child.path}
+                  className={`nav-item nav-sub-item ${activePath === child.path ? 'active' : ''}`}
+                  onClick={() => navigate('/' + child.path)}
                 >
                   <ChildIcon className="nav-icon" size={16} />
                   <span className="nav-label">{child.label}</span>

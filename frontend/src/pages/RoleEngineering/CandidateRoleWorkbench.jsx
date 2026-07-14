@@ -713,9 +713,15 @@ const CandidateRoleWorkbench = () => {
         change_reason: ownerChangeReason || null
       };
       await assignOwner(selectedRole.id, payload);
-      // Refresh owners
-      const owners = await getCurrentOwners(selectedRole.id);
+      // Refresh owners and role details
+      const [owners, updatedDetail] = await Promise.all([
+        getCurrentOwners(selectedRole.id),
+        getCandidateRoleDetail(selectedRole.id)
+      ]);
       setOwnerData({ primary: owners.primary, backup: owners.backup });
+      setSelectedRole(updatedDetail);
+      fetchRolesData();
+      
       setShowAssignOwnerForm(false);
       setSelectedOwnerUser(null);
       setOwnerSearchQuery('');
@@ -733,8 +739,13 @@ const CandidateRoleWorkbench = () => {
     try {
       setOwnerSubmitting(true);
       await removeOwner(selectedRole.id, ownerType);
-      const owners = await getCurrentOwners(selectedRole.id);
+      const [owners, updatedDetail] = await Promise.all([
+        getCurrentOwners(selectedRole.id),
+        getCandidateRoleDetail(selectedRole.id)
+      ]);
       setOwnerData({ primary: owners.primary, backup: owners.backup });
+      setSelectedRole(updatedDetail);
+      fetchRolesData();
     } catch (err) {
       setOwnerFormError(err?.response?.data?.detail || `Failed to remove ${ownerType} owner.`);
     } finally {

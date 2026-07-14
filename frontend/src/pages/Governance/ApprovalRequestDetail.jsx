@@ -2,13 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, CheckCircle, Clock, AlertTriangle, Loader2, XCircle,
-  MessageSquare, Send, Trash2
+  MessageSquare, Send, Trash2, RotateCw
 } from 'lucide-react';
 import {
   getRolePreview, getApprovalRequestById,
   getApprovalComments, addApprovalComment, deleteApprovalComment
 } from '../../services/candidateRoleWorkbenchService';
 import { useAuth } from '../../context/AuthContext';
+import BusinessActionModal from '../../components/BusinessActionModal/BusinessActionModal';
+import SecurityActionModal from '../../components/SecurityActionModal/SecurityActionModal';
 
 // Full-page version of the approval request detail view.
 // Built to replace the slide-in ApprovalDetailDrawer, whose "View Details" eye
@@ -25,6 +27,11 @@ const ApprovalRequestDetail = () => {
   const [preview, setPreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Actions state
+  const [isBusinessModalOpen, setIsBusinessModalOpen] = useState(false);
+  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+  const [actionType, setActionType] = useState('Approve');
 
   // Comments (APR-004) state
   const [comments, setComments] = useState([]);
@@ -130,29 +137,107 @@ const ApprovalRequestDetail = () => {
     return { color: 'var(--text-muted)' };
   };
 
+  const isPlatformAdmin = currentUser?.role === 'Platform Administrator';
+  const isSecurityAdmin = currentUser?.role === 'Security Administrator';
+
+  const canPerformBusinessAction = request && (
+    isPlatformAdmin || 
+    (currentUser?.role !== 'Role Engineer' && currentUser?.role !== 'Viewer' &&
+     (request.primary_owner_name === currentUser?.name || request.backup_owner_name === currentUser?.name))
+  );
+
+  const canPerformSecurityAction = request && (
+    isPlatformAdmin || isSecurityAdmin
+  );
+
   return (
     <div className="workbench-container" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <button
-          type="button"
-          className="btn-action-premium"
-          onClick={() => navigate(-1)}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          <ArrowLeft size={14} /> Back
-        </button>
-        <div>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>
-            {loading ? 'Loading Details...' : (request?.role_name || `Request #${id}`)}
-          </h2>
-          {request && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', marginTop: '4px' }}>
-              <span className="text-muted">Request ID: #{request.id}</span>
-              <span>•</span>
-              {getStatusBadge(request.status)}
-            </div>
-          )}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <button
+            type="button"
+            className="btn-action-premium"
+            onClick={() => navigate(-1)}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <ArrowLeft size={14} /> Back
+          </button>
+          <div>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>
+              {loading ? 'Loading Details...' : (request?.role_name || `Request #${id}`)}
+            </h2>
+            {request && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', marginTop: '4px' }}>
+                <span className="text-muted">Request ID: #{request.id}</span>
+                <span>•</span>
+                {getStatusBadge(request.status)}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Action Section */}
+        {request && !loading && (
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {request.status === 'Business Review' && canPerformBusinessAction && (
+              <>
+                <button
+                  type="button"
+                  className="btn-action-premium"
+                  style={{ backgroundColor: 'var(--success)', borderColor: 'var(--success)', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  onClick={() => { setActionType('Approve'); setIsBusinessModalOpen(true); }}
+                >
+                  <CheckCircle size={14} /> Approve
+                </button>
+                <button
+                  type="button"
+                  className="btn-action-premium"
+                  style={{ backgroundColor: 'var(--danger)', borderColor: 'var(--danger)', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  onClick={() => { setActionType('Reject'); setIsBusinessModalOpen(true); }}
+                >
+                  <XCircle size={14} /> Reject
+                </button>
+                <button
+                  type="button"
+                  className="btn-action-premium"
+                  style={{ backgroundColor: 'var(--warning)', borderColor: 'var(--warning)', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  onClick={() => { setActionType('Return'); setIsBusinessModalOpen(true); }}
+                >
+                  <RotateCw size={14} /> Return for Rework
+                </button>
+              </>
+            )}
+
+            {request.status === 'Security Review' && canPerformSecurityAction && (
+              <>
+                <button
+                  type="button"
+                  className="btn-action-premium"
+                  style={{ backgroundColor: 'var(--success)', borderColor: 'var(--success)', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  onClick={() => { setActionType('Approve'); setIsSecurityModalOpen(true); }}
+                >
+                  <CheckCircle size={14} /> Approve
+                </button>
+                <button
+                  type="button"
+                  className="btn-action-premium"
+                  style={{ backgroundColor: 'var(--danger)', borderColor: 'var(--danger)', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  onClick={() => { setActionType('Reject'); setIsSecurityModalOpen(true); }}
+                >
+                  <XCircle size={14} /> Reject
+                </button>
+                <button
+                  type="button"
+                  className="btn-action-premium"
+                  style={{ backgroundColor: 'var(--warning)', borderColor: 'var(--warning)', color: '#fff', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  onClick={() => { setActionType('Return'); setIsSecurityModalOpen(true); }}
+                >
+                  <RotateCw size={14} /> Return for Rework
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -487,6 +572,22 @@ const ApprovalRequestDetail = () => {
           </div>
         </>
       )}
+
+      {/* Action Modals */}
+      <BusinessActionModal
+        isOpen={isBusinessModalOpen}
+        onClose={() => setIsBusinessModalOpen(false)}
+        actionType={actionType}
+        requestIds={request ? [request.id] : []}
+        onActionSuccess={fetchDetails}
+      />
+      <SecurityActionModal
+        isOpen={isSecurityModalOpen}
+        onClose={() => setIsSecurityModalOpen(false)}
+        actionType={actionType}
+        requestId={request ? request.id : null}
+        onActionSuccess={fetchDetails}
+      />
     </div>
   );
 };
