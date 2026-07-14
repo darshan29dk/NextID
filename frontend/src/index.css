@@ -94,3 +94,98 @@ button {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
 }
+
+/* Global Form Controls & Theme Adaptations */
+input, select, textarea {
+  font-family: var(--font-sans);
+}
+
+/* Fix dropdown options and select background/text color in dark mode */
+.theme-dark select {
+  background-color: var(--bg-card) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-color) !important;
+}
+
+.theme-dark select option {
+  background-color: #1f2937 !important; /* Solid dark background */
+  color: #f3f4f6 !important; /* Bright text */
+}
+
+/* Ensure focus and hover states look premium */
+.theme-dark select:focus,
+.theme-dark input:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px var(--primary-light) !important;
+}
+
+/* Improve search fields and icons globally (both light and dark modes) */
+.search-input-wrapper,
+.search-input-field {
+  display: flex !important;
+  align-items: center !important;
+  background-color: var(--bg-hover) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: var(--border-radius) !important;
+  padding: 0 14px !important;
+  height: 42px !important;
+  transition: all var(--transition-speed) ease !important;
+  box-sizing: border-box !important;
+}
+
+.search-input-wrapper:focus-within,
+.search-input-field:focus-within {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px var(--primary-light) !important;
+  background-color: var(--bg-card) !important;
+}
+
+.search-input-wrapper svg,
+.search-input-wrapper .search-icon,
+.search-input-field svg,
+.search-input-field .search-bar-icon {
+  color: var(--text-muted) !important;
+  width: 16px !important;
+  height: 16px !important;
+  flex-shrink: 0 !important;
+}
+
+.search-input-wrapper input,
+.search-input-wrapper .search-field,
+.search-input-field input {
+  border: none !important;
+  background: transparent !important;
+  outline: none !important;
+  color: var(--text-main) !important;
+  font-size: 13.5px !important;
+  width: 100% !important;
+  padding-left: 10px !important;
+  height: 100% !important;
+}
+
+.search-input-wrapper input::placeholder,
+.search-input-wrapper .search-field::placeholder,
+.search-input-field input::placeholder {
+  color: var(--text-muted) !important;
+  opacity: 0.8 !important;
+}
+
+.theme-dark .search-input-wrapper,
+.theme-dark .search-input-field {
+  background-color: var(--bg-app) !important;
+  border-color: var(--border-color) !important;
+}
+
+.theme-dark .search-input-wrapper svg,
+.theme-dark .search-input-wrapper .search-icon,
+.theme-dark .search-input-field svg,
+.theme-dark .search-input-field .search-bar-icon {
+  color: var(--text-muted) !important;
+}
+
+.theme-dark .search-field,
+.theme-dark .search-input-field input {
+  color: var(--text-main) !important;
+}
+
+

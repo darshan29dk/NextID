@@ -986,3 +986,31 @@
   word-break: break-all;
   color: var(--text-main);
 }
+
+/* Transformation & Validation Action Buttons */
+.btn-table-action {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-speed) ease;
+}
+
+.btn-table-action:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-main);
+  border-color: var(--primary);
+}
+
+.btn-table-action.action-delete:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background-color: var(--danger-light);
+}
+
