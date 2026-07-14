@@ -61,6 +61,7 @@ def get_published_roles(
     classification: Optional[str] = None,
     sort_by: Optional[str] = None,
     sort_order: Optional[str] = "desc",
+    status: str = "Published",
     db: Session = Depends(get_db),
     _perm: bool = Depends(require_permission("Role Engineering", "view"))
 ):
@@ -72,7 +73,7 @@ def get_published_roles(
         return RoleCatalogService.get_published_roles(
             db=db, page=page, limit=limit, search=search,
             role_type=role_type, classification=classification,
-            sort_by=sort_by, sort_order=sort_order
+            sort_by=sort_by, sort_order=sort_order, status=status
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

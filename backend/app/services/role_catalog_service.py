@@ -112,12 +112,12 @@ class RoleCatalogService:
         role_type: Optional[str] = None,
         classification: Optional[str] = None,
         sort_by: Optional[str] = None,
-        sort_order: Optional[str] = "desc"
+        sort_order: Optional[str] = "desc",
+        status: str = "Published"
     ) -> Dict:
         """
-        Returns paginated Published roles. role_type filter powers RC-002
-        (Business Roles) and RC-003 (Technical Roles) as thin views over this
-        same query — RC-001 (Published Roles) calls it with no role_type filter.
+        Returns paginated roles. status filter allows querying either 'Published' (default)
+        or 'Ready For Publish' (pending publish) roles.
         """
         if page < 1:
             page = 1
@@ -125,7 +125,7 @@ class RoleCatalogService:
             limit = 10
 
         query = db.query(CandidateRole).filter(
-            CandidateRole.status == "Published",
+            CandidateRole.status == status,
             CandidateRole.is_deleted == False
         )
 
@@ -146,7 +146,10 @@ class RoleCatalogService:
             if col is not None:
                 query = query.order_by(col.desc() if sort_order == "desc" else col.asc())
         else:
-            query = query.order_by(CandidateRole.published_at.desc())
+            if status == "Published":
+                query = query.order_by(CandidateRole.published_at.desc())
+            else:
+                query = query.order_by(CandidateRole.updated_at.desc())
 
         total = query.count()
         total_pages = (total + limit - 1) // limit if total > 0 else 0

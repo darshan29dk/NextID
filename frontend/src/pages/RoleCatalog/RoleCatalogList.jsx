@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, RotateCw, AlertTriangle, Eye, BookOpen, Briefcase, Cpu, Layers } from 'lucide-react';
-import { getPublishedRoles, getCatalogKpi } from '../../services/roleCatalogService';
+import { getPublishedRoles, getCatalogKpi, publishRole } from '../../services/roleCatalogService';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
 import './RoleCatalog.css';
 
@@ -23,6 +23,7 @@ const RoleCatalogList = ({ title, subtitle, roleTypeFilter, headerIcon: HeaderIc
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
   const [classification, setClassification] = useState('');
+  const [activeTab, setActiveTab] = useState('published');
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -37,7 +38,8 @@ const RoleCatalogList = ({ title, subtitle, roleTypeFilter, headerIcon: HeaderIc
           limit,
           search: search.trim() || undefined,
           role_type: roleTypeFilter || undefined,
-          classification: classification || undefined
+          classification: classification || undefined,
+          status: activeTab === 'published' ? 'Published' : 'Ready For Publish'
         }),
         getCatalogKpi()
       ]);
@@ -51,7 +53,7 @@ const RoleCatalogList = ({ title, subtitle, roleTypeFilter, headerIcon: HeaderIc
     } finally {
       setLoading(false);
     }
-  }, [page, limit, search, classification, roleTypeFilter]);
+  }, [page, limit, search, classification, roleTypeFilter, activeTab]);
 
   useEffect(() => {
     fetchData();
@@ -63,12 +65,28 @@ const RoleCatalogList = ({ title, subtitle, roleTypeFilter, headerIcon: HeaderIc
     setSearch('');
     setSearchInput('');
     setClassification('');
+    setActiveTab('published');
   }, [roleTypeFilter]);
 
   const handleSearchKeyPress = (e) => {
     if (e.key === 'Enter') {
       setPage(1);
       setSearch(searchInput);
+    }
+  };
+
+  const handlePublish = async (roleId, roleName) => {
+    const summary = window.prompt(`Publish '${roleName}' to the Role Catalog? Add a change summary (optional):`, "Initial publish to catalog");
+    if (summary === null) return;
+    try {
+      setLoading(true);
+      await publishRole(roleId, summary);
+      fetchData();
+    } catch (err) {
+      console.error("Failed to publish role:", err);
+      alert(err.response?.data?.detail || "Failed to publish role.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -88,6 +106,29 @@ const RoleCatalogList = ({ title, subtitle, roleTypeFilter, headerIcon: HeaderIc
         <DashboardCard title="Business Roles" value={kpi.business_roles ?? 0} icon={Briefcase} trend="" />
         <DashboardCard title="Technical Roles" value={kpi.technical_roles ?? 0} icon={Cpu} trend="" />
         <DashboardCard title="Pending Publish" value={kpi.pending_publish ?? 0} icon={Layers} trend="" />
+      </div>
+
+      {/* Tab Navigation */}
+      <div style={{ display: 'flex', gap: '12px', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
+        <button
+          onClick={() => { setActiveTab('published'); setPage(1); }}
+          className={`drawer-tab-btn ${activeTab === 'published' ? 'active' : ''}`}
+          style={{ padding: '8px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 600, color: activeTab === 'published' ? '#2563eb' : 'var(--text-muted)', borderBottom: activeTab === 'published' ? '2px solid #2563eb' : 'none' }}
+        >
+          Published Roles
+        </button>
+        <button
+          onClick={() => { setActiveTab('pending'); setPage(1); }}
+          className={`drawer-tab-btn ${activeTab === 'pending' ? 'active' : ''}`}
+          style={{ padding: '8px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', fontWeight: 600, color: activeTab === 'pending' ? '#2563eb' : 'var(--text-muted)', borderBottom: activeTab === 'pending' ? '2px solid #2563eb' : 'none', display: 'flex', alignItems: 'center', gap: '6px' }}
+        >
+          Pending Publish
+          {kpi.pending_publish > 0 && (
+            <span style={{ backgroundColor: '#2563eb', color: '#fff', fontSize: '11px', padding: '1px 6px', borderRadius: '10px' }}>
+              {kpi.pending_publish}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Toolbar */}
@@ -143,8 +184,8 @@ const RoleCatalogList = ({ title, subtitle, roleTypeFilter, headerIcon: HeaderIc
               <th>Users</th>
               <th>Entitlements</th>
               <th>Version</th>
-              <th>Published Date</th>
-              <th style={{ width: '80px', textAlign: 'right' }}>Actions</th>
+              <th>{activeTab === 'pending' ? 'Approved Date' : 'Published Date'}</th>
+              <th style={{ width: '100px', textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -157,7 +198,7 @@ const RoleCatalogList = ({ title, subtitle, roleTypeFilter, headerIcon: HeaderIc
             ) : roles.length === 0 ? (
               <tr>
                 <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                  No published roles found{roleTypeFilter ? ` for role type '${roleTypeFilter}'` : ''}. Publish a role from Role Engineering to see it here.
+                  No {activeTab === 'pending' ? 'pending' : 'published'} roles found{roleTypeFilter ? ` for role type '${roleTypeFilter}'` : ''}.
                 </td>
               </tr>
             ) : (
@@ -179,15 +220,25 @@ const RoleCatalogList = ({ title, subtitle, roleTypeFilter, headerIcon: HeaderIc
                   <td>{r.user_count}</td>
                   <td>{r.entitlement_count}</td>
                   <td>v{r.current_version}</td>
-                  <td>{r.published_at ? new Date(r.published_at).toLocaleDateString() : '-'}</td>
+                  <td>{r.published_at ? new Date(r.published_at).toLocaleDateString() : (r.updated_at ? new Date(r.updated_at).toLocaleDateString() : '-')}</td>
                   <td style={{ textAlign: 'right' }}>
-                    <button
-                      className="btn-icon-action"
-                      title="View Role Workspace"
-                      onClick={() => navigate(`/role-catalog/${r.id}`)}
-                    >
-                      <Eye size={13} />
-                    </button>
+                    {activeTab === 'pending' ? (
+                      <button
+                        className="btn-action-premium primary"
+                        style={{ fontSize: '11px', padding: '3px 8px', display: 'flex', alignItems: 'center', gap: '4px', height: 'auto', marginLeft: 'auto' }}
+                        onClick={() => handlePublish(r.id, r.role_name)}
+                      >
+                        <BookOpen size={12} /> Publish
+                      </button>
+                    ) : (
+                      <button
+                        className="btn-icon-action"
+                        title="View Role Workspace"
+                        onClick={() => navigate(`/role-catalog/${r.id}`)}
+                      >
+                        <Eye size={13} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))

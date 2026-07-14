@@ -56,7 +56,8 @@ try:
             "host": host,
             "user": username,
             "password": unquote(password),  # Decode url-encoded special characters like '@'
-            "port": port
+            "port": port,
+            "connect_timeout": 10
         }
         if ssl_context:
             connect_params["ssl"] = ssl_context
@@ -70,7 +71,9 @@ try:
 except Exception as e:
     print(f"Warning: Could not auto-create database using PyMySQL: {e}")
 
-connect_args = {}
+connect_args = {
+    "connect_timeout": 10
+}
 if ssl_context:
     connect_args["ssl"] = ssl_context
 
