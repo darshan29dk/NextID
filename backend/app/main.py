@@ -774,8 +774,9 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173", "http://localhost:5174",
         "http://127.0.0.1:5173", "http://127.0.0.1:5174",
-        # Docker frontend container (nginx) serves on plain port 80.
+        # Local and remote Docker deployment origins
         "http://localhost", "http://127.0.0.1",
+        "http://localhost:8081", "http://127.0.0.1:8081",
         # Azure VM deployment — add whatever port the frontend actually gets served
         # on here once that's decided (this covers the Vite default of 5173).
         "http://4.240.74.5:5173", "http://4.240.74.5",
