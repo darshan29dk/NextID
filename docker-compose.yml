@@ -16,7 +16,7 @@ services:
         # Set to http://4.240.74.5:8000/api instead when actually deploying this
         # compose file on the Azure VM, so the browser can reach the backend
         # over the network rather than through the container's own loopback.
-        VITE_API_BASE_URL: http://localhost:8000/api
+        VITE_API_BASE_URL: http://4.240.74.5:8000/api
     container_name: ranalyzer-frontend
     ports:
       - "8081:80"
