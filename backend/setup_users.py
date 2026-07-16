@@ -39,6 +39,13 @@ users_data = [
         "role": "Platform Administrator",
         "password": "saniagupta",
     },
+    {
+        "id": None,
+        "name": "Admin",
+        "email": "admin@gmail.com",
+        "role": "Platform Administrator",
+        "password": "ilantus123",
+    },
 ]
 
 def main():
