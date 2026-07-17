@@ -248,3 +248,100 @@
 .nav-sub-item.active {
   background-color: #2563eb;
 }
+
+/* ============================================================
+   LIGHT THEME OVERRIDES (SKY BLUE SIDEBAR)
+   ============================================================ */
+.theme-light .sidebar {
+  background-color: #e0f2fe; /* Premium Light Sky Blue */
+  color: #334155;
+  border-right: 1px solid #bae6fd;
+}
+
+.theme-light .brand {
+  border-bottom: 1px solid #bae6fd;
+}
+
+.theme-light .brand-name {
+  color: #0369a1; /* Deep Sky Blue Text */
+}
+
+.theme-light .brand-sub {
+  color: #0284c7;
+}
+
+.theme-light .nav-heading {
+  color: #0284c7;
+}
+
+.theme-light .nav-item {
+  color: #334155;
+}
+
+.theme-light .nav-item:hover {
+  background-color: rgba(2, 132, 199, 0.08);
+  color: #0369a1;
+}
+
+.theme-light .nav-icon {
+  color: #0284c7;
+}
+
+.theme-light .nav-item:hover .nav-icon {
+  color: #0369a1;
+}
+
+.theme-light .nav-arrow {
+  color: #0284c7;
+}
+
+.theme-light .nav-item:hover .nav-arrow {
+  color: #0369a1;
+}
+
+.theme-light .nav-item.active {
+  background-color: #0284c7; /* Solid Sky Blue for Active Item */
+  color: #ffffff;
+}
+
+.theme-light .nav-item.active .nav-icon,
+.theme-light .nav-item.active .nav-arrow {
+  color: #ffffff;
+}
+
+.theme-light .nav-sub-list {
+  border-left: 1px solid #bae6fd;
+}
+
+.theme-light .nav-sub-item .nav-label {
+  color: #475569;
+}
+
+.theme-light .nav-sub-item.active .nav-label {
+  color: #ffffff;
+}
+
+.theme-light .nav-sub-item.active {
+  background-color: #0284c7;
+}
+
+.theme-light .sidebar-footer {
+  border-top: 1px solid #bae6fd;
+  color: #475569;
+}
+
+.theme-light .footer-status {
+  color: #0369a1;
+}
+
+.theme-light .sidebar-toggle-btn {
+  background-color: #bae6fd;
+  border: 1px solid #7dd3fc;
+  color: #0369a1;
+}
+
+.theme-light .sidebar-toggle-btn:hover {
+  background-color: #0284c7;
+  color: #ffffff;
+  border-color: #0284c7;
+}
