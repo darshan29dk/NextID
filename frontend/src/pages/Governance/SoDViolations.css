@@ -333,13 +333,13 @@
 }
 
 .type-badge.full {
-  background-color: #d1fae5;
-  color: #065f46;
+  background-color: var(--success-light);
+  color: var(--success);
 }
 
 .type-badge.incremental {
-  background-color: #feefc3;
-  color: #b06000;
+  background-color: var(--warning-light);
+  color: var(--warning);
 }
 
 /* Status Chips mappings */
@@ -386,13 +386,13 @@
 }
 
 .status-badge.status-mitigated {
-  background-color: #ecfdf5;
-  color: #10b981;
+  background-color: var(--success-light);
+  color: var(--success);
 }
 
 .status-badge.status-exception {
-  background-color: #eff6ff;
-  color: #3b82f6;
+  background-color: var(--primary-light);
+  color: var(--primary);
 }
 
 .status-badge.status-closed {

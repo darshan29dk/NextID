@@ -229,20 +229,32 @@
   background-color: rgba(16, 185, 129, 0.15) !important;
   color: #047857 !important;
 }
+.theme-dark .heat-green {
+  color: var(--success) !important;
+}
 
 .heat-yellow {
   background-color: rgba(245, 158, 11, 0.15) !important;
   color: #b45309 !important;
+}
+.theme-dark .heat-yellow {
+  color: var(--warning) !important;
 }
 
 .heat-orange {
   background-color: rgba(249, 115, 22, 0.15) !important;
   color: #c2410c !important;
 }
+.theme-dark .heat-orange {
+  color: #fb923c !important;
+}
 
 .heat-red {
   background-color: rgba(239, 68, 68, 0.15) !important;
   color: #b91c1c !important;
+}
+.theme-dark .heat-red {
+  color: var(--danger) !important;
 }
 
 .heat-empty {

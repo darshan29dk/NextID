@@ -42,9 +42,9 @@
 }
 
 .type-badge.permanent {
-  background-color: #ecfdf5;
-  color: #065f46;
-  border: 1px solid #10b981;
+  background-color: var(--success-light);
+  color: var(--success);
+  border: 1px solid var(--success);
 }
 
 .ai-badge-circle {
