@@ -61,6 +61,7 @@ const SoDPolicies = () => {
   const [editPolicyId, setEditPolicyId] = useState(null);
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [formErrors, setFormErrors] = useState({});
+  const [modalError, setModalError] = useState(null);
 
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedPolicy, setSelectedPolicy] = useState(null);
@@ -279,6 +280,7 @@ const SoDPolicies = () => {
     setEditPolicyId(null);
     setFormData(INITIAL_FORM_STATE);
     setFormErrors({});
+    setModalError(null);
     setShowFormModal(true);
   };
 
@@ -303,6 +305,7 @@ const SoDPolicies = () => {
       })
     });
     setFormErrors({});
+    setModalError(null);
     setShowFormModal(true);
   };
 
@@ -359,6 +362,7 @@ const SoDPolicies = () => {
     e.preventDefault();
     if (!validateForm()) return;
     setSubmitting(true);
+    setModalError(null);
     try {
       if (editPolicyId) {
         await apiClient.put(`/governance/sod-policies/${editPolicyId}`, formData);
@@ -368,9 +372,11 @@ const SoDPolicies = () => {
         showToast("Policy created successfully", "success");
       }
       setShowFormModal(false);
+      setModalError(null);
       fetchPolicies();
     } catch (err) {
-      setErrorMsg(err.response?.data?.detail || "An error occurred during save.");
+      const msg = err.response?.data?.detail || "An error occurred. Please check all fields and try again.";
+      setModalError(msg);
     } finally {
       setSubmitting(false);
     }
@@ -633,7 +639,7 @@ const SoDPolicies = () => {
           <div className="modal-card form-modal-card">
             <div className="modal-header">
               <h2>{editPolicyId ? "Edit SoD Policy" : "Create SoD Policy"}</h2>
-              <button className="btn-close" onClick={() => setShowFormModal(false)}><X size={18} /></button>
+              <button className="btn-close" onClick={() => { setShowFormModal(false); setModalError(null); }}><X size={18} /></button>
             </div>
             <form onSubmit={handleSubmit}>
               <div className="form-scroll-body">
@@ -797,11 +803,31 @@ const SoDPolicies = () => {
                 </div>
               </div>
 
-              <div className="modal-footer">
-                <button type="button" className="btn-secondary" onClick={() => setShowFormModal(false)}>Cancel</button>
-                <button type="submit" className="btn-primary" disabled={submitting}>
-                  {submitting ? "Saving..." : editPolicyId ? "Save Changes" : "Create Policy"}
-                </button>
+              <div className="modal-footer" style={{ flexDirection: 'column', gap: '8px' }}>
+                {modalError && (
+                  <div style={{
+                    width: '100%',
+                    backgroundColor: 'var(--danger-light)',
+                    color: 'var(--danger)',
+                    border: '1px solid var(--danger)',
+                    borderRadius: '8px',
+                    padding: '10px 14px',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <AlertOctagon size={14} />
+                    {modalError}
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', width: '100%' }}>
+                  <button type="button" className="btn-secondary" onClick={() => { setShowFormModal(false); setModalError(null); }}>Cancel</button>
+                  <button type="submit" className="btn-primary" disabled={submitting}>
+                    {submitting ? "Saving..." : editPolicyId ? "Save Changes" : "Create Policy"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
