@@ -95,6 +95,122 @@ button {
   background: var(--text-muted);
 }
 
+/* ============================================================
+   GLOBAL BUTTON SYSTEM
+   Defined here so btn-primary / btn-secondary work on ALL pages
+   in both light and dark themes.
+   ============================================================ */
+
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  background-color: var(--primary);
+  color: #ffffff !important;
+  border-radius: 8px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 13px;
+  border: none;
+  cursor: pointer;
+  transition: background-color var(--transition-speed), opacity var(--transition-speed);
+  white-space: nowrap;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  background-color: transparent;
+  color: var(--text-main) !important;
+  border: 1.5px solid var(--border-color);
+  border-radius: 8px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color var(--transition-speed), border-color var(--transition-speed);
+  white-space: nowrap;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--bg-hover);
+  border-color: var(--text-muted);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Dark mode secondary button - explicitly visible */
+.theme-dark .btn-secondary {
+  border-color: #4b5563;
+  color: #f3f4f6 !important;
+}
+
+.theme-dark .btn-secondary:hover:not(:disabled) {
+  background-color: #374151;
+  border-color: #6b7280;
+}
+
+/* Small size modifier */
+.btn-sm {
+  height: 32px !important;
+  padding: 0 12px !important;
+  font-size: 12px !important;
+  border-radius: 6px !important;
+}
+
+/* Danger variant */
+.btn-danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  background-color: var(--danger);
+  color: #ffffff !important;
+  border: none;
+  border-radius: 8px;
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: opacity var(--transition-speed);
+}
+
+.btn-danger:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+/* Dark mode primary stays vivid */
+.theme-dark .btn-primary {
+  background-color: var(--primary);
+  color: #ffffff !important;
+}
+
+.theme-dark .btn-primary:hover:not(:disabled) {
+  background-color: var(--primary-hover);
+}
+
+
 /* Global Form Controls & Theme Adaptations */
 input, select, textarea {
   font-family: var(--font-sans);
