@@ -59,10 +59,10 @@ function Login() {
           </div>
 
           <div className="login-heading">
-            <span className="white">Discover.<br /></span>
-            <span className="blue">Engineer.<br /></span>
-            <span className="white">Govern.<br /></span>
-            <span className="muted">Optimize.</span>
+            <span className="white">Discover<br /></span>
+            <span className="blue">Engineer<br /></span>
+            <span className="white">Govern<br /></span>
+            <span className="muted">Optimize</span>
           </div>
 
           <blockquote className="login-quote">
