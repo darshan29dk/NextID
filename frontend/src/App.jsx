@@ -27,6 +27,13 @@ import ApprovalRequests from './pages/Governance/ApprovalRequests';
 import BusinessApproval from './pages/Governance/BusinessApproval';
 import SecurityApproval from './pages/Governance/SecurityApproval';
 import ApprovalRequestDetail from './pages/Governance/ApprovalRequestDetail';
+import SoDPolicies from './pages/Governance/SoDPolicies';
+import SoDViolations from './pages/Governance/SoDViolations';
+import SoDViolationDetail from './pages/Governance/SoDViolationDetail';
+import SoDScanHistory from './pages/Governance/SoDScanHistory';
+import SoDExceptions from './pages/Governance/SoDExceptions';
+import SoDExceptionDetail from './pages/Governance/SoDExceptionDetail';
+import GovernanceDashboard from './pages/Governance/GovernanceDashboard';
 import PublishedRoles from './pages/RoleCatalog/PublishedRoles';
 import BusinessRoles from './pages/RoleCatalog/BusinessRoles';
 import TechnicalRoles from './pages/RoleCatalog/TechnicalRoles';
@@ -116,7 +123,14 @@ function App() {
                   <Route path="/role-catalog/business" element={<BusinessRoles />} />
                   <Route path="/role-catalog/technical" element={<TechnicalRoles />} />
                   <Route path="/role-catalog/:id" element={<RoleCatalogDetail />} />
-                  <Route path="/governance" element={<Navigate to="/approval-workflow/requests" replace />} />
+                  <Route path="/governance" element={<Navigate to="/governance/dashboard" replace />} />
+                  <Route path="/governance/dashboard" element={<GovernanceDashboard />} />
+                  <Route path="/governance/sod-policies" element={<SoDPolicies />} />
+                  <Route path="/governance/violations" element={<SoDViolations />} />
+                  <Route path="/governance/violations/:id" element={<SoDViolationDetail />} />
+                  <Route path="/governance/exceptions" element={<SoDExceptions />} />
+                  <Route path="/governance/exceptions/:id" element={<SoDExceptionDetail />} />
+                  <Route path="/governance/scan-history" element={<SoDScanHistory />} />
                   <Route path="/role-lifecycle" element={<UnderConstruction title="Role Lifecycle" />} />
                   <Route path="/analytics" element={<UnderConstruction title="Analytics" />} />
 

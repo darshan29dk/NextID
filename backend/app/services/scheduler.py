@@ -137,6 +137,25 @@ def unregister_connector_schedule(connector_id: int):
 def start_scheduler():
     if not scheduler.running:
         scheduler.start()
+        # Register SoD exceptions expiry checker
+        from app.services.sod_exception_service import check_and_expire_exceptions
+        from app.database import SessionLocal
+        
+        def run_expiry_checker():
+            db = SessionLocal()
+            try:
+                check_and_expire_exceptions(db)
+            finally:
+                db.close()
+                
+        scheduler.add_job(
+            run_expiry_checker,
+            'cron',
+            hour=0,
+            minute=0,
+            id='sod_exceptions_expiry_job',
+            replace_existing=True
+        )
 
 
 def restore_active_schedules():

@@ -62,6 +62,14 @@ from app.routes import candidate_role_workbench as candidate_role_workbench_rout
 from app.routes import role_owner as role_owner_routes
 from app.routes import role_approval as role_approval_routes
 from app.routes import role_catalog as role_catalog_routes
+from app.routes import sod_policy as sod_policy_routes
+from app.routes import sod_violation as sod_violation_routes
+from app.routes import sod_exception as sod_exception_routes
+from app.routes import sod_dashboard as sod_dashboard_routes
+from app.models.sod_policy import SodPolicy, SodPolicyRule, SodPolicyAudit
+from app.models.sod_violation import SodViolation, SodViolationComment, SodViolationAttachment, SodScanHistory, SodViolationAudit
+from app.models.sod_exception import SodException, SodExceptionApproval, SodExceptionComment, SodExceptionAttachment, SodExceptionAudit
+from app.models.sod_dashboard import GovernanceDashboardPreferences
 
 # Create database tables if they do not exist
 Base.metadata.create_all(bind=engine)
@@ -757,6 +765,411 @@ try:
         db.rollback()
         print(f"Error seeding candidate roles: {ex_seed}")
 
+    # Seed default SoD Policies if empty
+    try:
+        from app.models.sod_policy import SodPolicy, SodPolicyRule
+        if db.query(SodPolicy).count() == 0:
+            print("Seeding default SoD Policies...")
+            default_policies = [
+                {
+                    "policy_code": "SOD-001",
+                    "policy_name": "Separation of Vendor Creation and Payment Approval",
+                    "description": "Ensures that the same platform user cannot create a vendor and approve its payments.",
+                    "risk_level": "CRITICAL",
+                    "policy_type": "STATIC",
+                    "status": "ACTIVE",
+                    "business_owner": "Finance Governance Team",
+                    "approver": "Chief Financial Officer",
+                    "rules": [
+                        ("SAP Production ERP", "Create Vendor Permission", "Approve Payments Role", "AND")
+                    ]
+                },
+                {
+                    "policy_code": "SOD-002",
+                    "policy_name": "IT System Change Control Separation",
+                    "description": "IT Administrators who write system code should not possess production deployment entitlements.",
+                    "risk_level": "HIGH",
+                    "policy_type": "STATIC",
+                    "status": "ACTIVE",
+                    "business_owner": "IT Compliance Group",
+                    "approver": "Chief Information Officer",
+                    "rules": [
+                        ("GitHub Enterprise", "Developer Push Access", "Production Deployment Secret Role", "AND")
+                    ]
+                },
+                {
+                    "policy_code": "SOD-003",
+                    "policy_name": "Conflict of Interest: HR Salary Adjustment",
+                    "description": "Prevents HR Specialists from adjusting employee payroll details and self-approving adjustments.",
+                    "risk_level": "MEDIUM",
+                    "policy_type": "STATIC",
+                    "status": "DRAFT",
+                    "business_owner": "HR Operations Director",
+                    "approver": "Head of People",
+                    "rules": [
+                        ("Workday HCM", "Payroll Edit Access", "Self-Service Review Bypass", "AND")
+                    ]
+                }
+            ]
+            for p in default_policies:
+                policy = SodPolicy(
+                    policy_code=p["policy_code"],
+                    policy_name=p["policy_name"],
+                    description=p["description"],
+                    risk_level=p["risk_level"],
+                    policy_type=p["policy_type"],
+                    status=p["status"],
+                    business_owner=p["business_owner"],
+                    approver=p["approver"],
+                    created_by="System",
+                    version=1
+                )
+                db.add(policy)
+                db.flush()
+                for r in p["rules"]:
+                    db.add(SodPolicyRule(
+                        policy_id=policy.id,
+                        application_name=r[0],
+                        entitlement_one=r[1],
+                        entitlement_two=r[2],
+                        condition_type=r[3]
+                    ))
+            db.commit()
+            print("Successfully seeded default SoD Policies.")
+    except Exception as ex_sod:
+        db.rollback()
+        print(f"Error seeding default SoD Policies: {ex_sod}")
+
+    # Seed default SoD Violations if empty
+    try:
+        import json
+        from app.models.sod_violation import SodViolation, SodScanHistory, SodViolationAudit, SodViolationComment
+        from app.models.identity import Identity
+        from app.models.sod_policy import SodPolicy
+        if db.query(SodViolation).count() == 0:
+            print("Seeding default SoD Scan History and Violations...")
+            
+            # 1. Seed scan histories
+            scan_data = [
+                ("Weekly Security Scan", "FULL", "System", datetime(2026, 7, 10, 2, 0), datetime(2026, 7, 10, 2, 15), 150, 150, 12, "COMPLETED"),
+                ("On-demand Compliance Review", "INCREMENTAL", "admin@gmail.com", datetime(2026, 7, 12, 14, 0), datetime(2026, 7, 12, 14, 2), 25, 25, 2, "COMPLETED"),
+                ("Daily Identity Reconciliation", "FULL", "System", datetime(2026, 7, 14, 1, 0), datetime(2026, 7, 14, 1, 14), 154, 154, 15, "COMPLETED"),
+                ("Scheduled Cron Run", "INCREMENTAL", "System", datetime(2026, 7, 15, 1, 0), datetime(2026, 7, 15, 1, 1), 10, 10, 0, "COMPLETED"),
+                ("Standard Manual Trigger", "FULL", "admin@gmail.com", datetime(2026, 7, 16, 10, 30), datetime(2026, 7, 16, 10, 48), 155, 155, 18, "COMPLETED")
+            ]
+            for name, stype, sby, stime, etime, tu, us, vf, stat in scan_data:
+                db.add(SodScanHistory(
+                    scan_name=name,
+                    scan_type=stype,
+                    started_by=sby,
+                    start_time=stime,
+                    end_time=etime,
+                    total_users=tu,
+                    users_scanned=us,
+                    violations_found=vf,
+                    status=stat,
+                    progress_pct=100
+                ))
+            db.flush()
+            
+            # 2. Seed 20 Violations
+            policies = db.query(SodPolicy).all()
+            identities = db.query(Identity).limit(10).all()
+            
+            if policies and identities:
+                departments = ["Finance", "Information Technology", "Human Resources", "Sales", "Engineering", "Marketing"]
+                managers = ["John Doe", "Sarah Jenkins", "Alex Rivera", "Emma Watson"]
+                apps = ["SAP Production ERP", "GitHub Enterprise", "Workday HCM", "Active Directory", "Salesforce"]
+                severities = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+                statuses = ["OPEN", "UNDER_REVIEW", "MITIGATED", "EXCEPTION_APPROVED", "CLOSED"]
+                
+                import random
+                random.seed(42) # Deterministic seeding
+                
+                for idx in range(20):
+                    policy = policies[idx % len(policies)]
+                    user = identities[idx % len(identities)]
+                    dept = user.department or random.choice(departments)
+                    mngr = user.manager or random.choice(managers)
+                    app = random.choice(apps)
+                    sev = policy.risk_level
+                    status_val = statuses[idx % len(statuses)]
+                    
+                    evidence_json = {
+                        "policy_code": policy.policy_code,
+                        "policy_name": policy.policy_name,
+                        "matches": [
+                            {
+                                "application": app,
+                                "entitlement_one": f"Write Access {idx}",
+                                "entitlement_two": f"Approve Access {idx}",
+                                "operator": "AND"
+                            }
+                        ]
+                    }
+                    
+                    violation = SodViolation(
+                        policy_id=policy.id,
+                        policy_code=policy.policy_code,
+                        policy_name=policy.policy_name,
+                        user_id=user.id,
+                        username=user.email or f"seeded_user_{idx}@gmail.com",
+                        display_name=user.display_name or f"Seeded User {idx}",
+                        department=dept,
+                        manager=mngr,
+                        application_name=app,
+                        entitlement_one=f"Write Access {idx}",
+                        entitlement_two=f"Approve Access {idx}",
+                        risk_level=policy.risk_level,
+                        severity=sev,
+                        status=status_val,
+                        detected_date=datetime.utcnow(),
+                        scan_id=5,
+                        risk_score=95 if sev == "CRITICAL" else (75 if sev == "HIGH" else (50 if sev == "MEDIUM" else 25)),
+                        is_false_positive=(idx % 7 == 0),
+                        false_positive_reason="Testing false positive flag" if (idx % 7 == 0) else None,
+                        evidence=json.dumps(evidence_json)
+                    )
+                    db.add(violation)
+                    db.flush()
+                    
+                    # 3. Add timeline logs (audit)
+                    db.add(SodViolationAudit(
+                        violation_id=violation.id,
+                        action="Detection",
+                        performed_by="System (Auto-Scan)",
+                        new_value=json.dumps(evidence_json),
+                        timestamp=datetime.utcnow()
+                    ))
+                    
+                    if status_val == "UNDER_REVIEW":
+                        db.add(SodViolationAudit(
+                            violation_id=violation.id,
+                            action="Status Change",
+                            performed_by="admin@gmail.com",
+                            old_value=json.dumps({"status": "OPEN"}),
+                            new_value=json.dumps({"status": "UNDER_REVIEW"}),
+                            timestamp=datetime.utcnow()
+                        ))
+                    elif status_val == "CLOSED":
+                        db.add(SodViolationAudit(
+                            violation_id=violation.id,
+                            action="Close",
+                            performed_by="admin@gmail.com",
+                            old_value=json.dumps({"status": "OPEN"}),
+                            new_value=json.dumps({"status": "CLOSED"}),
+                            timestamp=datetime.utcnow()
+                        ))
+                        
+                    # 4. Add comments
+                    if idx % 3 == 0:
+                        db.add(SodViolationComment(
+                            violation_id=violation.id,
+                            comment_text=f"Undergoing compliance review check {idx}. Checked assignments.",
+                            created_by="admin@gmail.com",
+                            created_at=datetime.utcnow()
+                        ))
+                        
+            db.commit()
+            print("Successfully seeded default SoD Scan History and Violations.")
+    except Exception as ex_sod_violation:
+        db.rollback()
+        print(f"Error seeding default SoD Violations: {ex_sod_violation}")
+
+    # Seed default SoD Exceptions if empty
+    try:
+        from datetime import datetime, timedelta
+        from app.models.sod_exception import SodException, SodExceptionApproval, SodExceptionComment, SodExceptionAudit
+        from app.models.sod_violation import SodViolation
+        from app.models.sod_policy import SodPolicy
+        from app.models.identity import Identity
+        import json
+        import random
+        
+        if db.query(SodException).count() == 0:
+            print("Seeding default SoD Exceptions, approvals, and audits...")
+            
+            violations = db.query(SodViolation).all()
+            policies = db.query(SodPolicy).all()
+            identities = db.query(Identity).limit(10).all()
+            
+            if violations and policies and identities:
+                departments = ["Finance", "Information Technology", "Human Resources", "Sales", "Engineering", "Marketing"]
+                users_list = ["admin@gmail.com", "security_officer@ranalyzer.com", "manager@ranalyzer.com"]
+                compensating_controls_samples = [
+                    "Monthly manager review of ledger reports.",
+                    "Dual authorization required on all payments over $10k.",
+                    "Read-only access in production environment.",
+                    "Automated alerts triggered on transaction overrides."
+                ]
+                
+                random.seed(42)
+                
+                for idx in range(30):
+                    v = violations[idx % len(violations)]
+                    policy = policies[idx % len(policies)]
+                    user = identities[idx % len(identities)]
+                    dept = user.department or random.choice(departments)
+                    
+                    # Status categories: 10 PENDING, 10 ACTIVE (Approved), 5 EXPIRED, 5 REJECTED
+                    if idx < 10:
+                        status_val = "PENDING"
+                    elif idx < 20:
+                        status_val = "ACTIVE"
+                    elif idx < 25:
+                        status_val = "EXPIRED"
+                    else:
+                        status_val = "REJECTED"
+                        
+                    exc_type = "TEMPORARY" if idx < 15 else "PERMANENT"
+                    exp_date = None
+                    if exc_type == "TEMPORARY":
+                        # For expired status, date in past. For others, in future.
+                        if status_val == "EXPIRED":
+                            exp_date = datetime.utcnow() - timedelta(days=2)
+                        else:
+                            exp_date = datetime.utcnow() + timedelta(days=30)
+                            
+                    ai_score = 92 if policy.risk_level == "CRITICAL" else (74 if policy.risk_level == "HIGH" else 45)
+                    ai_rec = f"AI Analysis: Risk score {ai_score}. Compensating controls verification recommended."
+                    
+                    num = f"EXC-{str(idx + 1).zfill(3)}"
+                    
+                    exc = SodException(
+                        exception_number=num,
+                        violation_id=v.id,
+                        policy_id=policy.id,
+                        user_id=user.id,
+                        employee_id=user.employee_id or f"EMP-{1000 + idx}",
+                        username=user.email or f"user_{idx}@gmail.com",
+                        department=dept,
+                        application_name=v.application_name or "SAP Production ERP",
+                        exception_type=exc_type,
+                        business_justification=f"Business justification notes for exceptions code template {idx}.",
+                        compensating_controls=random.choice(compensating_controls_samples),
+                        expiry_date=exp_date,
+                        risk_acceptance=(idx % 2 == 0),
+                        requested_by="admin@gmail.com",
+                        requested_date=datetime.utcnow() - timedelta(days=10),
+                        status=status_val,
+                        sla_due_date=datetime.utcnow() + timedelta(days=2),
+                        is_sla_overdue=(status_val == "PENDING" and idx < 3),
+                        ai_risk_score=ai_score,
+                        ai_recommendation=ai_rec,
+                        needs_recertification=(exc_type == "PERMANENT"),
+                        next_recertification_date=datetime.utcnow() + timedelta(days=180) if exc_type == "PERMANENT" else None
+                    )
+                    
+                    # For approved ACTIVE status, also update the linked violation status!
+                    if status_val == "ACTIVE":
+                        v.status = "EXCEPTION_APPROVED"
+                        
+                    db.add(exc)
+                    db.flush()
+                    
+                    # Seed multi-level approvals
+                    if status_val == "PENDING":
+                        # Manager review pending
+                        db.add(SodExceptionApproval(
+                            exception_id=exc.id,
+                            approver_name="Pending Assignment",
+                            approval_level="Manager Review",
+                            approval_status="PENDING"
+                        ))
+                    elif status_val == "ACTIVE":
+                        # Approved all levels
+                        levels = ["Manager Review", "Governance Review", "Security Approval"]
+                        for lvl in levels:
+                            db.add(SodExceptionApproval(
+                                exception_id=exc.id,
+                                approver_name=random.choice(users_list),
+                                approval_level=lvl,
+                                approval_status="APPROVED",
+                                comments="Compliance controls verified.",
+                                approved_date=datetime.utcnow() - timedelta(days=5)
+                            ))
+                    elif status_val == "EXPIRED":
+                        # Approved all levels then expired
+                        levels = ["Manager Review", "Governance Review", "Security Approval"]
+                        for lvl in levels:
+                            db.add(SodExceptionApproval(
+                                exception_id=exc.id,
+                                approver_name=random.choice(users_list),
+                                approval_level=lvl,
+                                approval_status="APPROVED",
+                                comments="Approved.",
+                                approved_date=datetime.utcnow() - timedelta(days=10)
+                            ))
+                    elif status_val == "REJECTED":
+                        # Rejected at Manager Review
+                        db.add(SodExceptionApproval(
+                            exception_id=exc.id,
+                            approver_name=random.choice(users_list),
+                            approval_level="Manager Review",
+                            approval_status="REJECTED",
+                            comments="Rejected: Insufficient compensating controls description.",
+                            approved_date=datetime.utcnow() - timedelta(days=8)
+                        ))
+                        
+                    # Seed comments
+                    db.add(SodExceptionComment(
+                        exception_id=exc.id,
+                        comment=f"First review notes for exception {num}.",
+                        created_by="security_officer@ranalyzer.com",
+                        created_date=datetime.utcnow() - timedelta(days=9),
+                        is_internal=False
+                    ))
+                    if idx % 2 == 0:
+                        db.add(SodExceptionComment(
+                            exception_id=exc.id,
+                            comment=f"Internal audit logs check for {num}.",
+                            created_by="admin@gmail.com",
+                            created_date=datetime.utcnow() - timedelta(days=8),
+                            is_internal=True
+                        ))
+                        
+                    # Seed audit logs
+                    db.add(SodExceptionAudit(
+                        exception_id=exc.id,
+                        action="Request",
+                        performed_by="admin@gmail.com",
+                        new_value=json.dumps({"status": "PENDING"}),
+                        timestamp=datetime.utcnow() - timedelta(days=10)
+                    ))
+                    if status_val == "ACTIVE":
+                        db.add(SodExceptionAudit(
+                            exception_id=exc.id,
+                            action="Approval: Security Approval",
+                            performed_by="security_officer@ranalyzer.com",
+                            old_value=json.dumps({"status": "PENDING"}),
+                            new_value=json.dumps({"status": "ACTIVE"}),
+                            timestamp=datetime.utcnow() - timedelta(days=5)
+                        ))
+                    elif status_val == "EXPIRED":
+                        db.add(SodExceptionAudit(
+                            exception_id=exc.id,
+                            action="Expiry",
+                            performed_by="System (Auto-Expiry)",
+                            old_value=json.dumps({"status": "ACTIVE"}),
+                            new_value=json.dumps({"status": "EXPIRED"}),
+                            timestamp=datetime.utcnow() - timedelta(days=2)
+                        ))
+                    elif status_val == "REJECTED":
+                        db.add(SodExceptionAudit(
+                            exception_id=exc.id,
+                            action="Rejection",
+                            performed_by="manager@ranalyzer.com",
+                            old_value=json.dumps({"status": "PENDING"}),
+                            new_value=json.dumps({"status": "REJECTED"}),
+                            timestamp=datetime.utcnow() - timedelta(days=8)
+                        ))
+                        
+            db.commit()
+            print("Successfully seeded default SoD Exceptions, approvals, and audits.")
+    except Exception as ex_sod_exc:
+        db.rollback()
+        print(f"Error seeding default SoD Exceptions: {ex_sod_exc}")
+
 except Exception as e:
     print(f"Error seeding database: {e}")
 finally:
@@ -819,6 +1232,10 @@ app.include_router(role_discovery_routes.router, prefix="/api")
 app.include_router(role_owner_routes.router, prefix="/api")
 app.include_router(role_approval_routes.router, prefix="/api")
 app.include_router(role_catalog_routes.router, prefix="/api")
+app.include_router(sod_policy_routes.router, prefix="/api")
+app.include_router(sod_violation_routes.router, prefix="/api")
+app.include_router(sod_exception_routes.router, prefix="/api")
+app.include_router(sod_dashboard_routes.router, prefix="/api")
 
 @app.get("/")
 def read_root():

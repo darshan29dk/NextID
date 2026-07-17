@@ -1,0 +1,72 @@
+/* SoD Exceptions Stylesheet */
+
+.sod-exceptions-page, .sod-detail-page {
+  padding: 0 8px;
+}
+
+.stepper-bullet {
+  transition: all 0.3s ease;
+}
+
+.stepper-bullet.approved {
+  background-color: var(--success) !important;
+  color: #ffffff !important;
+  border-color: var(--success) !important;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
+}
+
+.stepper-bullet.rejected {
+  background-color: var(--danger) !important;
+  color: #ffffff !important;
+  border-color: var(--danger) !important;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+.stepper-bullet.pending {
+  background-color: var(--bg-card) !important;
+  color: var(--text-muted) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Custom bullet node adjustments */
+.timeline-node-bullet {
+  background-color: var(--primary-light);
+  color: var(--primary);
+}
+
+/* Duration type badges */
+.type-badge.temporary {
+  background-color: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid var(--primary);
+}
+
+.type-badge.permanent {
+  background-color: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #10b981;
+}
+
+.ai-badge-circle {
+  box-shadow: var(--shadow-sm);
+  border: 2px solid currentColor;
+}
+
+.text-box-justification {
+  border-left: 3px solid var(--primary);
+}
+
+.internal-badge-tag {
+  border: 1px solid var(--warning);
+}
+
+/* Stepper alignments */
+.stepper-line-bg {
+  transform: translateY(-50%);
+  top: 15px;
+}
+
+.flex-align-center {
+  display: inline-flex;
+  align-items: center;
+}

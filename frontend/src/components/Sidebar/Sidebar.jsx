@@ -7,6 +7,7 @@ import {
   Wrench, 
   BookOpen, 
   Shield, 
+  ShieldCheck,
   History, 
   BarChart3, 
   Settings as SettingsIcon, 
@@ -66,6 +67,14 @@ const ROLE_CATALOG_GROUP_CHILDREN = [
   { label: 'Technical Roles', icon: Cpu, path: 'role-catalog/technical' },
 ];
 
+const GOVERNANCE_GROUP_CHILDREN = [
+  { label: 'Risk Dashboard', icon: LayoutDashboard, path: 'governance/dashboard' },
+  { label: 'SoD Policies', icon: Shield, path: 'governance/sod-policies' },
+  { label: 'Violations', icon: ShieldAlert, path: 'governance/violations' },
+  { label: 'Exceptions', icon: ShieldCheck, path: 'governance/exceptions' },
+  { label: 'Scan History', icon: History, path: 'governance/scan-history' },
+];
+
 const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -92,6 +101,9 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const [isRoleCatalogOpen, setIsRoleCatalogOpen] = useState(
     ROLE_CATALOG_GROUP_CHILDREN.some((child) => child.path === activePath)
   );
+  const [isGovernanceOpen, setIsGovernanceOpen] = useState(
+    GOVERNANCE_GROUP_CHILDREN.some((child) => child.path === activePath)
+  );
 
   useEffect(() => {
     if (ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath)) {
@@ -112,6 +124,9 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     if (ROLE_CATALOG_GROUP_CHILDREN.some((child) => child.path === activePath)) {
       setIsRoleCatalogOpen(true);
     }
+    if (GOVERNANCE_GROUP_CHILDREN.some((child) => child.path === activePath)) {
+      setIsGovernanceOpen(true);
+    }
   }, [activePath]);
 
   const navItemsBefore = [
@@ -122,8 +137,6 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   ];
 
   const navItemsAfter = [
-    { type: 'heading', label: 'GOVERNANCE' },
-    { type: 'item', label: 'Governance', icon: Shield, path: 'governance', hasSub: true },
     { type: 'heading', label: 'ROLE LIFECYCLE' },
     { type: 'item', label: 'Role Lifecycle', icon: History, path: 'role-lifecycle', hasSub: true },
     { type: 'heading', label: 'ANALYTICS' },
@@ -143,6 +156,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const isIdentityGroupActive = IDENTITY_GROUP_CHILDREN.some((child) => child.path === activePath);
   const isApprovalWorkflowGroupActive = APPROVAL_WORKFLOW_GROUP_CHILDREN.some((child) => child.path === activePath);
   const isRoleCatalogGroupActive = ROLE_CATALOG_GROUP_CHILDREN.some((child) => child.path === activePath);
+  const isGovernanceGroupActive = GOVERNANCE_GROUP_CHILDREN.some((child) => child.path === activePath);
 
   // Reusable renderer for flat nav item arrays
   const renderNavItems = (items) => items.map((item, idx) => {
@@ -439,6 +453,49 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
         {!isCollapsed && isRoleCatalogOpen && (
           <div className="nav-sub-list">
             {ROLE_CATALOG_GROUP_CHILDREN.map((child) => {
+              const ChildIcon = child.icon;
+              return (
+                <div
+                  key={child.path}
+                  className={`nav-item nav-sub-item ${activePath === child.path ? 'active' : ''}`}
+                  onClick={() => navigate('/' + child.path)}
+                >
+                  <ChildIcon className="nav-icon" size={16} />
+                  <span className="nav-label">{child.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Collapsible "Governance" group */}
+        {!isCollapsed && <div className="nav-heading">GOVERNANCE</div>}
+
+        <div
+          className={`nav-item ${isGovernanceGroupActive && !isGovernanceOpen ? 'active' : ''}`}
+          onClick={() => {
+            if (isCollapsed) {
+              navigate('/' + GOVERNANCE_GROUP_CHILDREN[0].path);
+            } else {
+              setIsGovernanceOpen((prev) => !prev);
+            }
+          }}
+        >
+          <Shield className="nav-icon" size={18} />
+          {!isCollapsed && (
+            <>
+              <span className="nav-label">Governance</span>
+              {isGovernanceOpen
+                ? <ChevronDown className="nav-arrow" size={12} />
+                : <ChevronRight className="nav-arrow" size={12} />
+              }
+            </>
+          )}
+        </div>
+
+        {!isCollapsed && isGovernanceOpen && (
+          <div className="nav-sub-list">
+            {GOVERNANCE_GROUP_CHILDREN.map((child) => {
               const ChildIcon = child.icon;
               return (
                 <div
