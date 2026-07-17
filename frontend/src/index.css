@@ -188,4 +188,187 @@ input, select, textarea {
   color: var(--text-main) !important;
 }
 
+/* ============================================================
+   GOVERNANCE MODULE — GLOBAL THEME FIX OVERRIDES
+   Fixes hardcoded light-only colors across all governance pages
+   ============================================================ */
 
+/* Modal overlays: use consistent scrim in both themes */
+.modal-overlay {
+  background-color: rgba(0, 0, 0, 0.55) !important;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Modal cards must always use card background */
+.modal-card {
+  background-color: var(--bg-card) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-main) !important;
+}
+
+/* Form inputs inside modals adapt to theme */
+.modal-card input,
+.modal-card select,
+.modal-card textarea {
+  background-color: var(--bg-hover) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Light-mode select options need background fix */
+.theme-light select option {
+  background-color: #ffffff;
+  color: #1e293b;
+}
+
+/* Table header rows should adapt to theme */
+.sod-table th,
+.heatmap-table th,
+.simulation-table th,
+.summary-table th {
+  background-color: var(--bg-hover) !important;
+  color: var(--text-muted) !important;
+}
+
+/* Table row hover should adapt */
+.sod-table tr:hover,
+.summary-table tr:hover {
+  background-color: var(--bg-hover) !important;
+}
+
+/* Ensure all status badge text is always legible */
+.status-badge,
+.type-badge,
+.sla-badge,
+.risk-badge {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/* Rule-builder section in light theme */
+.theme-light .rule-builder-section {
+  background-color: #f8fafc;
+}
+
+/* Rule-builder section in dark theme */
+.theme-dark .rule-builder-section {
+  background-color: var(--bg-app);
+}
+
+/* Detail page cards adapt to both themes */
+.detail-card,
+.visual-card,
+.summary-card {
+  background-color: var(--bg-card) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Executive summary items */
+.summary-list-item {
+  background-color: var(--bg-card) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Heatmap table borders adapt */
+.heatmap-table th,
+.heatmap-table td {
+  border-color: var(--border-color) !important;
+}
+
+/* Corner/header labels in heatmap */
+.corner-lbl,
+.col-header-lbl {
+  background-color: var(--bg-hover) !important;
+  color: var(--text-muted) !important;
+}
+
+/* Row header adapts */
+.row-header-lbl {
+  background-color: var(--bg-card) !important;
+  color: var(--text-main) !important;
+}
+
+/* Trend chart footer muted text */
+.trend-footer {
+  color: var(--text-muted) !important;
+}
+
+/* Donut legend label adapts */
+.legend-label {
+  color: var(--text-main) !important;
+}
+
+.legend-value {
+  color: var(--text-muted) !important;
+}
+
+/* Score value in KPI cards */
+.score-value-big {
+  color: var(--text-main) !important;
+}
+
+/* Attachment upload row */
+.attachment-upload-row {
+  background-color: var(--bg-hover) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+/* Comment rows */
+.comment-row {
+  background-color: var(--bg-hover) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+/* Match card (evidence) */
+.match-card {
+  background-color: var(--bg-hover) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Matched policy banner */
+.matched-policy-banner {
+  background-color: var(--bg-hover) !important;
+}
+
+/* Timeline details */
+.timeline-detail-link {
+  background-color: var(--bg-hover) !important;
+  color: var(--text-muted) !important;
+}
+
+/* SLA Alert Banner text override */
+.sla-alert-banner {
+  font-weight: 500;
+}
+
+/* Fix btn-alert-action in dark mode */
+.theme-dark .btn-alert-action {
+  background-color: var(--bg-card) !important;
+  color: inherit;
+}
+
+/* Risk score value (danger color stays vivid in both themes) */
+.score-val b {
+  color: var(--danger) !important;
+}
+
+/* Ensure select drop arrows are visible in light mode */
+.theme-light select {
+  background-color: var(--bg-card) !important;
+  color: var(--text-main) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Placeholder text always muted */
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted) !important;
+  opacity: 0.75;
+}
+
+/* Scan progress bar fill stays vivid */
+.progress-bar-fill {
+  background-color: var(--success) !important;
+}

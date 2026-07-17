@@ -156,6 +156,7 @@
 
 .bar-fill.purple {
   background-color: #8b5cf6;
+  /* purple is explicit brand color, intentionally not a token */
 }
 
 /* Filters & Search */
