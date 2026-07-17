@@ -328,11 +328,29 @@ input, select, textarea {
   backdrop-filter: blur(4px);
 }
 
-/* Modal cards must always use card background */
-.modal-card {
+/* Modal cards must always use card background and scale responsively */
+.modal-card,
+.modal-content-custom,
+.wizard-modal-box,
+.modal-dialog-panel {
   background-color: var(--bg-card) !important;
   border: 1px solid var(--border-color) !important;
   color: var(--text-main) !important;
+  height: auto !important;
+  max-height: 92vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+}
+
+/* Ensure scrollable bodies within constrained modal layouts scale dynamically */
+.modal-body,
+.modal-scrollable-body,
+.wizard-modal-body,
+.modal-dialog-body {
+  overflow-y: auto !important;
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
 }
 
 /* Form inputs inside modals adapt to theme */
