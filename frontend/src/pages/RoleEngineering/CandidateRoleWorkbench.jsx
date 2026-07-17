@@ -1195,8 +1195,12 @@ const CandidateRoleWorkbench = () => {
                     {publishing ? 'Publishing...' : selectedRole.status === 'Published' ? 'Re-publish to Catalog' : 'Publish to Catalog'}
                   </button>
                 )}
-                <button className="btn-drawer-close" onClick={handleCloseDrawer}>
-                  <X size={16} />
+                <button 
+                  className="btn-action-premium" 
+                  style={{ fontSize: '11px', padding: '4px 10px', height: 'auto' }} 
+                  onClick={handleCloseDrawer}
+                >
+                  Cancel
                 </button>
               </div>
             </div>
