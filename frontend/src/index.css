@@ -120,6 +120,10 @@ button {
   white-space: nowrap;
 }
 
+.btn-primary svg {
+  color: #ffffff !important;
+}
+
 .btn-primary:hover:not(:disabled) {
   background-color: var(--primary-hover);
 }
@@ -148,6 +152,10 @@ button {
   white-space: nowrap;
 }
 
+.btn-secondary svg {
+  color: var(--text-main) !important;
+}
+
 .btn-secondary:hover:not(:disabled) {
   background-color: var(--bg-hover);
   border-color: var(--text-muted);
@@ -161,6 +169,10 @@ button {
 /* Dark mode secondary button - explicitly visible */
 .theme-dark .btn-secondary {
   border-color: #4b5563;
+  color: #f3f4f6 !important;
+}
+
+.theme-dark .btn-secondary svg {
   color: #f3f4f6 !important;
 }
 

@@ -87,6 +87,21 @@ const SoDViolations = () => {
   }, [page, limit, search, sevFilter, statusFilter, deptFilter, appFilter]);
 
   useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const qSearch = queryParams.get('search');
+    const qRiskLevel = queryParams.get('risk_level');
+    const qStatus = queryParams.get('status');
+    const qDept = queryParams.get('department');
+    const qApp = queryParams.get('application');
+
+    if (qSearch) setSearch(qSearch);
+    if (qRiskLevel) setSevFilter(qRiskLevel);
+    if (qStatus) setStatusFilter(qStatus);
+    if (qDept) setDeptFilter(qDept);
+    if (qApp) setAppFilter(qApp);
+  }, []);
+
+  useEffect(() => {
     fetchViolations();
   }, [fetchViolations]);
 

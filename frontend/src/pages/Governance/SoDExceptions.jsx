@@ -148,6 +148,21 @@ const SoDExceptions = () => {
   }, [page, limit, search, typeFilter, statusFilter, deptFilter, appFilter]);
 
   useEffect(() => {
+    const queryParams = new URLSearchParams(window.location.search);
+    const qSearch = queryParams.get('search');
+    const qStatus = queryParams.get('status');
+    const qType = queryParams.get('exception_type');
+    const qDept = queryParams.get('department');
+    const qApp = queryParams.get('application');
+
+    if (qSearch) setSearch(qSearch);
+    if (qStatus) setStatusFilter(qStatus);
+    if (qType) setTypeFilter(qType);
+    if (qDept) setDeptFilter(qDept);
+    if (qApp) setAppFilter(qApp);
+  }, []);
+
+  useEffect(() => {
     fetchExceptions();
   }, [fetchExceptions]);
 
