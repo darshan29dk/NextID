@@ -1169,12 +1169,14 @@ const CandidateRoleWorkbench = () => {
       <div className={`drawer-panel-custom ${showDrawer ? 'open' : ''}`}>
         {selectedRole && (
           <>
-            <div className="drawer-header-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div className="drawer-title-sub">
-                <h4>{selectedRole.role_name}</h4>
-                <p>ID: {selectedRole.id} • Job Cluster: {selectedRole.job_function || 'Custom'}</p>
+             <div className="drawer-header-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+              <div className="drawer-title-sub" style={{ minWidth: 0, flex: 1 }}>
+                <h4 style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }} title={selectedRole.role_name}>
+                  {selectedRole.role_name}
+                </h4>
+                <p style={{ margin: '4px 0 0 0' }}>ID: {selectedRole.id} • Job Cluster: {selectedRole.job_function || 'Custom'}</p>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
                 {currentUser?.role !== 'Viewer' && ['Draft', 'Reviewed'].includes(selectedRole.status) && (
                   <button
                     className="btn-action-premium primary"
