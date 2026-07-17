@@ -246,12 +246,48 @@ const SoDViolations = () => {
 
       {/* Summary Stats cards */}
       <div className="sod-kpi-grid">
-        <DashboardCard title="Total Violations" value={kpis.total} icon={ShieldAlert} trend="Lifetime detected" />
-        <DashboardCard title="Open Violations" value={kpis.open} icon={AlertOctagon} status="danger" />
-        <DashboardCard title="Critical Violations" value={kpis.critical} icon={AlertOctagon} status="warning" />
-        <DashboardCard title="High Risk Users" value={kpis.high_risk_users} icon={ShieldAlert} status="info" />
-        <DashboardCard title="Resolved (Auto/Manual)" value={kpis.resolved} icon={CheckCircle2} status="success" />
-        <DashboardCard title="Scans Executed Today" value={kpis.scans_today} icon={RefreshCw} status="neutral" />
+        <DashboardCard 
+          title="Total Violations" 
+          value={kpis.total} 
+          icon={ShieldAlert} 
+          trend="Lifetime detected"
+          onClick={() => { setSevFilter(''); setStatusFilter(''); setDeptFilter(''); setAppFilter(''); setSearch(''); setPage(1); }} 
+        />
+        <DashboardCard 
+          title="Open Violations" 
+          value={kpis.open} 
+          icon={AlertOctagon} 
+          status="danger"
+          onClick={() => { setStatusFilter('OPEN'); setSevFilter(''); setPage(1); }} 
+        />
+        <DashboardCard 
+          title="Critical Violations" 
+          value={kpis.critical} 
+          icon={AlertOctagon} 
+          status="warning"
+          onClick={() => { setSevFilter('CRITICAL'); setStatusFilter('OPEN'); setPage(1); }} 
+        />
+        <DashboardCard 
+          title="High Risk Users" 
+          value={kpis.high_risk_users} 
+          icon={ShieldAlert} 
+          status="info"
+          onClick={() => { setSearch(''); setSevFilter('CRITICAL'); setPage(1); }} 
+        />
+        <DashboardCard 
+          title="Resolved (Auto/Manual)" 
+          value={kpis.resolved} 
+          icon={CheckCircle2} 
+          status="success"
+          onClick={() => { setStatusFilter('MITIGATED'); setSevFilter(''); setPage(1); }} 
+        />
+        <DashboardCard 
+          title="Scans Executed Today" 
+          value={kpis.scans_today} 
+          icon={RefreshCw} 
+          status="neutral"
+          onClick={() => { setStatusFilter(''); setSevFilter(''); setPage(1); }} 
+        />
       </div>
 
       {/* Notifications banner */}
@@ -283,7 +319,12 @@ const SoDViolations = () => {
                 {Object.entries(charts.severity).map(([sev, count]) => {
                   const pct = kpis.open > 0 ? (count / kpis.open) * 100 : 0;
                   return (
-                    <div key={sev} className="donut-bar-row">
+                    <div 
+                      key={sev} 
+                      className="donut-bar-row clickable-bar-row" 
+                      onClick={() => { setSevFilter(sev); setPage(1); }}
+                      style={{ cursor: 'pointer' }}
+                    >
                       <div className="donut-bar-label">
                         <span>{sev}</span>
                         <span>{count} ({Math.round(pct)}%)</span>
@@ -309,7 +350,12 @@ const SoDViolations = () => {
             {Object.entries(charts.department).slice(0, 4).map(([dept, count]) => {
               const widthPct = kpis.open > 0 ? (count / kpis.open) * 100 : 0;
               return (
-                <div key={dept} className="bar-row">
+                <div 
+                  key={dept} 
+                  className="bar-row clickable-bar-row" 
+                  onClick={() => { setDeptFilter(dept); setPage(1); }}
+                  style={{ cursor: 'pointer' }}
+                >
                   <div className="bar-row-label">
                     <span>{dept}</span>
                     <strong>{count}</strong>
@@ -333,7 +379,12 @@ const SoDViolations = () => {
             {Object.entries(charts.application).slice(0, 4).map(([app, count]) => {
               const widthPct = kpis.open > 0 ? (count / kpis.open) * 100 : 0;
               return (
-                <div key={app} className="bar-row">
+                <div 
+                  key={app} 
+                  className="bar-row clickable-bar-row" 
+                  onClick={() => { setAppFilter(app); setPage(1); }}
+                  style={{ cursor: 'pointer' }}
+                >
                   <div className="bar-row-label">
                     <span>{app}</span>
                     <strong>{count}</strong>

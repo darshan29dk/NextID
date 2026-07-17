@@ -138,6 +138,19 @@
   font-size: 12px;
 }
 
+.clickable-bar-row {
+  cursor: pointer !important;
+  transition: background-color var(--transition-speed), transform var(--transition-speed);
+  padding: 4px 8px;
+  margin: 0 -8px;
+  border-radius: 6px;
+}
+
+.clickable-bar-row:hover {
+  background-color: var(--bg-hover);
+  transform: translateX(4px);
+}
+
 .bar-container {
   height: 6px;
   background-color: var(--bg-hover);
