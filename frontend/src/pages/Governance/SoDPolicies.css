@@ -324,11 +324,21 @@
   box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
-  max-height: 90vh;
+  max-height: min(90vh, 680px);
+  height: min(90vh, 680px);
 }
 
 .form-modal-card {
   width: 720px;
+}
+
+/* The form inside the modal must be flex-column to allow body to scroll and footer to pin */
+.form-modal-card form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .view-modal-card {
@@ -343,8 +353,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px 24px;
+  padding: 16px 24px;
   border-bottom: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 
 .modal-header h2 {
@@ -363,7 +374,8 @@
 .form-scroll-body {
   padding: 24px;
   overflow-y: auto;
-  flex-grow: 1;
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .form-group {
@@ -499,6 +511,8 @@
   gap: 12px;
   padding: 16px 24px;
   border-top: 1px solid var(--border-color);
+  flex-shrink: 0; /* Never collapse — always visible */
+  background-color: var(--bg-card);
 }
 
 .error-text {
