@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, Bell, HelpCircle, Sun, Moon, LogOut, User as UserIcon } from 'lucide-react';
+import { Search, Bell, Sun, Moon, LogOut, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import './Header.css';
@@ -185,10 +185,6 @@ const Header = ({
             </div>
           )}
         </div>
-
-        <button className="action-btn" title="Help & Documentation">
-          <HelpCircle size={18} />
-        </button>
 
         <div className="header-divider"></div>
 
