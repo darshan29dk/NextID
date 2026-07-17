@@ -92,11 +92,20 @@ const SoDScanHistory = () => {
     }
   };
 
+  const toUTC = (str) => {
+    if (!str) return '';
+    if (typeof str !== 'string') return str;
+    if (!str.endsWith('Z') && !str.includes('+') && !str.includes('-')) {
+      return str + 'Z';
+    }
+    return str;
+  };
+
   // Helper calculation
   const getDuration = (start, end) => {
     if (!start) return '-';
-    const sTime = new Date(start).getTime();
-    const eTime = end ? new Date(end).getTime() : Date.now();
+    const sTime = new Date(toUTC(start)).getTime();
+    const eTime = end ? new Date(toUTC(end)).getTime() : Date.now();
     const diff = Math.max(0, eTime - sTime);
     const secs = Math.floor(diff / 1000);
     if (secs < 60) return `${secs}s`;
@@ -218,8 +227,8 @@ const SoDScanHistory = () => {
                       <span className={`type-badge ${s.scan_type.toLowerCase()}`}>{s.scan_type}</span>
                     </td>
                     <td>{s.started_by}</td>
-                    <td>{new Date(s.start_time).toLocaleString()}</td>
-                    <td>{s.end_time ? new Date(s.end_time).toLocaleString() : '-'}</td>
+                    <td>{new Date(toUTC(s.start_time)).toLocaleString()}</td>
+                    <td>{s.end_time ? new Date(toUTC(s.end_time)).toLocaleString() : '-'}</td>
                     <td>{getDuration(s.start_time, s.end_time)}</td>
                     <td>
                       <div className="progress-bar-cell">

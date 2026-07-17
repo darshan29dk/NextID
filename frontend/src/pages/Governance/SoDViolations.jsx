@@ -11,6 +11,7 @@ import './SoDViolations.css';
 
 // API Client
 import { apiClient } from '../../services/dashboardService';
+import { formatLocalDate } from '../../utils/dateUtils';
 
 const SEVERITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 const STATUSES = ["OPEN", "UNDER_REVIEW", "MITIGATED", "EXCEPTION_APPROVED", "CLOSED"];
@@ -523,7 +524,7 @@ const SoDViolations = () => {
                         </span>
                       </td>
                       <td style={{ whiteSpace: 'nowrap' }}>
-                        {new Date(v.detected_date).toLocaleDateString()}
+                        {formatLocalDate(v.detected_date)}
                       </td>
                       <td>
                         <div className="actions-cell-menu">

@@ -10,6 +10,7 @@ import './SoDViolations.css';
 
 // API Client
 import { apiClient } from '../../services/dashboardService';
+import { formatLocalDateTime, formatLocalTime } from '../../utils/dateUtils';
 
 const STATUSES = ["OPEN", "UNDER_REVIEW", "MITIGATED", "EXCEPTION_APPROVED", "CLOSED"];
 
@@ -228,7 +229,7 @@ const SoDViolationDetail = () => {
               </div>
               <div className="profile-attr">
                 <span className="attr-lbl">Conflict Detected Date</span>
-                <span>{new Date(violation.detected_date).toLocaleString()}</span>
+                <span>{formatLocalDateTime(violation.detected_date)}</span>
               </div>
             </div>
           </div>
@@ -302,7 +303,7 @@ const SoDViolationDetail = () => {
                 <div key={c.id} className="comment-row">
                   <div className="comment-header">
                     <b>{c.created_by}</b>
-                    <span className="text-muted">{new Date(c.created_at).toLocaleString()}</span>
+                    <span className="text-muted">{formatLocalDateTime(c.created_at)}</span>
                   </div>
                   <p>{c.comment_text}</p>
                 </div>
@@ -433,7 +434,7 @@ const SoDViolationDetail = () => {
                   <div className="timeline-node-content">
                     <div className="timeline-node-header">
                       <b>{aud.action}</b>
-                      <span>{new Date(aud.timestamp).toLocaleTimeString()}</span>
+                      <span>{formatLocalTime(aud.timestamp)}</span>
                     </div>
                     <p className="text-muted">By: {aud.performed_by}</p>
                     {aud.new_value && (

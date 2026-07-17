@@ -12,6 +12,7 @@ import './SoDExceptions.css';
 
 // API Client
 import { apiClient } from '../../services/dashboardService';
+import { formatLocalDate } from '../../utils/dateUtils';
 
 const EXCEPTION_TEMPLATES = [
   {
@@ -580,7 +581,7 @@ const SoDExceptions = () => {
                         </div>
                       </td>
                       <td style={{ whiteSpace: 'nowrap' }}>
-                        {exc.expiry_date ? new Date(exc.expiry_date).toLocaleDateString() : 'PERMANENT'}
+                        {exc.expiry_date ? formatLocalDate(exc.expiry_date) : 'PERMANENT'}
                       </td>
                       <td>
                         <button className="btn-row-action" onClick={() => navigate(`/governance/exceptions/${exc.id}`)} title="View diagnostics">

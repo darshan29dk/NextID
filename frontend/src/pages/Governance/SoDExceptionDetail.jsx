@@ -11,6 +11,7 @@ import './SoDExceptions.css';
 
 // API Client
 import { apiClient } from '../../services/dashboardService';
+import { formatLocalDate, formatLocalDateTime, formatLocalTime } from '../../utils/dateUtils';
 
 const SoDExceptionDetail = () => {
   const { id } = useParams();
@@ -257,7 +258,7 @@ const SoDExceptionDetail = () => {
               <div className="profile-attr">
                 <span className="attr-lbl">SLA Status</span>
                 <span style={{ fontWeight: 'bold', color: exception.is_sla_overdue ? 'var(--danger)' : 'var(--text-main)' }}>
-                  {exception.is_sla_overdue ? "SLA OVERDUE" : "WITHIN SLA"} (Due {new Date(exception.sla_due_date).toLocaleDateString()})
+                  {exception.is_sla_overdue ? "SLA OVERDUE" : "WITHIN SLA"} (Due {formatLocalDate(exception.sla_due_date)})
                 </span>
               </div>
               <div className="profile-attr">
@@ -377,7 +378,7 @@ const SoDExceptionDetail = () => {
                 <div key={c.id} className="comment-row" style={{ borderLeft: c.is_internal ? '4px solid var(--warning)' : '4px solid var(--primary-light)' }}>
                   <div className="comment-header">
                     <b>{c.created_by} {c.is_internal && <span className="internal-badge-tag" style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--warning-light)', color: 'var(--warning)', fontWeight: 'bold' }}>INTERNAL</span>}</b>
-                    <span className="text-muted">{new Date(c.created_date).toLocaleString()}</span>
+                    <span className="text-muted">{formatLocalDateTime(c.created_date)}</span>
                   </div>
                   <p>{c.comment}</p>
                 </div>
@@ -517,7 +518,7 @@ const SoDExceptionDetail = () => {
                   <div className="timeline-node-content">
                     <div className="timeline-node-header">
                       <b>{aud.action}</b>
-                      <span>{new Date(aud.timestamp).toLocaleTimeString()}</span>
+                      <span>{formatLocalTime(aud.timestamp)}</span>
                     </div>
                     <p className="text-muted">By: {aud.performed_by}</p>
                     {aud.new_value && (

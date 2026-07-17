@@ -11,6 +11,7 @@ import './SoDPolicies.css';
 
 // Existing API client configuration (same as user management page)
 import { apiClient } from '../../services/dashboardService';
+import { formatLocalDateTime } from '../../utils/dateUtils';
 
 const RISK_LEVELS = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 const STATUSES = ["DRAFT", "ACTIVE", "INACTIVE", "SUSPENDED", "DEPRECATED"];
@@ -899,7 +900,7 @@ const SoDPolicies = () => {
                     </div>
                     <div className="info-cell">
                       <span className="info-label">Created Date</span>
-                      <span>{new Date(selectedPolicy.created_date).toLocaleString()}</span>
+                      <span>{formatLocalDateTime(selectedPolicy.created_date)}</span>
                     </div>
                   </div>
 
@@ -940,7 +941,7 @@ const SoDPolicies = () => {
                         <div key={aud.id} className="audit-event">
                           <div className="audit-header">
                             <div className="audit-action-tag">{aud.action}</div>
-                            <span className="audit-time">{new Date(aud.timestamp).toLocaleString()}</span>
+                            <span className="audit-time">{formatLocalDateTime(aud.timestamp)}</span>
                           </div>
                           <p className="audit-user">Performed by: <b>{aud.performed_by}</b></p>
                           {aud.new_value && (
