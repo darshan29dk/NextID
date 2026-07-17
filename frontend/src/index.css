@@ -196,8 +196,8 @@ input, select, textarea {
 /* Modal overlays: use consistent scrim in both themes */
 .modal-overlay {
   background-color: rgba(0, 0, 0, 0.55) !important;
-  backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
 }
 
 /* Modal cards must always use card background */
