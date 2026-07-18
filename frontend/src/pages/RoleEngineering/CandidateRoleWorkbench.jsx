@@ -41,6 +41,7 @@ import {
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
 import {
+  getCandidateRoleStats,
   getCandidateRoles,
   getCandidateRoleDetail,
   createCandidateRole,
@@ -192,25 +193,23 @@ const CandidateRoleWorkbench = () => {
   const [previewError, setPreviewError] = useState('');
   const [exportingPreview, setExportingPreview] = useState('');
 
-  // Fetch KPI Stats (from a wide query)
+  // Fetch KPI Stats — DB-aggregated counts + filter dropdown options,
+  // instead of pulling up to 1000 full role rows and counting client-side.
   const fetchKPIStats = async () => {
     try {
-      const statsRes = await getCandidateRoles({ limit: 1000 });
-      const rolesList = statsRes.roles || [];
-      
+      const stats = await getCandidateRoleStats();
+
       setKpiStats({
-        total: statsRes.total || 0,
-        birthright: rolesList.filter(r => r.classification === 'Birthright').length,
-        application: rolesList.filter(r => r.classification === 'Application').length,
-        privileged: rolesList.filter(r => r.classification === 'Privileged').length,
-        draft: rolesList.filter(r => r.status === 'Draft').length
+        total: stats.total || 0,
+        birthright: stats.birthright || 0,
+        requestable: stats.requestable || 0,
+        business: stats.business || 0,
+        technical: stats.technical || 0,
+        draft: stats.draft || 0
       });
 
-      // Extract unique values for filter dropdowns
-      const depts = [...new Set(rolesList.map(r => r.department).filter(Boolean))];
-      const bus = [...new Set(rolesList.map(r => r.business_unit).filter(Boolean))];
-      setUniqueDepartments(depts);
-      setUniqueBUs(bus);
+      setUniqueDepartments(stats.departments || []);
+      setUniqueBUs(stats.business_units || []);
     } catch (err) {
       console.error("Failed to load KPI statistics:", err);
     }
@@ -702,6 +701,10 @@ const CandidateRoleWorkbench = () => {
       setOwnerFormError('Please search and select an owner.');
       return;
     }
+    if (!ownerReviewDate) {
+      setOwnerFormError('Please set a review / expiry date and time.');
+      return;
+    }
     try {
       setOwnerSubmitting(true);
       const payload = {
@@ -709,7 +712,7 @@ const CandidateRoleWorkbench = () => {
         owner_name: selectedOwnerUser ? selectedOwnerUser.full_name : ownerSearchQuery,
         owner_email: selectedOwnerUser ? selectedOwnerUser.email : null,
         owner_user_id: selectedOwnerUser ? selectedOwnerUser.id : null,
-        review_date: ownerReviewDate || null,
+        review_date: ownerReviewDate,
         change_reason: ownerChangeReason || null
       };
       await assignOwner(selectedRole.id, payload);
@@ -844,16 +847,22 @@ const CandidateRoleWorkbench = () => {
           color="green"
         />
         <DashboardCard
-          title="Application Roles"
-          value={kpiStats.application}
+          title="Requestable Roles"
+          value={kpiStats.requestable}
           icon={Shield}
           color="purple"
         />
         <DashboardCard
-          title="Privileged Roles"
-          value={kpiStats.privileged}
+          title="Business Roles"
+          value={kpiStats.business}
           icon={ShieldAlert}
           color="yellow"
+        />
+        <DashboardCard
+          title="Technical Roles"
+          value={kpiStats.technical}
+          icon={ShieldAlert}
+          color="cyan"
         />
         <DashboardCard
           title="Draft Roles"
@@ -915,11 +924,14 @@ const CandidateRoleWorkbench = () => {
                     <button className="bulk-dropdown-item" onClick={() => handleBulkClassify('Birthright')}>
                       Mark as Birthright
                     </button>
-                    <button className="bulk-dropdown-item" onClick={() => handleBulkClassify('Application')}>
-                      Mark as Application Role
+                    <button className="bulk-dropdown-item" onClick={() => handleBulkClassify('Requestable')}>
+                      Mark as Requestable
                     </button>
-                    <button className="bulk-dropdown-item" onClick={() => handleBulkClassify('Privileged')}>
-                      Mark as Privileged Role
+                    <button className="bulk-dropdown-item" onClick={() => handleBulkClassify('Business')}>
+                      Mark as Business
+                    </button>
+                    <button className="bulk-dropdown-item" onClick={() => handleBulkClassify('Technical')}>
+                      Mark as Technical
                     </button>
                   </div>
                 )}
@@ -944,8 +956,9 @@ const CandidateRoleWorkbench = () => {
               <select value={classificationFilter} onChange={(e) => { setClassificationFilter(e.target.value); setPage(1); }}>
                 <option value="">All Classifications</option>
                 <option value="Birthright">Birthright</option>
-                <option value="Application">Application Role</option>
-                <option value="Privileged">Privileged Role</option>
+                <option value="Requestable">Requestable</option>
+                <option value="Business">Business</option>
+                <option value="Technical">Technical</option>
                 <option value="None">None / Unassigned</option>
               </select>
             </div>
@@ -1296,7 +1309,7 @@ const CandidateRoleWorkbench = () => {
                       <div className="classification-editor-panel">
                         <h5>Role Classification</h5>
                         <div className="classification-options-layout">
-                          {['Birthright', 'Application', 'Privileged'].map(opt => (
+                          {['Birthright', 'Requestable', 'Business', 'Technical'].map(opt => (
                             <div 
                               key={opt}
                               className={`classification-option-row ${editClassification === opt ? 'selected' : ''}`}
@@ -1312,8 +1325,9 @@ const CandidateRoleWorkbench = () => {
                                 <span>{opt}</span>
                                 <span className="classification-option-desc">
                                   {opt === 'Birthright' && 'Assigned automatically to all new identities matching their job function.'}
-                                  {opt === 'Application' && 'Governs access to a specific enterprise application.'}
-                                  {opt === 'Privileged' && 'Elevated permissions requiring additional justification and oversight.'}
+                                  {opt === 'Requestable' && 'Available for identities to request on demand, subject to approval.'}
+                                  {opt === 'Business' && 'Governs access aligned to a business function or department.'}
+                                  {opt === 'Technical' && 'Governs technical/system-level access requiring additional oversight.'}
                                 </span>
                               </div>
                             </div>
@@ -2113,12 +2127,13 @@ const CandidateRoleWorkbench = () => {
               </div>
 
               <div className="form-input-group">
-                <label>Review / Expiry Date <span className="text-muted">(optional)</span></label>
+                <label>Review / Expiry Date <span style={{ color: 'var(--danger)' }}>*</span></label>
                 <input
-                  type="date"
+                  type="datetime-local"
                   value={ownerReviewDate}
-                  min={new Date().toISOString().split('T')[0]}
+                  min={new Date().toISOString().slice(0, 16)}
                   onChange={e => setOwnerReviewDate(e.target.value)}
+                  required
                 />
               </div>
 
@@ -2158,7 +2173,7 @@ const CandidateRoleWorkbench = () => {
                 type="button"
                 className="btn-action-premium primary"
                 onClick={handleAssignOwner}
-                disabled={ownerSubmitting || (!selectedOwnerUser && !ownerSearchQuery.trim())}
+                disabled={ownerSubmitting || (!selectedOwnerUser && !ownerSearchQuery.trim()) || !ownerReviewDate}
               >
                 {ownerSubmitting ? 'Assigning...' : `Assign ${assignOwnerType} Owner`}
               </button>

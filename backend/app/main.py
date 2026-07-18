@@ -668,8 +668,15 @@ try:
         print(f"Error seeding default platform settings: {ex_settings}")
 
     # Seed default Candidate Roles if empty
+    # NOTE: disabled — this was silently recreating 5 fake demo roles
+    # ("Billing Administrator", "IT Helpdesk Specialist", "HR Generalist",
+    # "Database Auditor", "Financial Analyst") every time the backend
+    # restarted, which fought against real cleanup and made Role Engineering
+    # show data that didn't match what was actually uploaded/mined. If demo
+    # seed data is needed again later, re-enable deliberately rather than
+    # leaving it always-on.
     try:
-        if db.query(CandidateRole).filter(CandidateRole.role_name == "Billing Administrator").count() == 0:
+        if False and db.query(CandidateRole).filter(CandidateRole.role_name == "Billing Administrator").count() == 0:
             print("Seeding default Candidate Roles...")
             identities = db.query(Identity).limit(10).all()
             apps = db.query(Application).limit(5).all()

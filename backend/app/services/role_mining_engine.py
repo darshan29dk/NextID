@@ -46,6 +46,12 @@ from app.models.candidate_role import CandidateRole
 from app.models.candidate_role_entitlement import CandidateRoleEntitlement
 from app.models.candidate_role_member import CandidateRoleMember
 from app.models.campaign_account_result import CampaignAccountResult
+from app.models.role_owner_history import RoleOwnerHistory
+from app.models.role_version_history import RoleVersionHistory
+from app.models.role_merge_history import RoleMergeHistory
+from app.models.role_merge_source_roles import RoleMergeSourceRole
+from app.models.role_split_history import RoleSplitHistory
+from app.models.role_split_destination_roles import RoleSplitDestinationRole
 
 CORE_THRESHOLD_PCT = 60.0  # an entitlement must be held by >= this % of a cluster's members to count as "core"
 
@@ -73,11 +79,62 @@ class RoleMiningEngine:
             db.query(CandidateRoleEntitlement).filter(
                 CandidateRoleEntitlement.candidate_role_id.in_(old_role_ids)
             ).delete(synchronize_session=False)
+            db.query(CandidateRoleMember).filter(
+                CandidateRoleMember.candidate_role_id.in_(old_role_ids)
+            ).delete(synchronize_session=False)
+            db.query(RoleOwnerHistory).filter(
+                RoleOwnerHistory.candidate_role_id.in_(old_role_ids)
+            ).delete(synchronize_session=False)
+            db.query(RoleVersionHistory).filter(
+                RoleVersionHistory.candidate_role_id.in_(old_role_ids)
+            ).delete(synchronize_session=False)
+
+            # Merge/split audit history also references candidate_roles.
+            # NOTE: deleting this alongside a re-run is a pragmatic choice for
+            # now (this engine only runs against test/draft campaigns today);
+            # for real production roles we'd likely want to preserve this
+            # audit trail instead of wiping it out on regeneration — worth a
+            # deliberate product decision rather than silently cascading.
+            merge_ids_as_parent = [
+                m.id for m in db.query(RoleMergeHistory.id).filter(
+                    RoleMergeHistory.parent_role_id.in_(old_role_ids)
+                ).all()
+            ]
+            if merge_ids_as_parent:
+                db.query(RoleMergeSourceRole).filter(
+                    RoleMergeSourceRole.merge_history_id.in_(merge_ids_as_parent)
+                ).delete(synchronize_session=False)
+                db.query(RoleMergeHistory).filter(
+                    RoleMergeHistory.id.in_(merge_ids_as_parent)
+                ).delete(synchronize_session=False)
+            db.query(RoleMergeSourceRole).filter(
+                RoleMergeSourceRole.source_role_id.in_(old_role_ids)
+            ).delete(synchronize_session=False)
+
+            split_ids_as_original = [
+                s.id for s in db.query(RoleSplitHistory.id).filter(
+                    RoleSplitHistory.original_role_id.in_(old_role_ids)
+                ).all()
+            ]
+            if split_ids_as_original:
+                db.query(RoleSplitDestinationRole).filter(
+                    RoleSplitDestinationRole.split_history_id.in_(split_ids_as_original)
+                ).delete(synchronize_session=False)
+                db.query(RoleSplitHistory).filter(
+                    RoleSplitHistory.id.in_(split_ids_as_original)
+                ).delete(synchronize_session=False)
+            db.query(RoleSplitDestinationRole).filter(
+                RoleSplitDestinationRole.destination_role_id.in_(old_role_ids)
+            ).delete(synchronize_session=False)
         db.query(CampaignAccountResult).filter(CampaignAccountResult.campaign_id == campaign.id).delete(
             synchronize_session=False
         )
         db.query(CandidateRole).filter(CandidateRole.campaign_id == campaign.id).delete(synchronize_session=False)
-        db.commit()
+        # Deliberately not committed here — this delete stays pending in the
+        # same transaction as the rest of the run, so if anything below
+        # fails, the caller's rollback undoes the delete too and the
+        # previous run's results are left intact instead of being wiped out
+        # by a re-run that then crashes.
 
         # 1. Scope accounts: must be correlated to an identity with a job title.
         query = db.query(ApplicationAccount, Identity).join(

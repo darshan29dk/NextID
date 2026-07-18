@@ -1,5 +1,10 @@
 import { apiClient } from './dashboardService';
 
+export const getCandidateRoleStats = async () => {
+  const response = await apiClient.get('/candidate-roles/stats');
+  return response.data;
+};
+
 export const getCandidateRoles = async (params) => {
   const response = await apiClient.get('/candidate-roles', { params });
   return response.data;

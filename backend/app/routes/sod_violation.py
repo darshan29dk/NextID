@@ -19,6 +19,7 @@ from app.schemas.sod_violation import (
     SodViolationResponse,
     SodViolationUpdate,
     SodScanHistoryResponse,
+    SodViolationCommentBase,
     SodViolationCommentResponse,
     SodViolationAttachmentResponse,
     SodViolationListResponse

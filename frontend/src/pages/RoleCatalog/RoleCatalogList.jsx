@@ -154,8 +154,9 @@ const RoleCatalogList = ({ title, subtitle, roleTypeFilter, headerIcon: HeaderIc
           <select value={classification} onChange={e => { setClassification(e.target.value); setPage(1); }} style={{ padding: '6px 12px', borderRadius: '6px', border: '1px solid var(--border-color)', background: 'var(--bg-card)', color: 'var(--text-main)', fontSize: '13px' }}>
             <option value="">All Classifications</option>
             <option value="Birthright">Birthright</option>
-            <option value="Application">Application</option>
-            <option value="Privileged">Privileged</option>
+            <option value="Requestable">Requestable</option>
+            <option value="Business">Business</option>
+            <option value="Technical">Technical</option>
           </select>
 
           <button onClick={fetchData} className="btn-action-premium" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

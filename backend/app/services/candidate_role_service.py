@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, desc, asc
+from sqlalchemy import or_, desc, asc, func
 from datetime import datetime
 import json
 
@@ -11,6 +11,44 @@ from app.models.dashboard import RecentActivity
 
 
 class CandidateRoleService:
+    @staticmethod
+    def get_stats(db: Session) -> dict:
+        """
+        KPI counts + filter-dropdown option lists for the Role Engineering
+        workbench, computed with DB-side aggregation (COUNT/DISTINCT) instead
+        of pulling up to 1000 full CandidateRole rows and counting in Python.
+        """
+        base = db.query(CandidateRole).filter(CandidateRole.is_deleted == False)
+
+        total = base.count()
+
+        classification_counts = dict(
+            base.with_entities(CandidateRole.classification, func.count(CandidateRole.id))
+            .group_by(CandidateRole.classification).all()
+        )
+        status_counts = dict(
+            base.with_entities(CandidateRole.status, func.count(CandidateRole.id))
+            .group_by(CandidateRole.status).all()
+        )
+
+        departments = [
+            d for (d,) in base.with_entities(CandidateRole.department).distinct().all() if d
+        ]
+        business_units = [
+            b for (b,) in base.with_entities(CandidateRole.business_unit).distinct().all() if b
+        ]
+
+        return {
+            "total": total,
+            "birthright": classification_counts.get("Birthright", 0),
+            "requestable": classification_counts.get("Requestable", 0),
+            "business": classification_counts.get("Business", 0),
+            "technical": classification_counts.get("Technical", 0),
+            "draft": status_counts.get("Draft", 0),
+            "departments": sorted(departments),
+            "business_units": sorted(business_units)
+        }
+
     @staticmethod
     def get_candidate_roles(
         db: Session,

@@ -24,7 +24,7 @@ class RolePreviewService:
           - risk_level field        (Low=10, Medium=40, High=70)
           - SoD violations          (+15 per violation, capped at 30)
           - Entitlement risk ratio  (% of high-risk entitlements × 20)
-          - Classification          (Birthright/Application adds +5, Privileged adds +15)
+          - Classification          (Birthright=+5, Requestable=+8, Business=+10, Technical=+15)
           - Member coverage         (large roles slightly higher risk)
         """
         score = 0
@@ -43,13 +43,17 @@ class RolePreviewService:
             ratio = len(high_risk_ents) / len(entitlements)
             score += int(ratio * 20)
 
-        # Classification bonus
+        # Classification bonus — reflects how much oversight each category
+        # implies: Birthright is auto-assigned (lowest), Technical carries
+        # elevated/system-level access requiring the most justification.
         cls = (role.classification or "").lower()
-        if cls in ["birthright", "application"]:
+        if cls == "birthright":
             score += 5
-        elif cls == "privileged":
-            # Privileged roles carry elevated permissions and require additional
-            # justification (per BR-006), so they add more to the risk score.
+        elif cls == "requestable":
+            score += 8
+        elif cls == "business":
+            score += 10
+        elif cls == "technical":
             score += 15
 
         return min(score, 100)

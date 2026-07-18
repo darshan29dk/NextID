@@ -175,6 +175,13 @@ def run_mining_campaign(
     try:
         campaign = RoleMiningEngine.run_campaign(db, campaign)
     except Exception as e:
+        # Undo any partially-created candidate roles / entitlements / account
+        # results from this failed run before recording the failure — without
+        # this, a crash partway through committed half-built data alongside
+        # status="Failed", leaving the campaign showing roles with no
+        # entitlements/members and stale totals from the previous run.
+        db.rollback()
+        campaign = db.query(MiningCampaign).filter(MiningCampaign.id == id).first()
         campaign.status = "Failed"
         campaign.error_message = str(e)
         db.commit()

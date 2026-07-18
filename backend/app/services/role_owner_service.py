@@ -63,7 +63,7 @@ class RoleOwnerService:
         owner_name: str,
         owner_email: Optional[str],
         owner_user_id: Optional[int],
-        review_date: Optional[str],  # ISO date string "YYYY-MM-DD"
+        review_date: str,  # required; "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM"
         change_reason: Optional[str],
         assigned_by: str
     ) -> Dict:
@@ -118,13 +118,18 @@ class RoleOwnerService:
             old.is_active = False
             old.removed_at = datetime.utcnow()
 
-        # --- Parse review_date ---
+        # --- Parse review_date (required) ---
+        if not review_date or not review_date.strip():
+            raise ValueError("review_date is required")
         review_dt = None
-        if review_date:
+        for fmt in ("%Y-%m-%dT%H:%M", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
             try:
-                review_dt = datetime.strptime(review_date, "%Y-%m-%d")
+                review_dt = datetime.strptime(review_date, fmt)
+                break
             except ValueError:
-                raise ValueError("review_date must be in format YYYY-MM-DD")
+                continue
+        if review_dt is None:
+            raise ValueError("review_date must be in format YYYY-MM-DDTHH:MM (date and time required)")
 
         # --- Create new history record ---
         new_entry = RoleOwnerHistory(

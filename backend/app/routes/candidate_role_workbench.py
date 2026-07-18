@@ -80,6 +80,20 @@ class CandidateRoleUpdate(BaseModel):
     business_unit: Optional[str] = None
 
 
+@router.get("/candidate-roles/stats")
+def get_candidate_role_stats(
+    db: Session = Depends(get_db),
+    _perm: bool = Depends(require_permission("Role Engineering", "view"))
+):
+    """
+    KPI card counts + filter dropdown options, aggregated in the DB.
+    Replaces the old pattern of fetching up to 1000 full role rows just to
+    count them client-side (see get_candidate_roles below for the paginated
+    listing endpoint, which is unaffected by this).
+    """
+    return CandidateRoleService.get_stats(db)
+
+
 @router.get("/candidate-roles")
 def get_candidate_roles(
     page: int = 1,
@@ -177,10 +191,27 @@ def get_merge_history(
 
     try:
         histories = db.query(RoleMergeHistory).order_by(RoleMergeHistory.created_at.desc()).all()
+        if not histories:
+            return []
+
+        history_ids = [h.id for h in histories]
+        parent_ids = {h.parent_role_id for h in histories}
+
+        # Batch-load all parent roles and all source-role links in two queries
+        # total (instead of two queries per history row) to avoid N+1.
+        parents_by_id = {
+            r.id: r for r in db.query(CandidateRole).filter(CandidateRole.id.in_(parent_ids)).all()
+        }
+        sources_by_history_id = {}
+        for s in db.query(RoleMergeSourceRole).filter(
+            RoleMergeSourceRole.merge_history_id.in_(history_ids)
+        ).all():
+            sources_by_history_id.setdefault(s.merge_history_id, []).append(s)
+
         results = []
         for h in histories:
-            parent = db.query(CandidateRole).filter(CandidateRole.id == h.parent_role_id).first()
-            sources = db.query(RoleMergeSourceRole).filter(RoleMergeSourceRole.merge_history_id == h.id).all()
+            parent = parents_by_id.get(h.parent_role_id)
+            sources = sources_by_history_id.get(h.id, [])
             results.append({
                 "id": h.id,
                 "parent_role_id": h.parent_role_id,
@@ -271,13 +302,34 @@ def get_split_history(
 
     try:
         histories = db.query(RoleSplitHistory).order_by(RoleSplitHistory.created_at.desc()).all()
+        if not histories:
+            return []
+
+        history_ids = [h.id for h in histories]
+        original_ids = {h.original_role_id for h in histories}
+
+        # Batch-load destination links for all histories in one query, then
+        # batch-load every role referenced (originals + destinations) in one
+        # more query, instead of the previous 2 + N + D per-row queries.
+        dests_by_history_id = {}
+        for d in db.query(RoleSplitDestinationRole).filter(
+            RoleSplitDestinationRole.split_history_id.in_(history_ids)
+        ).all():
+            dests_by_history_id.setdefault(d.split_history_id, []).append(d)
+
+        all_dest_ids = {d.destination_role_id for dests in dests_by_history_id.values() for d in dests}
+        roles_by_id = {
+            r.id: r for r in db.query(CandidateRole).filter(
+                CandidateRole.id.in_(original_ids | all_dest_ids)
+            ).all()
+        }
+
         results = []
         for h in histories:
-            original = db.query(CandidateRole).filter(CandidateRole.id == h.original_role_id).first()
-            dests = db.query(RoleSplitDestinationRole).filter(RoleSplitDestinationRole.split_history_id == h.id).all()
+            original = roles_by_id.get(h.original_role_id)
             dest_roles = []
-            for d in dests:
-                r = db.query(CandidateRole).filter(CandidateRole.id == d.destination_role_id).first()
+            for d in dests_by_history_id.get(h.id, []):
+                r = roles_by_id.get(d.destination_role_id)
                 if r:
                     dest_roles.append({"id": r.id, "role_name": r.role_name, "is_deleted": r.is_deleted})
             results.append({
@@ -393,7 +445,7 @@ def delete_candidate_role(
 def get_classifications(
     _perm: bool = Depends(require_permission("Role Engineering", "view"))
 ):
-    return ["Birthright", "Application", "Privileged"]
+    return ["Birthright", "Requestable", "Business", "Technical"]
 
 
 @router.put("/candidate-roles/{role_id}/classification")

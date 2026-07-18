@@ -39,7 +39,7 @@ class AssignOwnerPayload(BaseModel):
     owner_name: str
     owner_email: Optional[str] = None
     owner_user_id: Optional[int] = None
-    review_date: Optional[str] = None  # "YYYY-MM-DD"
+    review_date: str                    # required; "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM"
     change_reason: Optional[str] = None
 
 
