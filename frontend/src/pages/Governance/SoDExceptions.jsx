@@ -515,7 +515,7 @@ const SoDExceptions = () => {
                     <th>Matched Violation</th>
                     <th>Connected App</th>
                     <th>Type</th>
-                    <th>AI Threat Analysis</th>
+                    <th>Auto Threat Analysis</th>
                     <th>Status / SLA</th>
                     <th>Expiry Date</th>
                     <th>Actions</th>
@@ -561,7 +561,7 @@ const SoDExceptions = () => {
                       <td>
                         <div className="user-info-cell">
                           <span style={{ fontSize: '11px', fontWeight: 'bold', color: exc.ai_risk_score > 70 ? 'var(--danger)' : 'var(--text-main)' }}>
-                            AI Risk: {exc.ai_risk_score}%
+                            Auto Risk: {exc.ai_risk_score}%
                           </span>
                           <span className="text-muted" style={{ fontSize: '10px', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {exc.ai_recommendation}

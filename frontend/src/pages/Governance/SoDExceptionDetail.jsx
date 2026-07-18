@@ -272,14 +272,14 @@ const SoDExceptionDetail = () => {
           <div className="detail-card ai-readiness-card" style={{ border: '1px solid var(--primary-light)', backgroundColor: 'rgba(59, 130, 246, 0.04)' }}>
             <div className="card-title-icon">
               <Award size={18} className="text-primary" />
-              <h3>AI Decision Assistant (Future-Ready)</h3>
+              <h3>Auto Decision Assistant (Future-Ready)</h3>
             </div>
             <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
               <div className="ai-badge-circle" style={{ width: '54px', height: '54px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: exception.ai_risk_score > 70 ? 'var(--danger-light)' : 'var(--primary-light)', color: exception.ai_risk_score > 70 ? 'var(--danger)' : 'var(--primary)', fontWeight: 'bold', fontSize: '18px' }}>
                 {exception.ai_risk_score}%
               </div>
               <div>
-                <b style={{ display: 'block', fontSize: '13px' }}>AI Predicted Risk Level: {exception.ai_risk_score > 70 ? "HIGH" : "MEDIUM/LOW"}</b>
+                <b style={{ display: 'block', fontSize: '13px' }}>Auto Predicted Risk Level: {exception.ai_risk_score > 70 ? "HIGH" : "MEDIUM/LOW"}</b>
                 <p className="text-muted" style={{ fontSize: '12px', marginTop: '4px' }}>
                   {exception.ai_recommendation}
                 </p>
