@@ -66,6 +66,7 @@ from app.routes import sod_policy as sod_policy_routes
 from app.routes import sod_violation as sod_violation_routes
 from app.routes import sod_exception as sod_exception_routes
 from app.routes import sod_dashboard as sod_dashboard_routes
+from app.routes import analytics as analytics_routes
 from app.models.sod_policy import SodPolicy, SodPolicyRule, SodPolicyAudit
 from app.models.sod_violation import SodViolation, SodViolationComment, SodViolationAttachment, SodScanHistory, SodViolationAudit
 from app.models.sod_exception import SodException, SodExceptionApproval, SodExceptionComment, SodExceptionAttachment, SodExceptionAudit
@@ -181,6 +182,48 @@ def check_and_add_columns():
                     connection.execute(text(f"ALTER TABLE approval_requests ADD COLUMN {col} {col_type}"))
             except Exception as e:
                 print(f"Error checking/altering approval_requests column {col}: {e}")
+
+        # Governance attachments: file_path was added so uploaded evidence is
+        # actually written to disk (backend/uploads/) instead of being read
+        # and discarded ("fake save" bug) — filename/size were being stored
+        # with no way to retrieve the file afterward.
+        try:
+            res = connection.execute(text("SHOW COLUMNS FROM sod_violation_attachments LIKE 'file_path'")).fetchone()
+            if not res:
+                print("Adding file_path to sod_violation_attachments...")
+                connection.execute(text("ALTER TABLE sod_violation_attachments ADD COLUMN file_path VARCHAR(500) NULL"))
+        except Exception as e:
+            print(f"Error checking/altering sod_violation_attachments column file_path: {e}")
+
+        try:
+            res = connection.execute(text("SHOW COLUMNS FROM sod_exception_attachments LIKE 'file_path'")).fetchone()
+            if not res:
+                print("Adding file_path to sod_exception_attachments...")
+                connection.execute(text("ALTER TABLE sod_exception_attachments ADD COLUMN file_path VARCHAR(500) NULL"))
+        except Exception as e:
+            print(f"Error checking/altering sod_exception_attachments column file_path: {e}")
+
+        # Settings redesign: SMTP + Personalization sections
+        platform_settings_cols = {
+            "smtp_host": "VARCHAR(150) NULL",
+            "smtp_port": "INT NULL DEFAULT 587",
+            "smtp_username": "VARCHAR(150) NULL",
+            "smtp_password": "VARCHAR(255) NULL",
+            "smtp_from_email": "VARCHAR(150) NULL",
+            "smtp_from_name": "VARCHAR(100) NULL",
+            "smtp_use_tls": "TINYINT(1) NULL DEFAULT 1",
+            "company_display_name": "VARCHAR(150) NULL",
+            "logo_path": "VARCHAR(500) NULL",
+            "primary_color": "VARCHAR(20) NULL",
+        }
+        for col, col_type in platform_settings_cols.items():
+            try:
+                res = connection.execute(text(f"SHOW COLUMNS FROM platform_settings LIKE '{col}'")).fetchone()
+                if not res:
+                    print(f"Adding {col} to platform_settings...")
+                    connection.execute(text(f"ALTER TABLE platform_settings ADD COLUMN {col} {col_type}"))
+            except Exception as e:
+                print(f"Error checking/altering platform_settings column {col}: {e}")
 
 check_and_add_columns()
 
@@ -773,9 +816,16 @@ try:
         print(f"Error seeding candidate roles: {ex_seed}")
 
     # Seed default SoD Policies if empty
+    # NOTE: disabled — this seed used a leftover test-identities CSV
+    # ("11_Test identities.csv", testcorp.com users) uploaded before the
+    # user's real identity data, and once it ran the count()==0 guard never
+    # fired again, leaving fake policies/violations/exceptions permanently
+    # disconnected from what was actually uploaded. Governance should reflect
+    # real scans against real data, not seeded fixtures. Re-enable
+    # deliberately (e.g. for demos) rather than leaving it always-on.
     try:
         from app.models.sod_policy import SodPolicy, SodPolicyRule
-        if db.query(SodPolicy).count() == 0:
+        if False and db.query(SodPolicy).count() == 0:
             print("Seeding default SoD Policies...")
             default_policies = [
                 {
@@ -848,12 +898,17 @@ try:
         print(f"Error seeding default SoD Policies: {ex_sod}")
 
     # Seed default SoD Violations if empty
+    # NOTE: disabled — same reason as the SoD Policy seed above, this pulled
+    # from whatever identities existed at first-boot (the leftover
+    # testcorp.com test CSV) instead of real scan output. Violations should
+    # come from actually running a scan (sod_violation_service.py) against
+    # real uploaded data, not from a startup fixture.
     try:
         import json
         from app.models.sod_violation import SodViolation, SodScanHistory, SodViolationAudit, SodViolationComment
         from app.models.identity import Identity
         from app.models.sod_policy import SodPolicy
-        if db.query(SodViolation).count() == 0:
+        if False and db.query(SodViolation).count() == 0:
             print("Seeding default SoD Scan History and Violations...")
             
             # 1. Seed scan histories
@@ -984,6 +1039,9 @@ try:
         print(f"Error seeding default SoD Violations: {ex_sod_violation}")
 
     # Seed default SoD Exceptions if empty
+    # NOTE: disabled — same reason as the SoD Policy/Violation seeds above;
+    # these were built from the fake seeded violations rather than real
+    # exception requests.
     try:
         from datetime import datetime, timedelta
         from app.models.sod_exception import SodException, SodExceptionApproval, SodExceptionComment, SodExceptionAudit
@@ -993,7 +1051,7 @@ try:
         import json
         import random
         
-        if db.query(SodException).count() == 0:
+        if False and db.query(SodException).count() == 0:
             print("Seeding default SoD Exceptions, approvals, and audits...")
             
             violations = db.query(SodViolation).all()
@@ -1209,6 +1267,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Serve uploaded files (governance attachments, company logo, etc.) so the
+# frontend can actually load them back - this was only ever written to disk
+# before, never exposed over HTTP.
+import os as _os
+from fastapi.staticfiles import StaticFiles
+_uploads_dir = _os.path.join(_os.path.dirname(__file__), "..", "uploads")
+_os.makedirs(_uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=_uploads_dir), name="uploads")
+
 # Register endpoints
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(notification.router, prefix="/api")
@@ -1243,6 +1310,7 @@ app.include_router(sod_policy_routes.router, prefix="/api")
 app.include_router(sod_violation_routes.router, prefix="/api")
 app.include_router(sod_exception_routes.router, prefix="/api")
 app.include_router(sod_dashboard_routes.router, prefix="/api")
+app.include_router(analytics_routes.router, prefix="/api")
 
 @app.get("/")
 def read_root():

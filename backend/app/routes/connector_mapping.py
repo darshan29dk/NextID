@@ -6,6 +6,7 @@ from datetime import datetime
 from app.database import get_db
 from app.models.connector import Connector
 from app.models.connector_field_mapping import ConnectorFieldMapping
+from app.models.audit_log import AuditLog
 from app.schemas.connector_mapping import ConnectorFieldMappingCreate, ConnectorFieldMappingResponse
 
 router = APIRouter()
@@ -92,5 +93,22 @@ def save_connector_mappings(
     db.commit()
     for m in new_mappings:
         db.refresh(m)
+
+    try:
+        import json
+        db.add(AuditLog(
+            module="Connector Mapping",
+            action="Save Mappings",
+            performed_by=x_user_name,
+            new_value=json.dumps({
+                "connector_id": id,
+                "connector_name": connector.connector_name if hasattr(connector, "connector_name") else None,
+                "mapped_fields": len(new_mappings),
+                "removed_fields": len(mappings_to_delete)
+            }, default=str)
+        ))
+        db.commit()
+    except Exception as e:
+        print(f"Warning: Failed to write connector mapping audit record: {e}")
 
     return new_mappings

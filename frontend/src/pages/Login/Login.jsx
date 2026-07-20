@@ -49,9 +49,6 @@ function Login() {
 
         <div className="login-left-content">
           <div className="login-brand">
-            <div className="login-brand-icon">
-              <img src="/logo.jpg" alt="rAnalyzer Logo" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            </div>
             <div className="login-brand-text">
               <h2>rAnalyzer</h2>
               <p>ROLE INTELLIGENCE PLATFORM</p>
@@ -73,6 +70,9 @@ function Login() {
 
       <div className="login-right">
         <div className="login-form-box">
+          <div className="login-form-brand">
+            <span className="login-form-brand-name">rAnalyzer</span>
+          </div>
           <h1>Welcome Back</h1>
           <p className="login-subtitle">Sign in to the Role Intelligence Platform</p>
 

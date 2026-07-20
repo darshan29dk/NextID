@@ -170,11 +170,13 @@ const SoDScanHistory = () => {
       {/* Scan Overview Stats */}
       <div className="sod-kpi-grid" style={{ marginBottom: '24px' }}>
         <DashboardCard title="Total Scans Run" value={history.length} icon={Server} trend="Execution history" />
-        <DashboardCard 
-          title="Last Executed Scan" 
-          value={history.length > 0 ? history[0].scan_type : '-'} 
-          icon={Clock} 
-          status="info" 
+        <DashboardCard
+          title="Last Executed Scan"
+          value={history.length > 0
+            ? <span className={`type-badge ${history[0].scan_type.toLowerCase()}`}>{history[0].scan_type}</span>
+            : '-'}
+          icon={Clock}
+          status="info"
         />
         <DashboardCard 
           title="Total Users Analyzed" 

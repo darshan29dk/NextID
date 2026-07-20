@@ -183,7 +183,16 @@ const EntitlementAttributes = () => {
         sortOrder
       };
 
-      const response = await getEntitlementAttributes(params);
+      const [listResult, statsResult] = await Promise.allSettled([
+        getEntitlementAttributes(params),
+        // Fetch global KPI stats
+        getEntitlementAttributes({ page: 1, limit: 1000 })
+      ]);
+
+      if (listResult.status === 'rejected') {
+        throw listResult.reason;
+      }
+      const response = listResult.value;
       setAttributes(response.attributes || []);
       setTotal(response.total || 0);
       setTotalPages(response.total_pages || 1);
@@ -191,15 +200,15 @@ const EntitlementAttributes = () => {
       // Reset selection when data changes
       setSelectedIds([]);
 
-      // Fetch global KPI stats
-      const statsResp = await getEntitlementAttributes({ page: 1, limit: 1000 });
-      const items = statsResp.attributes || [];
-      setKpiStats({
-        total: items.length,
-        system: items.filter(a => a.is_system || a.attribute_type === 'System').length,
-        custom: items.filter(a => !a.is_system && a.attribute_type !== 'System').length,
-        required: items.filter(a => a.is_required).length
-      });
+      if (statsResult.status === 'fulfilled') {
+        const items = statsResult.value.attributes || [];
+        setKpiStats({
+          total: items.length,
+          system: items.filter(a => a.is_system || a.attribute_type === 'System').length,
+          custom: items.filter(a => !a.is_system && a.attribute_type !== 'System').length,
+          required: items.filter(a => a.is_required).length
+        });
+      }
 
     } catch (err) {
       console.error(err);

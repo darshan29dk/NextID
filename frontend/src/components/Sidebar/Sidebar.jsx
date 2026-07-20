@@ -30,7 +30,8 @@ import {
   Fingerprint,
   Link2,
   Briefcase,
-  Cpu
+  Cpu,
+  Target
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -75,6 +76,12 @@ const GOVERNANCE_GROUP_CHILDREN = [
   { label: 'Scan History', icon: History, path: 'governance/scan-history' },
 ];
 
+const ANALYTICS_GROUP_CHILDREN = [
+  { label: 'Executive Dashboard', icon: LayoutDashboard, path: 'analytics/executive' },
+  { label: 'Role Analytics', icon: Key, path: 'analytics/role-analytics' },
+  { label: 'Coverage Reports', icon: Target, path: 'analytics/coverage-reports' },
+];
+
 const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -104,6 +111,9 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const [isGovernanceOpen, setIsGovernanceOpen] = useState(
     GOVERNANCE_GROUP_CHILDREN.some((child) => child.path === activePath)
   );
+  const [isAnalyticsOpen, setIsAnalyticsOpen] = useState(
+    ANALYTICS_GROUP_CHILDREN.some((child) => child.path === activePath)
+  );
 
   useEffect(() => {
     if (ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath)) {
@@ -127,6 +137,9 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     if (GOVERNANCE_GROUP_CHILDREN.some((child) => child.path === activePath)) {
       setIsGovernanceOpen(true);
     }
+    if (ANALYTICS_GROUP_CHILDREN.some((child) => child.path === activePath)) {
+      setIsAnalyticsOpen(true);
+    }
   }, [activePath]);
 
   const navItemsBefore = [
@@ -137,10 +150,6 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   ];
 
   const navItemsAfter = [
-    { type: 'heading', label: 'ROLE LIFECYCLE' },
-    { type: 'item', label: 'Role Lifecycle', icon: History, path: 'role-lifecycle', hasSub: true },
-    { type: 'heading', label: 'ANALYTICS' },
-    { type: 'item', label: 'Analytics', icon: BarChart3, path: 'analytics', hasSub: true },
     { type: 'heading', label: 'ADMINISTRATION' },
     { type: 'item', label: 'Platform Users', icon: Users, path: 'administration/users' },
     { type: 'item', label: 'Platform Roles', icon: Key, path: 'administration/roles' },
@@ -157,6 +166,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const isApprovalWorkflowGroupActive = APPROVAL_WORKFLOW_GROUP_CHILDREN.some((child) => child.path === activePath);
   const isRoleCatalogGroupActive = ROLE_CATALOG_GROUP_CHILDREN.some((child) => child.path === activePath);
   const isGovernanceGroupActive = GOVERNANCE_GROUP_CHILDREN.some((child) => child.path === activePath);
+  const isAnalyticsGroupActive = ANALYTICS_GROUP_CHILDREN.some((child) => child.path === activePath);
 
   // Reusable renderer for flat nav item arrays
   const renderNavItems = (items) => items.map((item, idx) => {
@@ -187,9 +197,6 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="brand">
         <div className="logo-container">
-          <div className="logo-icon">
-            <img src="/logo.jpg" alt="rAnalyzer Logo" className="logo-image" />
-          </div>
           {!isCollapsed && (
             <div className="logo-text">
               <span className="brand-name">rAnalyzer</span>
@@ -496,6 +503,49 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
         {!isCollapsed && isGovernanceOpen && (
           <div className="nav-sub-list">
             {GOVERNANCE_GROUP_CHILDREN.map((child) => {
+              const ChildIcon = child.icon;
+              return (
+                <div
+                  key={child.path}
+                  className={`nav-item nav-sub-item ${activePath === child.path ? 'active' : ''}`}
+                  onClick={() => navigate('/' + child.path)}
+                >
+                  <ChildIcon className="nav-icon" size={16} />
+                  <span className="nav-label">{child.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Collapsible "Analytics" group */}
+        {!isCollapsed && <div className="nav-heading">ANALYTICS</div>}
+
+        <div
+          className={`nav-item ${isAnalyticsGroupActive && !isAnalyticsOpen ? 'active' : ''}`}
+          onClick={() => {
+            if (isCollapsed) {
+              navigate('/' + ANALYTICS_GROUP_CHILDREN[0].path);
+            } else {
+              setIsAnalyticsOpen((prev) => !prev);
+            }
+          }}
+        >
+          <BarChart3 className="nav-icon" size={18} />
+          {!isCollapsed && (
+            <>
+              <span className="nav-label">Analytics</span>
+              {isAnalyticsOpen
+                ? <ChevronDown className="nav-arrow" size={12} />
+                : <ChevronRight className="nav-arrow" size={12} />
+              }
+            </>
+          )}
+        </div>
+
+        {!isCollapsed && isAnalyticsOpen && (
+          <div className="nav-sub-list">
+            {ANALYTICS_GROUP_CHILDREN.map((child) => {
               const ChildIcon = child.icon;
               return (
                 <div

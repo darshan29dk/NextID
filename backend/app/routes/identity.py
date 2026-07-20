@@ -13,6 +13,7 @@ from app.models.application_account import ApplicationAccount
 from app.models.application import Application
 from app.models.application_account_entitlement import ApplicationAccountEntitlement
 from app.models.application_entitlement import ApplicationEntitlement
+from app.models.audit_log import AuditLog
 from app.schemas.identity import IdentityResponse, IdentityPaginatedResponse, IdentityCreate
 from app.utils.permissions import require_permission
 
@@ -21,6 +22,26 @@ router = APIRouter()
 
 class BulkDeleteRequest(BaseModel):
     ids: List[int]
+
+
+def write_identity_audit(db: Session, user: str, action: str, old_val: dict = None, new_val: dict = None):
+    """Identity Repository CRUD/bulk actions previously wrote nothing to the
+    Audit Log at all - this closes that gap, mirroring the write_xxx_audit
+    helper pattern used across every other module."""
+    import json
+    try:
+        audit = AuditLog(
+            module="Identity Repository",
+            action=action,
+            performed_by=user,
+            old_value=json.dumps(old_val, default=str) if old_val else None,
+            new_value=json.dumps(new_val, default=str) if new_val else None,
+            timestamp=datetime.utcnow()
+        )
+        db.add(audit)
+        db.commit()
+    except Exception as e:
+        print(f"Warning: Failed to write identity audit record: {e}")
 
 
 @router.get("/identities", response_model=IdentityPaginatedResponse)
@@ -136,6 +157,8 @@ def create_identity(
     db.add(identity)
     db.commit()
     db.refresh(identity)
+
+    write_identity_audit(db, x_user_name, "Create", new_val={"id": identity.id, "email": identity.email, "display_name": identity.display_name})
     return identity
 
 
@@ -217,6 +240,12 @@ def bulk_upload_identities(
             error_count += 1
 
     db.commit()
+
+    write_identity_audit(
+        db, x_user_name, "Bulk Upload",
+        new_val={"total": len(rows), "created": created_count, "updated": updated_count, "errors": error_count, "filename": file.filename}
+    )
+
     return {
         "total": len(rows),
         "created": created_count,
@@ -247,6 +276,7 @@ def reset_bulk_uploaded_identities(
         identity.modified_by = x_user_name
     db.commit()
 
+    write_identity_audit(db, x_user_name, "Reset Bulk Upload", new_val={"deleted": count})
     return {"deleted": count}
 
 
@@ -277,6 +307,7 @@ def bulk_delete_identities(
         identity.modified_by = x_user_name
     db.commit()
 
+    write_identity_audit(db, x_user_name, "Bulk Delete", new_val={"deleted": count, "ids": payload.ids})
     return {"deleted": count}
 
 
@@ -354,6 +385,12 @@ def update_identity(
             detail=f"Another identity already uses this email or employee ID (ID {duplicate.id}, '{duplicate.display_name or duplicate.email}')."
         )
 
+    old_state = {
+        "employee_id": identity.employee_id, "first_name": identity.first_name, "last_name": identity.last_name,
+        "email": identity.email, "department": identity.department, "job_title": identity.job_title,
+        "manager": identity.manager, "status": identity.status
+    }
+
     identity.employee_id = payload.employee_id
     identity.first_name = payload.first_name
     identity.last_name = payload.last_name
@@ -366,6 +403,13 @@ def update_identity(
     identity.modified_by = x_user_name
     db.commit()
     db.refresh(identity)
+
+    new_state = {
+        "employee_id": identity.employee_id, "first_name": identity.first_name, "last_name": identity.last_name,
+        "email": identity.email, "department": identity.department, "job_title": identity.job_title,
+        "manager": identity.manager, "status": identity.status
+    }
+    write_identity_audit(db, x_user_name, "Update", old_val=old_state, new_val=new_state)
     return identity
 
 
@@ -382,6 +426,8 @@ def delete_identity(
     identity.is_deleted = True
     identity.modified_by = x_user_name
     db.commit()
+
+    write_identity_audit(db, x_user_name, "Delete", old_val={"id": identity.id, "email": identity.email, "display_name": identity.display_name})
     return {"success": True}
 
 

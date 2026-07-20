@@ -153,20 +153,29 @@ const IdentityAttributes = () => {
         sortOrder
       };
 
-      const response = await getIdentityAttributes(params);
+      const [listResult, kpiResult] = await Promise.allSettled([
+        getIdentityAttributes(params),
+        // Fetch absolute KPIs without pagination/filtering parameters to keep the top cards accurate
+        getIdentityAttributes({ limit: 1000 })
+      ]);
+
+      if (listResult.status === 'rejected') {
+        throw listResult.reason;
+      }
+      const response = listResult.value;
       setAttributes(response.attributes || []);
       setTotal(response.total || 0);
       setTotalPages(response.total_pages || 1);
 
-      // Fetch absolute KPIs without pagination/filtering parameters to keep the top cards accurate
-      const kpiResponse = await getIdentityAttributes({ limit: 1000 });
-      const kpis = kpiResponse.attributes || [];
-      setKpiStats({
-        total: kpis.length,
-        required: kpis.filter(a => a.is_required).length,
-        searchable: kpis.filter(a => a.is_searchable).length,
-        active: kpis.filter(a => a.status === 'Active').length
-      });
+      if (kpiResult.status === 'fulfilled') {
+        const kpis = kpiResult.value.attributes || [];
+        setKpiStats({
+          total: kpis.length,
+          required: kpis.filter(a => a.is_required).length,
+          searchable: kpis.filter(a => a.is_searchable).length,
+          active: kpis.filter(a => a.status === 'Active').length
+        });
+      }
 
     } catch (err) {
       console.error('Failed to load attributes:', err);

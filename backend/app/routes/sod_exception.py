@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import os
 from datetime import datetime, timedelta
 from typing import List, Optional
 import openpyxl
@@ -16,6 +17,7 @@ from app.utils.permissions import require_permission
 from app.models.sod_exception import SodException, SodExceptionApproval, SodExceptionComment, SodExceptionAttachment, SodExceptionAudit
 from app.models.sod_violation import SodViolation
 from app.models.sod_policy import SodPolicy
+from app.models.audit_log import AuditLog
 from app.schemas.sod_exception import (
     SodExceptionCreate,
     SodExceptionUpdate,
@@ -33,8 +35,8 @@ def write_exception_audit(db: Session, exception_id: str, action: str, performed
     """Writes audit logs for exception actions."""
     old_str = json.dumps(old_val) if old_val else None
     new_str = json.dumps(new_val) if new_val else None
-    
-    # 1. Sod exception audit
+
+    # 1. Sod exception audit (local timeline shown on the exception detail page)
     audit = SodExceptionAudit(
         exception_id=exception_id,
         action=action,
@@ -44,6 +46,19 @@ def write_exception_audit(db: Session, exception_id: str, action: str, performed
         timestamp=datetime.utcnow()
     )
     db.add(audit)
+
+    # 2. Global audit log - this was missing entirely, so every exception
+    # action (request/approve/reject/extend/renew/revoke/bulk) was invisible
+    # on the central Audit Logs page even though it looked fully logged here.
+    global_audit = AuditLog(
+        module="SoD Exceptions",
+        action=action,
+        performed_by=performed_by,
+        old_value=old_str,
+        new_value=new_str,
+        timestamp=datetime.utcnow()
+    )
+    db.add(global_audit)
     db.commit()
 
 def get_next_exception_number(db: Session) -> str:
@@ -56,14 +71,26 @@ def get_exceptions_dashboard(db: Session = Depends(get_db)):
     """Summary KPI metrics for exceptions view."""
     total = db.query(SodException).count()
     pending = db.query(SodException).filter(SodException.status == "PENDING").count()
+    under_review = db.query(SodException).filter(SodException.status == "UNDER_REVIEW").count()
     approved = db.query(SodException).filter(SodException.status == "APPROVED").count()
     active = db.query(SodException).filter(SodException.status == "ACTIVE").count()
     expired = db.query(SodException).filter(SodException.status == "EXPIRED").count()
     rejected = db.query(SodException).filter(SodException.status == "REJECTED").count()
     revoked = db.query(SodException).filter(SodException.status == "REVOKED").count()
-    
-    # Simple distributions for charts
-    status_dist = {"PENDING": pending, "ACTIVE": active, "EXPIRED": expired, "REJECTED": rejected, "REVOKED": revoked}
+
+    # Simple distributions for charts. Previously omitted UNDER_REVIEW and
+    # APPROVED — a real, reachable status between Manager Review and final
+    # Security Approval — so the "by status" breakdown silently dropped
+    # those records and never summed to the Total Exceptions count.
+    status_dist = {
+        "PENDING": pending,
+        "UNDER_REVIEW": under_review,
+        "APPROVED": approved,
+        "ACTIVE": active,
+        "EXPIRED": expired,
+        "REJECTED": rejected,
+        "REVOKED": revoked
+    }
     
     dept_dist = {}
     for r in db.query(SodException.department).all():
@@ -479,16 +506,28 @@ def upload_exception_attachment(
     exc = db.query(SodException).filter(SodException.id == id).first()
     if not exc:
         raise HTTPException(status_code=404, detail="Exception request not found.")
-        
+
     filename = file.filename
     content = file.file.read()
     size = len(content)
-    
+
+    # Actually persist the bytes to backend/uploads/ (mirrors the pattern used
+    # in routes/application.py) instead of discarding them after computing size.
+    uploads_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads")
+    if not os.path.exists(uploads_dir):
+        os.makedirs(uploads_dir)
+
+    safe_filename = f"exception_{id}_{filename}"
+    disk_path = os.path.join(uploads_dir, safe_filename)
+    with open(disk_path, "wb") as f:
+        f.write(content)
+
     att = SodExceptionAttachment(
         exception_id=id,
         filename=filename,
         file_size=size,
-        uploaded_by=x_user_name
+        uploaded_by=x_user_name,
+        file_path=f"uploads/{safe_filename}"
     )
     db.add(att)
     db.commit()

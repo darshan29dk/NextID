@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
+import RoleMiningMatrix from '../../components/RoleMiningMatrix/RoleMiningMatrix';
 import {
   getMiningCampaigns,
   createMiningCampaign,
@@ -14,7 +15,8 @@ import {
   getCandidateRoles,
   getCandidateRoleDetail,
   compareCandidateRoles,
-  getCampaignOutliers
+  getCampaignOutliers,
+  getCampaignMatrix
 } from '../../services/roleDiscoveryService';
 import { getApplications } from '../../services/applicationService';
 import { canCreate, canEdit, canDelete } from '../../utils/permissions';
@@ -65,6 +67,11 @@ const RoleDiscoveryWorkspace = () => {
   const [selectedForCompare, setSelectedForCompare] = useState([]);
   const [compareResult, setCompareResult] = useState(null);
   const [showCompareModal, setShowCompareModal] = useState(false);
+
+  // Matrix view (sir's Role Studio reference - multiple roles, color-coded, real grants)
+  const [campaignMatrix, setCampaignMatrix] = useState(null);
+  const [matrixLoading, setMatrixLoading] = useState(false);
+  const [matrixError, setMatrixError] = useState('');
 
   const fetchCampaigns = useCallback(async () => {
     try {
@@ -216,6 +223,7 @@ const RoleDiscoveryWorkspace = () => {
     setSelectedCampaign(campaign);
     setDetailTab('roles');
     setSelectedForCompare([]);
+    setCampaignMatrix(null);
     setView('detail');
     fetchCandidateRoles(campaign.id);
     fetchOutliers(campaign.id);
@@ -226,8 +234,23 @@ const RoleDiscoveryWorkspace = () => {
     setSelectedCampaign(null);
     setCandidateRoles([]);
     setOutliers([]);
+    setCampaignMatrix(null);
     fetchCampaigns();
   };
+
+  const fetchCampaignMatrixData = useCallback(async (campaignId, roleIds) => {
+    try {
+      setMatrixLoading(true);
+      setMatrixError('');
+      const data = await getCampaignMatrix(campaignId, roleIds && roleIds.length ? roleIds : undefined);
+      setCampaignMatrix(data);
+    } catch (err) {
+      console.error('Failed to load campaign matrix:', err);
+      setMatrixError('Failed to load matrix view.');
+    } finally {
+      setMatrixLoading(false);
+    }
+  }, []);
 
   const handleOpenRoleDetail = async (roleId) => {
     try {
@@ -332,6 +355,13 @@ const RoleDiscoveryWorkspace = () => {
           >
             <ShieldAlert size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} /> Outliers ({outliers.length})
           </button>
+          <button
+            className={`drawer-tab-btn ${detailTab === 'matrix' ? 'active' : ''}`}
+            onClick={() => { setDetailTab('matrix'); if (!campaignMatrix) fetchCampaignMatrixData(selectedCampaign.id, selectedForCompare); }}
+            style={{ padding: '10px 18px' }}
+          >
+            <PieChart size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} /> Matrix View
+          </button>
         </div>
 
         {detailTab === 'roles' && (
@@ -413,6 +443,36 @@ const RoleDiscoveryWorkspace = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {detailTab === 'matrix' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <p className="text-muted" style={{ fontSize: '12px', margin: 0 }}>
+                {selectedForCompare.length > 0
+                  ? `Showing the ${selectedForCompare.length} role(s) checked in Candidate Roles.`
+                  : 'Showing up to the top 10 roles by confidence. Check specific roles in the Candidate Roles tab, then reopen this tab to narrow it down.'}
+                {' '}Dots reflect real entitlement grants, not just role membership.
+              </p>
+              <button
+                className="btn-add-connector"
+                onClick={() => fetchCampaignMatrixData(selectedCampaign.id, selectedForCompare)}
+                style={{ padding: '8px 14px', fontSize: '12.5px' }}
+              >
+                <RotateCcw size={13} className={matrixLoading ? 'spinner-icon' : ''} />
+                <span>Refresh</span>
+              </button>
+            </div>
+            {matrixError && <div className="drawer-tab-empty-msg"><p>{matrixError}</p></div>}
+            <RoleMiningMatrix
+              loading={matrixLoading}
+              entitlements={campaignMatrix?.entitlements || []}
+              members={campaignMatrix?.members || []}
+              cells={campaignMatrix?.cells || []}
+              roles={campaignMatrix?.roles || []}
+              emptyMessage="No candidate roles with mined entitlements/members yet - run mining first."
+            />
           </div>
         )}
 

@@ -100,6 +100,20 @@
   font-weight: 700;
   color: var(--text-main);
   line-height: 1.2;
+  min-height: 31px;
+  display: flex;
+  align-items: center;
+}
+
+.kpi-value-text {
+  font-size: 16px;
+  letter-spacing: 0.3px;
+}
+
+.kpi-value-element {
+  font-size: initial;
+  font-weight: initial;
+  line-height: initial;
 }
 
 .kpi-label-premium {

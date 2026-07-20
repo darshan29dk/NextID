@@ -243,6 +243,30 @@ def get_candidate_roles(
     }
 
 
+@router.get("/mining-campaigns/{id}/matrix")
+def get_campaign_mining_matrix(
+    id: int,
+    role_ids: Optional[str] = None,  # comma-separated candidate role ids to include; default = top 10 by confidence
+    db: Session = Depends(get_db),
+    _perm: bool = Depends(require_permission("Role Discovery", "view"))
+):
+    """Entitlement x user grid across multiple mined roles at once, color-coded
+    per role - matches the Role Studio reference view sir asked for."""
+    campaign = db.query(MiningCampaign).filter(MiningCampaign.id == id, MiningCampaign.is_deleted == False).first()
+    if not campaign:
+        raise HTTPException(status_code=404, detail="Mining campaign not found")
+
+    parsed_role_ids = None
+    if role_ids:
+        try:
+            parsed_role_ids = [int(x) for x in role_ids.split(",") if x.strip()]
+        except ValueError:
+            raise HTTPException(status_code=400, detail="role_ids must be a comma-separated list of integers")
+
+    from app.services.role_matrix_service import get_campaign_matrix
+    return get_campaign_matrix(db, id, parsed_role_ids)
+
+
 @router.get("/role-discovery/candidate-roles/{id}")
 def get_candidate_role_detail(
     id: int,

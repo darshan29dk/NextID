@@ -135,23 +135,36 @@ const ConnectorWorkspace = () => {
         environment: envFilter || undefined
       };
 
-      const response = await getConnectors(params);
-      setConnectors(response.connectors || []);
-      setTotal(response.total);
-      setTotalPages(response.total_pages);
+      const [listResult, kpiResult] = await Promise.allSettled([
+        getConnectors(params),
+        getConnectors({ limit: 1000 })
+      ]);
 
-      const kpiRes = await getConnectors({ limit: 1000 });
-      const kpis = kpiRes.connectors || [];
-      
-      setStats({
-        total: kpiRes.total,
-        csv: kpis.filter(c => c.connector_type === 'CSV').length,
-        excel: kpis.filter(c => c.connector_type === 'Excel').length,
-        db: kpis.filter(c => c.connector_type === 'Database').length,
-        connected: kpis.filter(c => c.status === 'Connected').length,
-        disconnected: kpis.filter(c => c.status === 'Configured' || c.status === 'Draft' || c.status === 'Disabled').length,
-        failed: kpis.filter(c => c.status === 'Failed').length
-      });
+      if (listResult.status === 'fulfilled') {
+        const response = listResult.value;
+        setConnectors(response.connectors || []);
+        setTotal(response.total);
+        setTotalPages(response.total_pages);
+      }
+
+      if (kpiResult.status === 'fulfilled') {
+        const kpiRes = kpiResult.value;
+        const kpis = kpiRes.connectors || [];
+
+        setStats({
+          total: kpiRes.total,
+          csv: kpis.filter(c => c.connector_type === 'CSV').length,
+          excel: kpis.filter(c => c.connector_type === 'Excel').length,
+          db: kpis.filter(c => c.connector_type === 'Database').length,
+          connected: kpis.filter(c => c.status === 'Connected').length,
+          disconnected: kpis.filter(c => c.status === 'Configured' || c.status === 'Draft' || c.status === 'Disabled').length,
+          failed: kpis.filter(c => c.status === 'Failed').length
+        });
+      }
+
+      if (listResult.status === 'rejected') {
+        throw listResult.reason;
+      }
 
     } catch (err) {
       console.error("Failed to load connectors:", err);

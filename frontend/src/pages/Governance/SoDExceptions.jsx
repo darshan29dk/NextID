@@ -106,17 +106,34 @@ const SoDExceptions = () => {
   const [violations, setViolations] = useState([]);
   const [submitting, setSubmitting] = useState(false);
 
-  // Fetch lookups
+  // Fetch lookups. Each call is independent (not chained in one try/catch)
+  // so a failure in one dropdown's data source doesn't silently blank out
+  // the other two — previously a single bad endpoint here (a wrong path)
+  // aborted the whole sequence and left Policy/Identity/Violation all empty
+  // with only a console.error, no visible sign anything had gone wrong.
   const fetchLookups = async () => {
-    try {
-      const polRes = await apiClient.get('/governance/policies');
-      setPolicies(polRes.data.policies || polRes.data);
-      const userRes = await apiClient.get('/identities');
-      setUsers(userRes.data.identities || userRes.data);
-      const violRes = await apiClient.get('/governance/violations');
-      setViolations(violRes.data.violations || violRes.data);
-    } catch (err) {
-      console.error("Failed to load request form lookup objects:", err);
+    const [polResult, userResult, violResult] = await Promise.allSettled([
+      apiClient.get('/governance/sod-policies'),
+      apiClient.get('/identities'),
+      apiClient.get('/governance/violations')
+    ]);
+
+    if (polResult.status === 'fulfilled') {
+      setPolicies(polResult.value.data.policies || polResult.value.data);
+    } else {
+      console.error("Failed to load policies for exception request form:", polResult.reason);
+    }
+
+    if (userResult.status === 'fulfilled') {
+      setUsers(userResult.value.data.identities || userResult.value.data);
+    } else {
+      console.error("Failed to load identities for exception request form:", userResult.reason);
+    }
+
+    if (violResult.status === 'fulfilled') {
+      setViolations(violResult.value.data.violations || violResult.value.data);
+    } else {
+      console.error("Failed to load violations for exception request form:", violResult.reason);
     }
   };
 
@@ -133,14 +150,22 @@ const SoDExceptions = () => {
         department: deptFilter || undefined,
         application: appFilter || undefined
       };
-      const res = await apiClient.get('/governance/exceptions', { params });
-      setExceptions(res.data.exceptions);
-      setTotal(res.data.total);
-      setTotalPages(Math.ceil(res.data.total / limit));
+      const [listResult, kpiResult] = await Promise.allSettled([
+        apiClient.get('/governance/exceptions', { params }),
+        apiClient.get('/governance/exceptions/dashboard')
+      ]);
 
-      const kpiRes = await apiClient.get('/governance/exceptions/dashboard');
-      setKpis(kpiRes.data.kpis);
-      setCharts(kpiRes.data.charts);
+      if (listResult.status === 'rejected') {
+        throw listResult.reason;
+      }
+      setExceptions(listResult.value.data.exceptions);
+      setTotal(listResult.value.data.total);
+      setTotalPages(Math.ceil(listResult.value.data.total / limit));
+
+      if (kpiResult.status === 'fulfilled') {
+        setKpis(kpiResult.value.data.kpis);
+        setCharts(kpiResult.value.data.charts);
+      }
     } catch (err) {
       setErrorMsg("Failed to retrieve SoD exception authorizations.");
     } finally {

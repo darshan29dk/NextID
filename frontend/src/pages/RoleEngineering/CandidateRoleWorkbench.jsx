@@ -36,14 +36,18 @@ import {
   Gauge,
   GitMerge,
   Scissors,
-  BookOpen
+  BookOpen,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
+import RoleMiningMatrix from '../../components/RoleMiningMatrix/RoleMiningMatrix';
 import {
   getCandidateRoleStats,
   getCandidateRoles,
   getCandidateRoleDetail,
+  getCandidateRoleMatrix,
   createCandidateRole,
   updateCandidateRole,
   deleteCandidateRole,
@@ -193,6 +197,14 @@ const CandidateRoleWorkbench = () => {
   const [previewError, setPreviewError] = useState('');
   const [exportingPreview, setExportingPreview] = useState('');
 
+  // ── Entitlement x User matrix (sir's Role Studio reference) ───────────────
+  const [roleMatrix, setRoleMatrix] = useState(null);
+  const [matrixLoading, setMatrixLoading] = useState(false);
+  const [matrixError, setMatrixError] = useState('');
+
+  // ── Drawer fullscreen toggle - the matrix needs the room ─────────────────
+  const [drawerFullscreen, setDrawerFullscreen] = useState(false);
+
   // Fetch KPI Stats — DB-aggregated counts + filter dropdown options,
   // instead of pulling up to 1000 full role rows and counting client-side.
   const fetchKPIStats = async () => {
@@ -325,18 +337,26 @@ const CandidateRoleWorkbench = () => {
       setOwnerData({ primary: null, backup: null });
       setOwnerHistory([]);
       setRolePreview(null);
+      setRoleMatrix(null);
+      setDrawerFullscreen(true);
       setShowAssignOwnerForm(false);
       setShowOwnerHistory(false);
       
-      const detail = await getCandidateRoleDetail(roleId);
-      setSelectedRole(detail);
-      setEditClassification(detail.classification || '');
+      const [detailResult, ownersResult] = await Promise.allSettled([
+        getCandidateRoleDetail(roleId),
+        getCurrentOwners(roleId)
+      ]);
 
-      // Eagerly load owners
-      try {
-        const owners = await getCurrentOwners(roleId);
-        setOwnerData({ primary: owners.primary, backup: owners.backup });
-      } catch (_) { /* owners table may not have data yet */ }
+      if (detailResult.status === 'rejected') {
+        throw detailResult.reason;
+      }
+      setSelectedRole(detailResult.value);
+      setEditClassification(detailResult.value.classification || '');
+
+      // Eagerly load owners (owners table may not have data yet, so ignore failures)
+      if (ownersResult.status === 'fulfilled') {
+        setOwnerData({ primary: ownersResult.value.primary, backup: ownersResult.value.backup });
+      }
     } catch (err) {
       console.error('Failed to load candidate role detail drawer:', err);
       setErrorMsg('Failed to load role details. Please try again.');
@@ -353,6 +373,8 @@ const CandidateRoleWorkbench = () => {
     setOwnerData({ primary: null, backup: null });
     setOwnerHistory([]);
     setRolePreview(null);
+    setRoleMatrix(null);
+    setDrawerFullscreen(false);
     setShowAssignOwnerForm(false);
     setShowOwnerHistory(false);
   };
@@ -767,6 +789,20 @@ const CandidateRoleWorkbench = () => {
     finally { setOwnerHistoryLoading(false); }
   };
 
+  // ── Load entitlement x user matrix for this role ─────────────────────────
+  const handleLoadMatrix = async (roleId) => {
+    try {
+      setMatrixLoading(true);
+      setMatrixError('');
+      const matrix = await getCandidateRoleMatrix(roleId);
+      setRoleMatrix(matrix);
+    } catch (err) {
+      setMatrixError(err?.response?.data?.detail || 'Failed to load matrix.');
+    } finally {
+      setMatrixLoading(false);
+    }
+  };
+
   // ── RE-006: Load preview ─────────────────────────────────────────────────
   const handleLoadPreview = async (roleId) => {
     try {
@@ -1179,7 +1215,7 @@ const CandidateRoleWorkbench = () => {
         className={`drawer-overlay-overlay ${showDrawer ? 'open' : ''}`}
         onClick={handleCloseDrawer}
       />
-      <div className={`drawer-panel-custom ${showDrawer ? 'open' : ''}`}>
+      <div className={`drawer-panel-custom ${showDrawer ? 'open' : ''} ${drawerFullscreen ? 'fullscreen' : ''}`}>
         {selectedRole && (
           <>
              <div className="drawer-header-section" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
@@ -1190,6 +1226,13 @@ const CandidateRoleWorkbench = () => {
                 <p style={{ margin: '4px 0 0 0' }}>ID: {selectedRole.id} • Job Cluster: {selectedRole.job_function || 'Custom'}</p>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+                <button
+                  className="btn-drawer-close"
+                  title={drawerFullscreen ? 'Exit full screen' : 'View full screen'}
+                  onClick={() => setDrawerFullscreen((prev) => !prev)}
+                >
+                  {drawerFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+                </button>
                 {currentUser?.role !== 'Viewer' && ['Draft', 'Reviewed'].includes(selectedRole.status) && (
                   <button
                     className="btn-action-premium primary"
@@ -1238,6 +1281,12 @@ const CandidateRoleWorkbench = () => {
                 onClick={() => setDetailTab('users')}
               >
                 Assigned Users ({selectedRole.members ? selectedRole.members.length : 0})
+              </button>
+              <button
+                className={`drawer-tab-btn ${detailTab === 'matrix' ? 'active' : ''}`}
+                onClick={() => { setDetailTab('matrix'); if (!roleMatrix) handleLoadMatrix(selectedRole.id); }}
+              >
+                Matrix View
               </button>
               {selectedRole.sod_violation_count > 0 && (
                 <button 
@@ -1495,6 +1544,24 @@ const CandidateRoleWorkbench = () => {
                           <p>No assigned identities found for this candidate role.</p>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {detailTab === 'matrix' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <p className="text-muted" style={{ fontSize: '12px', margin: 0 }}>
+                        Real entitlement grants per member, before this role gets published. A blank cell means that member doesn't actually hold that entitlement yet.
+                      </p>
+                      {matrixError && (
+                        <div className="drawer-tab-empty-msg"><p>{matrixError}</p></div>
+                      )}
+                      <RoleMiningMatrix
+                        loading={matrixLoading}
+                        entitlements={roleMatrix?.entitlements || []}
+                        members={roleMatrix?.members || []}
+                        cells={roleMatrix?.cells || []}
+                        emptyMessage="No entitlement/member data available yet to build a matrix for this role."
+                      />
                     </div>
                   )}
 

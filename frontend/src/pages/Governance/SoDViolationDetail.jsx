@@ -42,10 +42,19 @@ const SoDViolationDetail = () => {
     setLoading(true);
     setErrorMsg(null);
     try {
-      const res = await apiClient.get(`/governance/violations/${id}`);
-      const data = res.data;
+      const [detailResult] = await Promise.allSettled([
+        apiClient.get(`/governance/violations/${id}`),
+        // Load timeline audit logs (we can query audit or violations list)
+        apiClient.get(`/governance/violations`)
+      ]);
+
+      if (detailResult.status === 'rejected') {
+        throw detailResult.reason;
+      }
+
+      const data = detailResult.value.data;
       setViolation(data);
-      
+
       // Initialize edit fields
       setStatusVal(data.status);
       setAssignedTo(data.assigned_to || '');
@@ -53,9 +62,6 @@ const SoDViolationDetail = () => {
       setIsFalsePositive(data.is_false_positive);
       setFalsePositiveReason(data.false_positive_reason || '');
 
-      // Load timeline audit logs
-      const auditRes = await apiClient.get(`/governance/violations`); // We can query audit or violations list
-      // Or search direct audits
       setTimeline(data.audit_trail || []);
     } catch (err) {
       setErrorMsg("Failed to load SoD violation diagnostic details.");

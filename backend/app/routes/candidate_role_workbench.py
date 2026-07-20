@@ -380,6 +380,21 @@ def get_candidate_role_by_id(
     return detail
 
 
+@router.get("/candidate-roles/{role_id}/matrix")
+def get_candidate_role_matrix(
+    role_id: int,
+    db: Session = Depends(get_db),
+    _perm: bool = Depends(require_permission("Role Engineering", "view"))
+):
+    """Entitlement x member grid for this one role - real grants only,
+    used to review the role's composition before publishing."""
+    from app.services.role_matrix_service import get_role_matrix
+    matrix = get_role_matrix(db, role_id)
+    if not matrix:
+        raise HTTPException(status_code=404, detail="Candidate role not found")
+    return matrix
+
+
 @router.post("/candidate-roles", status_code=201)
 def create_candidate_role(
     payload: CandidateRoleCreate,

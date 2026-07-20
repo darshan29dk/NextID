@@ -169,20 +169,29 @@ const AccountAttributes = () => {
         sortOrder
       };
 
-      const response = await getAccountAttributes(params);
+      const [listResult, fullResult] = await Promise.allSettled([
+        getAccountAttributes(params),
+        // Fetch full list once to calculate global stats/KPIs
+        getAccountAttributes({ page: 1, limit: 1000 })
+      ]);
+
+      if (listResult.status === 'rejected') {
+        throw listResult.reason;
+      }
+      const response = listResult.value;
       setAttributes(response.attributes || []);
       setTotal(response.total || 0);
       setTotalPages(response.total_pages || 1);
 
-      // Fetch full list once to calculate global stats/KPIs
-      const fullResponse = await getAccountAttributes({ page: 1, limit: 1000 });
-      const kpis = fullResponse.attributes || [];
-      setKpiStats({
-        total: kpis.length,
-        system: kpis.filter(a => a.is_system || a.attribute_type === 'System').length,
-        custom: kpis.filter(a => !a.is_system && a.attribute_type !== 'System').length,
-        required: kpis.filter(a => a.is_required).length
-      });
+      if (fullResult.status === 'fulfilled') {
+        const kpis = fullResult.value.attributes || [];
+        setKpiStats({
+          total: kpis.length,
+          system: kpis.filter(a => a.is_system || a.attribute_type === 'System').length,
+          custom: kpis.filter(a => !a.is_system && a.attribute_type !== 'System').length,
+          required: kpis.filter(a => a.is_required).length
+        });
+      }
 
     } catch (err) {
       console.error(err);

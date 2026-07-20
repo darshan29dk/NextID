@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Header
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
 from app.models.dashboard import DashboardStats, RecentActivity, IdentityRecord, ApprovalQueueItem, RoleMiningTrendPoint
 from app.models.notification import Notification
+from app.models.audit_log import AuditLog
 from app.schemas.dashboard import (
     DashboardStatsResponse, RecentActivityResponse, ApprovalQueueResponse, SyncApiRequest,
     DepartmentCoverageData, ApplicationDistributionData, RoleLifecycleData
@@ -159,7 +160,7 @@ def get_approval_queue(db: Session = Depends(get_db)):
     return queue
 
 @router.post("/upload-data", response_model=DashboardStatsResponse)
-async def upload_identity_data(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_identity_data(file: UploadFile = File(...), db: Session = Depends(get_db), x_user_name: str = Header(default="System")):
     content = await file.read()
     filename = file.filename.lower()
     parsed_records = []
@@ -291,13 +292,23 @@ async def upload_identity_data(file: UploadFile = File(...), db: Session = Depen
         created_at=datetime.utcnow()
     )
     db.add(notification)
-    
+
+    # This bulk-replaces every dashboard identity record but previously left
+    # no audit trail at all - only a notification.
+    db.add(AuditLog(
+        module="Dashboard",
+        action="Data Upload",
+        performed_by=x_user_name,
+        new_value=json.dumps({"filename": file.filename, "records_imported": len(parsed_records)}, default=str),
+        timestamp=datetime.utcnow()
+    ))
+
     db.commit()
-    
+
     return get_dashboard_stats(db)
 
 @router.post("/sync-api", response_model=DashboardStatsResponse)
-def sync_api_integration(payload: SyncApiRequest, db: Session = Depends(get_db)):
+def sync_api_integration(payload: SyncApiRequest, db: Session = Depends(get_db), x_user_name: str = Header(default="System")):
     if not payload.apiKey.strip():
         raise HTTPException(status_code=400, detail="API Key cannot be empty")
         
@@ -378,8 +389,16 @@ def sync_api_integration(payload: SyncApiRequest, db: Session = Depends(get_db))
         created_at=datetime.utcnow()
     )
     db.add(notification)
-    
+
+    db.add(AuditLog(
+        module="Dashboard",
+        action="API Sync",
+        performed_by=x_user_name,
+        new_value=json.dumps({"provider": payload.provider, "records_imported": num_identities}, default=str),
+        timestamp=datetime.utcnow()
+    ))
+
     db.commit()
-    
+
     return get_dashboard_stats(db)
 

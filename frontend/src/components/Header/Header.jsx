@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Search, Bell, Sun, Moon, LogOut, User as UserIcon } from 'lucide-react';
+import { Search, Bell, Sun, Moon, LogOut, User as UserIcon, HelpCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { markNotificationRead, markAllNotificationsRead } from '../../services/dashboardService';
 import './Header.css';
 
 // Static list of searchable pages, built from the real routes in App.jsx.
@@ -31,6 +32,30 @@ const Header = ({
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
 
+  // Local mirror of the notifications prop so read/unread state can update
+  // instantly on click without waiting on the parent to refetch.
+  const [localNotifications, setLocalNotifications] = useState(notifications);
+  useEffect(() => { setLocalNotifications(notifications); }, [notifications]);
+
+  const handleNotificationClick = async (id) => {
+    setLocalNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, status: 'read' } : n)));
+    try {
+      await markNotificationRead(id);
+    } catch (err) {
+      console.error('Failed to mark notification as read:', err);
+    }
+  };
+
+  const handleMarkAllRead = async (e) => {
+    e.stopPropagation();
+    setLocalNotifications((prev) => prev.map((n) => ({ ...n, status: 'read' })));
+    try {
+      await markAllNotificationsRead();
+    } catch (err) {
+      console.error('Failed to mark all notifications as read:', err);
+    }
+  };
+
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchDropdown, setShowSearchDropdown] = useState(false);
   const [activeResultIndex, setActiveResultIndex] = useState(0);
@@ -58,7 +83,7 @@ const Header = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const unreadCount = notifications.filter(n => n.status === 'unread').length;
+  const unreadCount = localNotifications.filter(n => n.status === 'unread').length;
 
   const handleGoToProfile = () => {
     setShowProfileMenu(false);
@@ -162,14 +187,23 @@ const Header = ({
             <div className="dropdown-menu notification-menu">
               <div className="menu-header">
                 <h4>Notifications</h4>
-                {unreadCount > 0 && <span className="unread-lbl">{unreadCount} unread</span>}
+                {unreadCount > 0 ? (
+                  <button className="mark-all-read-btn" onClick={handleMarkAllRead}>
+                    Mark all read
+                  </button>
+                ) : null}
               </div>
               <div className="notifications-list">
-                {notifications.length === 0 ? (
+                {localNotifications.length === 0 ? (
                   <div className="empty-state">No new notifications</div>
                 ) : (
-                  notifications.map((notif) => (
-                    <div key={notif.id} className={`notification-item ${notif.status}`}>
+                  localNotifications.map((notif) => (
+                    <div
+                      key={notif.id}
+                      className={`notification-item ${notif.status}`}
+                      onClick={() => notif.status === 'unread' && handleNotificationClick(notif.id)}
+                      style={{ cursor: notif.status === 'unread' ? 'pointer' : 'default' }}
+                    >
                       <div className="notification-dot"></div>
                       <div className="notification-content">
                         <p className="notification-title">{notif.title}</p>
