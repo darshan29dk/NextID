@@ -90,6 +90,10 @@ class SodExceptionAttachment(Base):
     file_size = Column(Integer, nullable=False)
     uploaded_by = Column(String(100), nullable=False)
     uploaded_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    # Relative path under backend/uploads/ where the file bytes are actually
+    # stored on disk. Added via check_and_add_columns() in main.py so that
+    # existing deployments are upgraded safely without manual ALTER TABLE.
+    file_path = Column(String(500), nullable=True)
 
     exception = relationship("SodException", back_populates="attachments")
 

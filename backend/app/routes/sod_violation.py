@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import os
 from datetime import datetime
 from typing import List, Optional
 import openpyxl
@@ -264,22 +265,33 @@ def upload_attachment(
     v = db.query(SodViolation).filter(SodViolation.id == id).first()
     if not v:
         raise HTTPException(status_code=404, detail="SoD violation not found.")
-        
-    # Read metadata and fake save
+
     filename = file.filename
     content = file.file.read()
     size = len(content)
-    
+
+    # Actually persist the bytes to backend/uploads/ (mirrors the pattern used
+    # in routes/application.py) instead of discarding them after computing size.
+    uploads_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads")
+    if not os.path.exists(uploads_dir):
+        os.makedirs(uploads_dir)
+
+    safe_filename = f"violation_{id}_{filename}"
+    disk_path = os.path.join(uploads_dir, safe_filename)
+    with open(disk_path, "wb") as f:
+        f.write(content)
+
     att = SodViolationAttachment(
         violation_id=id,
         filename=filename,
         file_size=size,
-        uploaded_by=x_user_name
+        uploaded_by=x_user_name,
+        file_path=f"uploads/{safe_filename}"
     )
     db.add(att)
     db.commit()
     db.refresh(att)
-    
+
     write_violation_audit(db, id, "Attachment Uploaded", x_user_name, new_val={"filename": filename, "size": size})
     return att
 

@@ -283,6 +283,21 @@ class MergeRoleService:
             dest_role.modified_by = user
             dest_role.updated_at = datetime.utcnow()
 
+            # Soft-deleting the role alone left its member/entitlement rows
+            # behind as orphaned data — is_deleted=True hides the role from
+            # normal list queries, but anything counting CandidateRoleMember/
+            # CandidateRoleEntitlement directly (without joining back to
+            # CandidateRole and filtering is_deleted) would still pick these
+            # up, e.g. an Analytics coverage calculation. These rows have no
+            # audit-trail value once the role itself is undone, so delete
+            # them outright rather than leaving them attached to a dead role.
+            db.query(CandidateRoleMember).filter(
+                CandidateRoleMember.candidate_role_id == dest_role.id
+            ).delete(synchronize_session=False)
+            db.query(CandidateRoleEntitlement).filter(
+                CandidateRoleEntitlement.candidate_role_id == dest_role.id
+            ).delete(synchronize_session=False)
+
         # Find source roles
         sources = db.query(RoleMergeSourceRole).filter(RoleMergeSourceRole.merge_history_id == history_id).all()
         source_ids = [s.source_role_id for s in sources]

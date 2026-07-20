@@ -10,6 +10,7 @@ from app.models.platform_role import PlatformRole
 from app.models.platform_user import PlatformUser
 from app.models.audit_log import AuditLog
 from app.models.dashboard import RecentActivity
+from app.models.notification import Notification
 from app.schemas.platform_user import (
     PlatformUserCreate, PlatformUserUpdate, PlatformUserResponse,
     PlatformUserPaginatedResponse, PlatformRoleResponse
@@ -176,6 +177,17 @@ def create_platform_user(
             "platform_role_id": user.platform_role_id
         }
     )
+
+    # Account creation previously left the audit trail but never told anyone -
+    # this at least surfaces it on the bell icon for whoever's watching.
+    full_name = f"{user.first_name or ''} {user.last_name or ''}".strip() or user.email
+    db.add(Notification(
+        title="New Platform User Created",
+        message=f"{full_name} ({user.email}) was added by {x_user_name}.",
+        status="unread",
+        created_at=datetime.utcnow()
+    ))
+    db.commit()
 
     return user
 

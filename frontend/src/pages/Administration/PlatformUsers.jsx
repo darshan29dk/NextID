@@ -113,25 +113,35 @@ const PlatformUsers = () => {
         role_id: roleFilter ? parseInt(roleFilter) : undefined
       };
       
-      const response = await getPlatformUsers(queryParams);
+      const [listResult, statsResult] = await Promise.allSettled([
+        getPlatformUsers(queryParams),
+        // Calculate KPI aggregates based on a broader query (limit=1000)
+        // so stats remain accurate across filters
+        getPlatformUsers({ limit: 1000 })
+      ]);
+
+      if (listResult.status === 'rejected') {
+        throw listResult.reason;
+      }
+      const response = listResult.value;
       setUsers(response.users);
       setTotal(response.total);
       setTotalPages(response.total_pages);
-      
-      // Calculate KPI aggregates based on a broader query (limit=1000)
-      // so stats remain accurate across filters
-      const statsRes = await getPlatformUsers({ limit: 1000 });
-      const activeCount = statsRes.users.filter(u => u.status === 'Active').length;
-      const inactiveCount = statsRes.users.filter(u => u.status !== 'Active').length;
-      const uniqueDepts = [...new Set(statsRes.users.map(u => u.department).filter(Boolean))].length;
-      
-      setKpiStats({
-        total: statsRes.total,
-        active: activeCount,
-        inactive: inactiveCount,
-        departments: uniqueDepts
-      });
-      
+
+      if (statsResult.status === 'fulfilled') {
+        const statsRes = statsResult.value;
+        const activeCount = statsRes.users.filter(u => u.status === 'Active').length;
+        const inactiveCount = statsRes.users.filter(u => u.status !== 'Active').length;
+        const uniqueDepts = [...new Set(statsRes.users.map(u => u.department).filter(Boolean))].length;
+
+        setKpiStats({
+          total: statsRes.total,
+          active: activeCount,
+          inactive: inactiveCount,
+          departments: uniqueDepts
+        });
+      }
+
     } catch (err) {
       console.error("Failed to load platform users:", err);
       setErrorMsg("Failed to load platform users. Please check backend connection.");

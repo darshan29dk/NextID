@@ -38,6 +38,9 @@ import PublishedRoles from './pages/RoleCatalog/PublishedRoles';
 import BusinessRoles from './pages/RoleCatalog/BusinessRoles';
 import TechnicalRoles from './pages/RoleCatalog/TechnicalRoles';
 import RoleCatalogDetail from './pages/RoleCatalog/RoleCatalogDetail';
+import ExecutiveDashboard from './pages/Analytics/ExecutiveDashboard';
+import RoleAnalytics from './pages/Analytics/RoleAnalytics';
+import CoverageReports from './pages/Analytics/CoverageReports';
 const UnderConstruction = ({ title }) => {
   return (
     <div style={{
@@ -131,8 +134,10 @@ function App() {
                   <Route path="/governance/exceptions" element={<SoDExceptions />} />
                   <Route path="/governance/exceptions/:id" element={<SoDExceptionDetail />} />
                   <Route path="/governance/scan-history" element={<SoDScanHistory />} />
-                  <Route path="/role-lifecycle" element={<UnderConstruction title="Role Lifecycle" />} />
-                  <Route path="/analytics" element={<UnderConstruction title="Analytics" />} />
+                  <Route path="/analytics" element={<Navigate to="/analytics/executive" replace />} />
+                  <Route path="/analytics/executive" element={<ExecutiveDashboard />} />
+                  <Route path="/analytics/role-analytics" element={<RoleAnalytics />} />
+                  <Route path="/analytics/coverage-reports" element={<CoverageReports />} />
 
                   {/* ── Administration ── */}
                   <Route path="/administration" element={<Navigate to="/administration/users" replace />} />

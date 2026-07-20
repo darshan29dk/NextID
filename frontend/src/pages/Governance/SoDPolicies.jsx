@@ -572,7 +572,7 @@ const SoDPolicies = () => {
                       <td className="code-cell font-mono">{p.policy_code}</td>
                       <td className="policy-name-cell">
                         <span onClick={() => handleViewPolicy(p)} className="clickable-name">{p.policy_name}</span>
-                        <span className="policy-desc-tooltip">{p.description || "No description provided."}</span>
+                        <span className="policy-desc-subtext">{p.description || "No description provided."}</span>
                       </td>
                       <td>
                         <span className={`type-badge ${p.policy_type.toLowerCase()}`}>{p.policy_type}</span>

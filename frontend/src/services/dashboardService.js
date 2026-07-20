@@ -4,7 +4,11 @@ import axios from 'axios';
 // deployed backend on a server (e.g. the Azure VM), without editing code.
 // Set VITE_API_BASE_URL in a .env file to override; falls back to localhost
 // for local development if it's not set.
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
+// Same host as the API, but without the /api prefix - used to build URLs for
+// statically-served files (uploaded logo, attachments) since those are
+// mounted at /uploads, not under /api.
+export const FILES_BASE_URL = API_BASE_URL.replace(/\/api\/?$/, '');
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -34,6 +38,26 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// Tiny in-memory TTL cache for data that's fetched on every page load but
+// barely changes (profile, theme, notifications). Avoids re-hitting the
+// (remote) DB on every mount within the TTL window. Lives only for the
+// current tab session - no localStorage involved.
+const _cache = new Map();
+const cached = (key, ttlMs, fetcher) => {
+  const hit = _cache.get(key);
+  if (hit && Date.now() - hit.time < ttlMs) {
+    return Promise.resolve(hit.value);
+  }
+  return fetcher().then((value) => {
+    _cache.set(key, { value, time: Date.now() });
+    return value;
+  });
+};
+export const invalidateDashboardCache = (key) => {
+  if (key) _cache.delete(key);
+  else _cache.clear();
+};
+
 export const getDashboardStats = async () => {
   const response = await apiClient.get('/dashboard');
   return response.data;
@@ -45,22 +69,41 @@ export const getRecentActivities = async () => {
 };
 
 export const getNotifications = async () => {
-  const response = await apiClient.get('/notifications');
+  return cached('notifications', 30 * 1000, async () => {
+    const response = await apiClient.get('/notifications');
+    return response.data;
+  });
+};
+
+export const markNotificationRead = async (id) => {
+  const response = await apiClient.put(`/notifications/${id}/read`);
+  invalidateDashboardCache('notifications');
+  return response.data;
+};
+
+export const markAllNotificationsRead = async () => {
+  const response = await apiClient.put('/notifications/read-all');
+  invalidateDashboardCache('notifications');
   return response.data;
 };
 
 export const getProfile = async () => {
-  const response = await apiClient.get('/profile');
-  return response.data;
+  return cached('profile', 5 * 60 * 1000, async () => {
+    const response = await apiClient.get('/profile');
+    return response.data;
+  });
 };
 
 export const getTheme = async () => {
-  const response = await apiClient.get('/theme');
-  return response.data;
+  return cached('theme', 5 * 60 * 1000, async () => {
+    const response = await apiClient.get('/theme');
+    return response.data;
+  });
 };
 
 export const updateTheme = async (theme) => {
   const response = await apiClient.put('/theme', { theme });
+  invalidateDashboardCache('theme');
   return response.data;
 };
 
@@ -157,6 +200,20 @@ export const getSettings = async () => {
 
 export const updateSettings = async (settingsData) => {
   const response = await apiClient.put('/settings', settingsData);
+  return response.data;
+};
+
+export const uploadSettingsLogo = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await apiClient.post('/settings/logo', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+};
+
+export const removeSettingsLogo = async () => {
+  const response = await apiClient.delete('/settings/logo');
   return response.data;
 };
 

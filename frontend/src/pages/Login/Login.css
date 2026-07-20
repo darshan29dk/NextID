@@ -120,6 +120,20 @@
   max-width: 380px;
 }
 
+.login-form-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.login-form-brand-name {
+  font-size: 21px;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.2px;
+}
+
 .login-form-box h1 {
   font-size: 28px;
   font-weight: 700;

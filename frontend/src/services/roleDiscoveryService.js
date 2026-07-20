@@ -44,3 +44,9 @@ export const getCampaignOutliers = async (campaignId, params) => {
   const response = await apiClient.get(`/mining-campaigns/${campaignId}/outliers`, { params });
   return response.data;
 };
+
+export const getCampaignMatrix = async (campaignId, roleIds) => {
+  const params = roleIds && roleIds.length ? { role_ids: roleIds.join(',') } : {};
+  const response = await apiClient.get(`/mining-campaigns/${campaignId}/matrix`, { params });
+  return response.data;
+};

@@ -42,31 +42,31 @@ const DashboardLayout = ({ children }) => {
         applyTheme(localTheme);
       }
       
-      try {
-        const themeData = await getTheme();
-        if (themeData && themeData.theme) {
-          applyTheme(themeData.theme);
-        }
-      } catch (err) {
-        console.error('Could not load theme from backend:', err);
+      // These three calls are independent of each other, so fire them
+      // together instead of awaiting one at a time - that was tripling
+      // the network round-trip cost to the remote DB on every load.
+      const [themeResult, profileResult, notificationsResult] = await Promise.allSettled([
+        getTheme(),
+        getProfile(),
+        getNotifications()
+      ]);
+
+      if (themeResult.status === 'fulfilled' && themeResult.value?.theme) {
+        applyTheme(themeResult.value.theme);
+      } else if (themeResult.status === 'rejected') {
+        console.error('Could not load theme from backend:', themeResult.reason);
       }
 
-      try {
-        const profileData = await getProfile();
-        if (profileData) {
-          setProfile(profileData);
-        }
-      } catch (err) {
-        console.error('Could not load profile:', err);
+      if (profileResult.status === 'fulfilled' && profileResult.value) {
+        setProfile(profileResult.value);
+      } else if (profileResult.status === 'rejected') {
+        console.error('Could not load profile:', profileResult.reason);
       }
 
-      try {
-        const notificationsData = await getNotifications();
-        if (notificationsData) {
-          setNotifications(notificationsData);
-        }
-      } catch (err) {
-        console.error('Could not load notifications:', err);
+      if (notificationsResult.status === 'fulfilled' && notificationsResult.value) {
+        setNotifications(notificationsResult.value);
+      } else if (notificationsResult.status === 'rejected') {
+        console.error('Could not load notifications:', notificationsResult.reason);
       }
 
       // Set profile from logged in user

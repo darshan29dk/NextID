@@ -63,10 +63,21 @@ def write_auth_audit(db: Session, user: str, action: str, detail: str = None):
         print(f"Warning: Failed to write auth audit record: {e}")
 
 
-def send_otp_email(to_email: str, otp: str, expiry_minutes: int):
+def send_otp_email(to_email: str, otp: str, expiry_minutes: int, settings: PlatformSettings = None):
+    # Prefer SMTP settings configured on the Settings page (SMTP Settings
+    # category); fall back to the .env values if nothing's been saved there
+    # yet, so this keeps working for existing deployments either way.
+    host = (settings.smtp_host if settings and settings.smtp_host else None) or SMTP_HOST
+    port = (settings.smtp_port if settings and settings.smtp_port else None) or SMTP_PORT
+    user = (settings.smtp_username if settings and settings.smtp_username else None) or SMTP_USER
+    password = (settings.smtp_password if settings and settings.smtp_password else None) or SMTP_PASSWORD
+    from_email = (settings.smtp_from_email if settings and settings.smtp_from_email else None) or user
+    from_name = (settings.smtp_from_name if settings and settings.smtp_from_name else None) or "rAnalyzer"
+    use_tls = settings.smtp_use_tls if settings and settings.smtp_use_tls is not None else True
+
     msg = MIMEMultipart("alternative")
     msg["Subject"] = "rAnalyzer - Your OTP for Password Reset"
-    msg["From"] = SMTP_USER
+    msg["From"] = f"{from_name} <{from_email}>"
     msg["To"] = to_email
 
     html = f"""
@@ -88,15 +99,16 @@ def send_otp_email(to_email: str, otp: str, expiry_minutes: int):
 
     msg.attach(MIMEText(html, "html"))
 
-    if SMTP_PORT == 465:
-        with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as server:
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(SMTP_USER, to_email, msg.as_string())
+    if port == 465:
+        with smtplib.SMTP_SSL(host, port) as server:
+            server.login(user, password)
+            server.sendmail(user, to_email, msg.as_string())
     else:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(SMTP_USER, to_email, msg.as_string())
+        with smtplib.SMTP(host, port) as server:
+            if use_tls:
+                server.starttls()
+            server.login(user, password)
+            server.sendmail(user, to_email, msg.as_string())
 
 
 @router.post("/auth/login")
@@ -116,6 +128,7 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     from app.models.platform_role import PlatformRole
     from app.models.menu_permission import MenuPermission
     from sqlalchemy import or_
+    from app.cache import cache_get, cache_set
 
     # 1. Try matching PlatformUser by email
     platform_user = db.query(PlatformUser).filter(PlatformUser.email == email, PlatformUser.is_deleted == False).first()
@@ -133,19 +146,29 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
         if role:
             role_id = role.id
 
+    # Menu permissions per role rarely change, but this query runs on
+    # every single login and each round trip to the DB costs real network
+    # latency (the DB isn't local). Cache the resolved list per role_id
+    # for a few minutes instead of hitting MySQL every time.
     allowed_menus = []
     if role_id:
-        perms = db.query(MenuPermission).filter(MenuPermission.role_id == role_id).all()
-        for p in perms:
-            allowed_menus.append({
-                "menu_name": p.menu_name,
-                "can_view": p.can_view,
-                "can_create": p.can_create,
-                "can_edit": p.can_edit,
-                "can_delete": p.can_delete,
-                "can_export": p.can_export,
-                "can_approve": p.can_approve
-            })
+        cache_key = f"menu_perms:{role_id}"
+        cached = cache_get(cache_key)
+        if cached is not None:
+            allowed_menus = cached
+        else:
+            perms = db.query(MenuPermission).filter(MenuPermission.role_id == role_id).all()
+            for p in perms:
+                allowed_menus.append({
+                    "menu_name": p.menu_name,
+                    "can_view": p.can_view,
+                    "can_create": p.can_create,
+                    "can_edit": p.can_edit,
+                    "can_delete": p.can_delete,
+                    "can_export": p.can_export,
+                    "can_approve": p.can_approve
+                })
+            cache_set(cache_key, allowed_menus, ttl_seconds=300)
     else:
         # If no role resolved, check if user is Platform Administrator (seed backup)
         if user.role == "Platform Administrator":
@@ -207,7 +230,7 @@ def send_otp(request: SendOTPRequest, db: Session = Depends(get_db)):
     }
 
     try:
-        send_otp_email(email, otp, expiry_minutes)
+        send_otp_email(email, otp, expiry_minutes, settings)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to send OTP email: {str(e)}")
 

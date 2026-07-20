@@ -82,23 +82,33 @@ const LicenseManagement = () => {
         status: statusFilter || undefined
       };
 
-      const response = await getLicenses(queryParams);
+      const [listResult, statsResult] = await Promise.allSettled([
+        getLicenses(queryParams),
+        // Broader fetch for accurate KPI counts regardless of active filters
+        getLicenses({ limit: 1000 })
+      ]);
+
+      if (listResult.status === 'rejected') {
+        throw listResult.reason;
+      }
+      const response = listResult.value;
       setLicenses(response.licenses);
       setTotal(response.total);
       setTotalPages(response.total_pages);
 
-      // Broader fetch for accurate KPI counts regardless of active filters
-      const statsRes = await getLicenses({ limit: 1000 });
-      const activeCount = statsRes.licenses.filter(l => l.status === 'Active').length;
-      const expiringCount = statsRes.licenses.filter(l => l.status === 'Expiring Soon').length;
-      const expiredCount = statsRes.licenses.filter(l => l.status === 'Expired').length;
+      if (statsResult.status === 'fulfilled') {
+        const statsRes = statsResult.value;
+        const activeCount = statsRes.licenses.filter(l => l.status === 'Active').length;
+        const expiringCount = statsRes.licenses.filter(l => l.status === 'Expiring Soon').length;
+        const expiredCount = statsRes.licenses.filter(l => l.status === 'Expired').length;
 
-      setKpiStats({
-        total: statsRes.total,
-        active: activeCount,
-        expiringSoon: expiringCount,
-        expired: expiredCount
-      });
+        setKpiStats({
+          total: statsRes.total,
+          active: activeCount,
+          expiringSoon: expiringCount,
+          expired: expiredCount
+        });
+      }
     } catch (err) {
       console.error("Failed to load licenses:", err);
       setErrorMsg("Failed to load licenses. Please check backend connection.");

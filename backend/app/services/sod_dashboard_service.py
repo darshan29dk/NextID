@@ -48,18 +48,30 @@ def get_governance_kpis(db: Session, filters: dict = None) -> dict:
     ).count()
     resolved_violations = viol_q.filter(SodViolation.status.in_(["CLOSED", "MITIGATED"])).count()
 
-    # Trend calculations for violations
-    v_curr_period = viol_q.filter(SodViolation.detected_date >= p1_start).count()
+    # Trend calculations for violations. Scoped to the same OPEN/UNDER_REVIEW
+    # status filter as the "Open Violations" KPI card this trend is attached
+    # to in the UI — previously this counted ALL violations detected in the
+    # period regardless of status, which diffed an unrelated metric against
+    # a status-scoped headline number.
+    v_curr_period = viol_q.filter(
+        SodViolation.status.in_(["OPEN", "UNDER_REVIEW"]),
+        SodViolation.detected_date >= p1_start
+    ).count()
     v_prev_period = viol_q.filter(
+        SodViolation.status.in_(["OPEN", "UNDER_REVIEW"]),
         SodViolation.detected_date >= p2_start,
         SodViolation.detected_date < p1_start
     ).count()
-    
+
     violation_trend_pct = 0
     if v_prev_period > 0:
         violation_trend_pct = round(((v_curr_period - v_prev_period) / v_prev_period) * 100)
     elif v_curr_period > 0:
-        violation_trend_pct = v_curr_period * 100
+        # No prior-period baseline to compare against (e.g. freshly seeded
+        # data) — percent change is undefined, not "curr_period * 100"
+        # (which produced nonsensical values like +2000%). Cap at a flat
+        # +100% to signal "new activity" without an inflated number.
+        violation_trend_pct = 100
 
     # ── Exceptions ──
     exc_q = db.query(SodException)
@@ -77,18 +89,27 @@ def get_governance_kpis(db: Session, filters: dict = None) -> dict:
     expired_exceptions = exc_q.filter(SodException.status == "EXPIRED").count()
     revoked_exceptions = exc_q.filter(SodException.status == "REVOKED").count()
 
-    # Trend calculations for exceptions
-    e_curr_period = exc_q.filter(SodException.requested_date >= p1_start).count()
+    # Trend calculations for exceptions. Scoped to the same APPROVED/ACTIVE
+    # status filter as the "Active Exceptions" KPI card this trend is
+    # attached to in the UI (same fix rationale as violations above).
+    e_curr_period = exc_q.filter(
+        SodException.status.in_(["APPROVED", "ACTIVE"]),
+        SodException.requested_date >= p1_start
+    ).count()
     e_prev_period = exc_q.filter(
+        SodException.status.in_(["APPROVED", "ACTIVE"]),
         SodException.requested_date >= p2_start,
         SodException.requested_date < p1_start
     ).count()
-    
+
     exception_trend_pct = 0
     if e_prev_period > 0:
         exception_trend_pct = round(((e_curr_period - e_prev_period) / e_prev_period) * 100)
     elif e_curr_period > 0:
-        exception_trend_pct = e_curr_period * 100
+        # Same rationale as violation_trend_pct above — no baseline to
+        # compare against, so cap at a flat +100% instead of an inflated
+        # curr_period * 100 value (previously produced +3000%).
+        exception_trend_pct = 100
 
     # ── High Risk Entities ──
     high_risk_users = db.query(SodViolation.user_id).filter(

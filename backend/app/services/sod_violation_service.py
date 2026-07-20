@@ -11,6 +11,7 @@ from app.models.application import Application
 from app.models.application_account import ApplicationAccount
 from app.models.application_account_entitlement import ApplicationAccountEntitlement
 from app.models.audit_log import AuditLog
+from app.models.notification import Notification
 
 # Global lock to prevent parallel background scan executions
 _scan_running = False
@@ -115,6 +116,7 @@ def run_violation_scan_job(db: Session, scan_history_id: int, scan_type: str, st
             
         users_scanned_count = 0
         violations_found_count = 0
+        new_violations_count = 0  # distinct from violations_found_count, which also re-counts existing ones each scan
         detected_keys = set()  # set of (user_id, policy_id) that generated violations
         
         for idx, user in enumerate(identities):
@@ -218,6 +220,7 @@ def run_violation_scan_job(db: Session, scan_history_id: int, scan_type: str, st
                             )
                     else:
                         # Create new violation
+                        new_violations_count += 1
                         risk_score = calculate_risk_score(policy.risk_level)
                         violation = SodViolation(
                             policy_id=policy.id,
@@ -281,8 +284,19 @@ def run_violation_scan_job(db: Session, scan_history_id: int, scan_type: str, st
         scan.end_time = datetime.utcnow()
         scan.violations_found = violations_found_count
         scan.progress_pct = 100
+
+        # New violations previously surfaced nowhere except the Violations
+        # list itself - nobody was told a scan had actually found something.
+        if new_violations_count > 0:
+            db.add(Notification(
+                title="New SoD Violations Detected",
+                message=f"{scan_type.title()} scan found {new_violations_count} new SoD violation(s) out of {violations_found_count} total detected.",
+                status="unread",
+                created_at=datetime.utcnow()
+            ))
+
         db.commit()
-        
+
     except Exception as e:
         db.rollback()
         scan.status = "FAILED"

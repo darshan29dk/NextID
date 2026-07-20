@@ -516,10 +516,24 @@
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  transition: right 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: right 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.2s ease, max-width 0.2s ease;
 }
 
 .drawer-panel-custom.open {
+  right: 0;
+}
+
+/* Full screen toggle - the matrix view especially needs the extra room.
+   Closed offset needs to scale with the wider panel too, otherwise most of
+   a 100vw-wide panel would already be visible before the "open" animation
+   even starts. */
+.drawer-panel-custom.fullscreen {
+  width: 100vw;
+  max-width: 100vw;
+  right: -100vw;
+}
+
+.drawer-panel-custom.fullscreen.open {
   right: 0;
 }
 

@@ -111,20 +111,28 @@ const getGreeting = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const statsData = await getDashboardStats();
-      const activitiesData = await getRecentActivities();
-      const approvalData = await getApprovalQueue();
-      
-      setStats(statsData);
-      setActivities(activitiesData);
-      setApprovalQueue(approvalData);
-      setError(null);
-      
-      setStatus({
-        database: 'Ready',
-        backend: 'Running',
-        api: 'Connected'
-      });
+      // These three calls don't depend on each other - fire them together
+      // instead of one at a time, which was tripling the wait on every
+      // dashboard load (right after signing in, this is the page you land on).
+      const [statsResult, activitiesResult, approvalResult] = await Promise.allSettled([
+        getDashboardStats(),
+        getRecentActivities(),
+        getApprovalQueue()
+      ]);
+
+      if (statsResult.status === 'fulfilled') setStats(statsResult.value);
+      if (activitiesResult.status === 'fulfilled') setActivities(activitiesResult.value);
+      if (approvalResult.status === 'fulfilled') setApprovalQueue(approvalResult.value);
+
+      const anyFailed = [statsResult, activitiesResult, approvalResult].some(r => r.status === 'rejected');
+      if (anyFailed) {
+        console.error('Some dashboard data failed to load:', { statsResult, activitiesResult, approvalResult });
+        setError('Some dashboard data failed to load. Please verify connection.');
+        setStatus({ database: 'Error', backend: 'Running', api: 'Disconnected' });
+      } else {
+        setError(null);
+        setStatus({ database: 'Ready', backend: 'Running', api: 'Connected' });
+      }
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
       setError('Failed to load dashboard data. Please verify connection.');

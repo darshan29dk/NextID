@@ -13,6 +13,7 @@ from app.models.dashboard import RecentActivity
 from app.schemas.menu_permission import (
     MenuPermissionCreate, MenuPermissionUpdate, MenuPermissionResponse, MenuPermissionPaginatedResponse
 )
+from app.cache import cache_delete
 
 router = APIRouter()
 
@@ -157,6 +158,7 @@ def create_menu_permission(
         "can_approve": perm.can_approve
     }
     write_permission_audit(db=db, user=x_user_name, action="Create", old_val=None, new_val=perm_dict)
+    cache_delete(f"menu_perms:{payload.role_id}")
 
     return perm
 
@@ -242,6 +244,7 @@ def bulk_update_role_permissions(
                 new_val=audit_new
             )
 
+    cache_delete(f"menu_perms:{roleId}")
     return updated_perms
 
 @router.put("/menu-permissions/record/{id}", response_model=MenuPermissionResponse)
@@ -305,6 +308,7 @@ def update_single_permission_record(
             old_val=old_state,
             new_val=new_state
         )
+        cache_delete(f"menu_perms:{perm.role_id}")
 
     return perm
 
@@ -320,6 +324,7 @@ def delete_menu_permission(
 
     role = db.query(PlatformRole).filter(PlatformRole.id == perm.role_id).first()
     role_name = role.role_name if role else "Unknown"
+    deleted_role_id = perm.role_id
 
     # Log action
     perm_dict = {
@@ -338,5 +343,6 @@ def delete_menu_permission(
     db.commit()
 
     write_permission_audit(db=db, user=x_user_name, action="Delete", old_val=perm_dict, new_val=None)
+    cache_delete(f"menu_perms:{deleted_role_id}")
 
     return {"detail": "Permission mapping deleted successfully"}

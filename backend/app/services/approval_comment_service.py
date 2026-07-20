@@ -6,6 +6,7 @@ from app.models.approval_request import ApprovalRequest
 from app.models.approval_comment import ApprovalComment
 from app.models.dashboard import RecentActivity
 from app.models.notification import Notification
+from app.models.audit_log import AuditLog
 
 
 class ApprovalCommentService:
@@ -99,6 +100,19 @@ class ApprovalCommentService:
         if user_role != "Platform Administrator" and comment.commented_by != user:
             raise ValueError("Only the comment author or a Platform Admin can delete this comment")
 
+        request_id = comment.approval_request_id
+        comment_text = comment.comment_text
         db.delete(comment)
+
+        # Deleting a comment previously left no trail at all - adding one
+        # left one (RecentActivity + Notification), which was inconsistent.
+        import json
+        db.add(AuditLog(
+            module="Approval Workflow",
+            action="Delete Comment",
+            performed_by=user,
+            old_value=json.dumps({"approval_request_id": request_id, "comment_text": comment_text})
+        ))
+
         db.commit()
         return {"status": "success", "message": "Comment deleted"}

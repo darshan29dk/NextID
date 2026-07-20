@@ -2,6 +2,8 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 from app.models.sod_exception import SodException, SodExceptionAudit
 from app.models.sod_violation import SodViolation
+from app.models.audit_log import AuditLog
+from app.models.notification import Notification
 import json
 
 def check_and_expire_exceptions(db: Session):
@@ -24,7 +26,7 @@ def check_and_expire_exceptions(db: Session):
             old_stat = exc.status
             exc.status = "EXPIRED"
             
-            # Log audit trail
+            # Log audit trail (local exception timeline)
             audit = SodExceptionAudit(
                 exception_id=exc.id,
                 action="Expiry",
@@ -34,7 +36,28 @@ def check_and_expire_exceptions(db: Session):
                 timestamp=now
             )
             db.add(audit)
-            
+
+            # Global audit log - this job only ever wrote the local
+            # SodExceptionAudit row, so auto-expiry never showed up on the
+            # central Audit Logs page.
+            db.add(AuditLog(
+                module="SoD Exceptions",
+                action="Expiry",
+                performed_by="System (Auto-Expiry)",
+                old_value=json.dumps({"status": old_stat}),
+                new_value=json.dumps({"status": "EXPIRED"}),
+                timestamp=now
+            ))
+
+            # Notify - previously this ran silently with nothing surfaced to
+            # whoever requested/owns the exception.
+            db.add(Notification(
+                title="SoD Exception Expired",
+                message=f"Exception {exc.exception_number} for {exc.username or 'user'} on {exc.application_name or 'application'} has expired and the linked violation is reopened.",
+                status="unread",
+                created_at=now
+            ))
+
             # Reopen matched violation
             if exc.violation_id:
                 violation = db.query(SodViolation).filter(SodViolation.id == exc.violation_id).first()

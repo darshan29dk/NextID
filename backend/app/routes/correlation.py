@@ -9,10 +9,29 @@ from app.models.application_account import ApplicationAccount
 from app.models.identity import Identity
 from app.models.application import Application
 from app.models.correlation_rule import CorrelationRule
+from app.models.audit_log import AuditLog
 from app.services.correlation_engine import CorrelationEngine
 from app.utils.permissions import require_permission
 
 router = APIRouter()
+
+
+def write_correlation_audit(db: Session, user: str, action: str, old_val: dict = None, new_val: dict = None):
+    """Correlation Workspace (rules + review queue + manual link/unlink)
+    previously wrote nothing to the Audit Log at all."""
+    import json
+    try:
+        audit = AuditLog(
+            module="Correlation Workspace",
+            action=action,
+            performed_by=user,
+            old_value=json.dumps(old_val, default=str) if old_val else None,
+            new_value=json.dumps(new_val, default=str) if new_val else None,
+        )
+        db.add(audit)
+        db.commit()
+    except Exception as e:
+        print(f"Warning: Failed to write correlation audit record: {e}")
 
 # Schema models
 class ManualLinkRequest(BaseModel):
@@ -51,6 +70,7 @@ def get_correlation_rules(
 def create_correlation_rule(
     payload: CorrelationRuleCreate,
     db: Session = Depends(get_db),
+    x_user_name: str = Header(default="System"),
     _perm: bool = Depends(require_permission("Identity Repository", "edit"))
 ):
     """Creates a new custom matching rule."""
@@ -65,6 +85,7 @@ def create_correlation_rule(
     db.add(rule)
     db.commit()
     db.refresh(rule)
+    write_correlation_audit(db, x_user_name, "Create Rule", new_val={"rule_name": rule.rule_name, "identity_attribute": rule.identity_attribute, "account_attribute": rule.account_attribute})
     return rule
 
 @router.put("/correlation/rules/{id}")
@@ -72,36 +93,44 @@ def update_correlation_rule(
     id: int,
     payload: CorrelationRuleCreate,
     db: Session = Depends(get_db),
+    x_user_name: str = Header(default="System"),
     _perm: bool = Depends(require_permission("Identity Repository", "edit"))
 ):
     """Updates an existing matching rule."""
     rule = db.query(CorrelationRule).filter(CorrelationRule.id == id).first()
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
-        
+
+    old_state = {"rule_name": rule.rule_name, "identity_attribute": rule.identity_attribute, "account_attribute": rule.account_attribute, "match_type": rule.match_type, "confidence_score": rule.confidence_score, "is_active": rule.is_active}
+
     rule.rule_name = payload.rule_name
     rule.identity_attribute = payload.identity_attribute
     rule.account_attribute = payload.account_attribute
     rule.match_type = payload.match_type
     rule.confidence_score = payload.confidence_score
     rule.is_active = payload.is_active
-    
+
     db.commit()
     db.refresh(rule)
+    new_state = {"rule_name": rule.rule_name, "identity_attribute": rule.identity_attribute, "account_attribute": rule.account_attribute, "match_type": rule.match_type, "confidence_score": rule.confidence_score, "is_active": rule.is_active}
+    write_correlation_audit(db, x_user_name, "Update Rule", old_val=old_state, new_val=new_state)
     return rule
 
 @router.delete("/correlation/rules/{id}")
 def delete_correlation_rule(
     id: int,
     db: Session = Depends(get_db),
+    x_user_name: str = Header(default="System"),
     _perm: bool = Depends(require_permission("Identity Repository", "edit"))
 ):
     """Deletes a matching rule."""
     rule = db.query(CorrelationRule).filter(CorrelationRule.id == id).first()
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
+    rule_name = rule.rule_name
     db.delete(rule)
     db.commit()
+    write_correlation_audit(db, x_user_name, "Delete Rule", old_val={"rule_name": rule_name})
     return {"success": True}
 
 
@@ -191,6 +220,7 @@ def get_review_queue(
 def approve_recommendations(
     payload: ApproveRequest,
     db: Session = Depends(get_db),
+    x_user_name: str = Header(default="System"),
     _perm: bool = Depends(require_permission("Identity Repository", "edit"))
 ):
     """Batch approves automatic recommendations, confirming link status."""
@@ -203,8 +233,9 @@ def approve_recommendations(
         if acc.identity_id:
             acc.correlation_status = "Correlated"
             acc.correlation_method = "Automatic"
-            
+
     db.commit()
+    write_correlation_audit(db, x_user_name, "Approve Recommendations", new_val={"account_ids": payload.account_ids, "count": len(accounts)})
     return {"success": True, "count": len(accounts)}
 
 @router.post("/api/correlation/review-queue/reject")  # Alias or main route
@@ -212,6 +243,7 @@ def approve_recommendations(
 def reject_recommendations(
     payload: RejectRequest,
     db: Session = Depends(get_db),
+    x_user_name: str = Header(default="System"),
     _perm: bool = Depends(require_permission("Identity Repository", "edit"))
 ):
     """Batch rejects recommendations, resetting them to uncorrelated state."""
@@ -225,8 +257,9 @@ def reject_recommendations(
         acc.correlation_status = "Uncorrelated"
         acc.correlation_method = None
         acc.correlation_confidence = 0
-            
+
     db.commit()
+    write_correlation_audit(db, x_user_name, "Reject Recommendations", new_val={"account_ids": payload.account_ids, "count": len(accounts)})
     return {"success": True, "count": len(accounts)}
 
 
@@ -235,6 +268,7 @@ def reject_recommendations(
 def run_auto_correlation_route(
     application_id: Optional[int] = None,
     db: Session = Depends(get_db),
+    x_user_name: str = Header(default="System"),
     _perm: bool = Depends(require_permission("Identity Repository", "edit"))
 ):
     """Triggers the correlation engine to automatically match uncorrelated accounts to identities."""
@@ -242,7 +276,12 @@ def run_auto_correlation_route(
         updated = CorrelationEngine.run_auto_correlation(db, application_id)
         correlated_count = sum(1 for a in updated if a.correlation_status == "Correlated")
         review_count = sum(1 for a in updated if a.correlation_status == "Needs Review")
-        
+
+        write_correlation_audit(
+            db, x_user_name, "Run Auto-Correlation",
+            new_val={"application_id": application_id, "total_processed": len(updated), "correlated": correlated_count, "needs_review": review_count}
+        )
+
         return {
             "success": True,
             "total_processed": len(updated),
@@ -257,6 +296,7 @@ def run_auto_correlation_route(
 def manual_link_account(
     payload: ManualLinkRequest,
     db: Session = Depends(get_db),
+    x_user_name: str = Header(default="System"),
     _perm: bool = Depends(require_permission("Identity Repository", "edit"))
 ):
     """Manually correlates an account to a specific identity, overriding any auto-matching logic."""
@@ -280,6 +320,10 @@ def manual_link_account(
     account.correlation_confidence = 100
 
     db.commit()
+    write_correlation_audit(
+        db, x_user_name, "Manual Link",
+        new_val={"account_id": account.id, "account_name": account.account_id, "identity_id": identity.id, "identity_name": identity.display_name or identity.email}
+    )
     return {
         "success": True,
         "message": f"Account '{account.account_id}' successfully linked to identity '{identity.display_name or identity.email}'."
@@ -289,6 +333,7 @@ def manual_link_account(
 def manual_unlink_account(
     payload: ManualUnlinkRequest,
     db: Session = Depends(get_db),
+    x_user_name: str = Header(default="System"),
     _perm: bool = Depends(require_permission("Identity Repository", "edit"))
 ):
     """Breaks the correlation link for a specific account."""
@@ -299,12 +344,14 @@ def manual_unlink_account(
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
 
+    old_identity_id = account.identity_id
     account.identity_id = None
     account.correlation_status = "Uncorrelated"
     account.correlation_method = None
     account.correlation_confidence = 0
 
     db.commit()
+    write_correlation_audit(db, x_user_name, "Manual Unlink", old_val={"account_id": account.id, "identity_id": old_identity_id})
     return {
         "success": True,
         "message": f"Account '{account.account_id}' successfully unlinked."

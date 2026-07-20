@@ -56,22 +56,31 @@ const ApprovalRequests = () => {
         sort_by: sortBy,
         sort_order: sortOrder
       };
-      const res = await getApprovalRequests(params);
+      const [listResult, allResult] = await Promise.allSettled([
+        getApprovalRequests(params),
+        // Fetch a larger list to compute raw KPI stats locally (or default from result count)
+        getApprovalRequests({ page: 1, limit: 1000 })
+      ]);
+
+      if (listResult.status === 'rejected') {
+        throw listResult.reason;
+      }
+      const res = listResult.value;
       setRequests(res.requests || []);
       setTotal(res.total || 0);
       setTotalPages(res.total_pages || 0);
 
-      // Fetch a larger list to compute raw KPI stats locally (or default from result count)
-      const allRes = await getApprovalRequests({ page: 1, limit: 1000 });
-      const list = allRes.requests || [];
-      setKpiStats({
-        total: list.length,
-        businessReview: list.filter(r => r.status === 'Business Review').length,
-        securityReview: list.filter(r => r.status === 'Security Review').length,
-        approved: list.filter(r => r.status === 'Security Approved').length,
-        rejected: list.filter(r => r.status === 'Business Rejected' || r.status === 'Security Rejected').length,
-        returned: list.filter(r => r.status === 'Returned For Rework').length
-      });
+      if (allResult.status === 'fulfilled') {
+        const list = allResult.value.requests || [];
+        setKpiStats({
+          total: list.length,
+          businessReview: list.filter(r => r.status === 'Business Review').length,
+          securityReview: list.filter(r => r.status === 'Security Review').length,
+          approved: list.filter(r => r.status === 'Security Approved').length,
+          rejected: list.filter(r => r.status === 'Business Rejected' || r.status === 'Security Rejected').length,
+          returned: list.filter(r => r.status === 'Returned For Rework').length
+        });
+      }
     } catch (err) {
       console.error("Failed to load approval requests:", err);
       setError("Failed to load approval requests. Ensure backend is running.");

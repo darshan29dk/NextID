@@ -183,6 +183,13 @@
   color: var(--primary);
 }
 
+.policy-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 320px;
+}
+
 .clickable-name {
   font-weight: 500;
   color: var(--text-main);
@@ -192,6 +199,14 @@
 .clickable-name:hover {
   color: var(--primary);
   text-decoration: underline;
+}
+
+.policy-desc-subtext {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .type-badge {
@@ -332,13 +347,15 @@
   width: 720px;
 }
 
-/* The form inside the modal must be flex-column to allow body to scroll and footer to pin */
+/* The form inside the modal must be flex-column to allow body to scroll and footer to pin.
+   Note: this must NOT use flex: 1 1 0 / min-height: 0 here — .modal-card has
+   height: auto, and flex-grow has nothing concrete to grow into on an
+   auto-height ancestor, which was collapsing this to 0 height (form
+   appeared to render nothing below the modal header). Bounding
+   .form-scroll-body with a max-height instead avoids that entirely. */
 .form-modal-card form {
   display: flex;
   flex-direction: column;
-  flex: 1 1 0;
-  min-height: 0;
-  overflow: hidden;
 }
 
 .view-modal-card {
@@ -374,8 +391,7 @@
 .form-scroll-body {
   padding: 24px;
   overflow-y: auto;
-  flex: 1 1 0;
-  min-height: 0;
+  max-height: calc(90vh - 140px);
 }
 
 .form-group {

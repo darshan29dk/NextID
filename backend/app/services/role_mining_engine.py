@@ -52,6 +52,7 @@ from app.models.role_merge_history import RoleMergeHistory
 from app.models.role_merge_source_roles import RoleMergeSourceRole
 from app.models.role_split_history import RoleSplitHistory
 from app.models.role_split_destination_roles import RoleSplitDestinationRole
+from app.models.notification import Notification
 
 CORE_THRESHOLD_PCT = 60.0  # an entitlement must be held by >= this % of a cluster's members to count as "core"
 
@@ -126,6 +127,30 @@ class RoleMiningEngine:
             db.query(RoleSplitDestinationRole).filter(
                 RoleSplitDestinationRole.destination_role_id.in_(old_role_ids)
             ).delete(synchronize_session=False)
+
+            # Approval requests also reference candidate_roles (NOT NULL FK,
+            # can't just null it out) - this was the actual bug: re-running a
+            # campaign whose candidate role had already been submitted for
+            # approval failed with a foreign key error because this table was
+            # never cleaned up. Comments/steps on that request go first.
+            from app.models.approval_request import ApprovalRequest
+            from app.models.approval_comment import ApprovalComment
+            from app.models.approval_step import ApprovalStep
+            approval_ids = [
+                a.id for a in db.query(ApprovalRequest.id).filter(
+                    ApprovalRequest.candidate_role_id.in_(old_role_ids)
+                ).all()
+            ]
+            if approval_ids:
+                db.query(ApprovalComment).filter(
+                    ApprovalComment.approval_request_id.in_(approval_ids)
+                ).delete(synchronize_session=False)
+                db.query(ApprovalStep).filter(
+                    ApprovalStep.approval_request_id.in_(approval_ids)
+                ).delete(synchronize_session=False)
+                db.query(ApprovalRequest).filter(
+                    ApprovalRequest.id.in_(approval_ids)
+                ).delete(synchronize_session=False)
         db.query(CampaignAccountResult).filter(CampaignAccountResult.campaign_id == campaign.id).delete(
             synchronize_session=False
         )
@@ -157,6 +182,12 @@ class RoleMiningEngine:
             campaign.coverage_percentage = 0.0
             campaign.status = "Completed"
             campaign.last_run_at = datetime.utcnow()
+            db.add(Notification(
+                title="Mining Campaign Completed",
+                message=f"'{campaign.campaign_name}' finished with no eligible accounts to analyze (need correlated accounts with a job title on file).",
+                status="unread",
+                created_at=datetime.utcnow()
+            ))
             db.commit()
             return campaign
 
@@ -365,6 +396,15 @@ class RoleMiningEngine:
         campaign.status = "Completed"
         campaign.last_run_at = datetime.utcnow()
         campaign.error_message = None
+
+        # Mining runs could take a while and previously finished silently -
+        # nothing told the user it was done or what it found.
+        db.add(Notification(
+            title="Mining Campaign Completed",
+            message=f"'{campaign.campaign_name}' finished: {total_candidate_roles} candidate role(s) found across {total_accounts_analyzed} account(s), {campaign.coverage_percentage}% coverage.",
+            status="unread",
+            created_at=datetime.utcnow()
+        ))
 
         db.commit()
         db.refresh(campaign)

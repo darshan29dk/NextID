@@ -421,6 +421,19 @@ class SplitRoleService:
             r.modified_by = user
             r.updated_at = datetime.utcnow()
 
+        # Same reasoning as undo_merge: soft-deleting the destination roles
+        # alone left their member/entitlement rows orphaned — is_deleted
+        # hides them from list queries but not from anything counting
+        # CandidateRoleMember/CandidateRoleEntitlement directly. Clean these
+        # up since they have no audit-trail value once the split is undone.
+        if dest_ids:
+            db.query(CandidateRoleMember).filter(
+                CandidateRoleMember.candidate_role_id.in_(dest_ids)
+            ).delete(synchronize_session=False)
+            db.query(CandidateRoleEntitlement).filter(
+                CandidateRoleEntitlement.candidate_role_id.in_(dest_ids)
+            ).delete(synchronize_session=False)
+
         # Delete history mapping (cascade handles junction)
         db.delete(history)
 

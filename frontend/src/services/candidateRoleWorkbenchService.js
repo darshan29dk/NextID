@@ -15,6 +15,11 @@ export const getCandidateRoleDetail = async (id) => {
   return response.data;
 };
 
+export const getCandidateRoleMatrix = async (id) => {
+  const response = await apiClient.get(`/candidate-roles/${id}/matrix`);
+  return response.data;
+};
+
 export const createCandidateRole = async (data) => {
   const response = await apiClient.post('/candidate-roles', data);
   return response.data;

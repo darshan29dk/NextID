@@ -1,16 +1,32 @@
 import React from 'react';
 
-const DEPARTMENTS = ["Finance", "Information Technology", "Human Resources", "Sales", "Engineering", "Marketing"];
-const APPLICATIONS = ["SAP Production ERP", "GitHub Enterprise", "Workday HCM", "Active Directory", "Salesforce"];
-
 const RiskHeatmap = ({ data = [], onCellClick }) => {
+  // Axes are derived from whatever departments/applications actually appear
+  // in the live violation data, instead of a hardcoded fixture list — the
+  // hardcoded list (Finance/IT/HR/Sales/Engineering/Marketing x SAP
+  // Production ERP/GitHub Enterprise/Workday HCM/Active Directory/
+  // Salesforce) matched the old fake seed data and would never show real
+  // departments/applications (e.g. "AcmeCorp ERP") going forward.
+  const DEPARTMENTS = [...new Set(data.map(d => d.department))].sort();
+  const APPLICATIONS = [...new Set(data.map(d => d.application))].sort();
+
   // Helper to query score from list
   const getCellData = (dept, app) => {
     return data.find(
-      x => x.department.toLowerCase() === dept.toLowerCase() && 
+      x => x.department.toLowerCase() === dept.toLowerCase() &&
            x.application.toLowerCase() === app.toLowerCase()
     );
   };
+
+  if (DEPARTMENTS.length === 0 || APPLICATIONS.length === 0) {
+    return (
+      <div className="risk-heatmap-wrapper">
+        <div className="cell-empty-lbl" style={{ padding: '24px 0', textAlign: 'center' }}>
+          No open violations to map yet.
+        </div>
+      </div>
+    );
+  }
 
   const getHeatmapColorClass = (scale) => {
     switch (scale) {

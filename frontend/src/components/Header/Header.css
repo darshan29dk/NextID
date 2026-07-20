@@ -169,6 +169,20 @@
   font-weight: 600;
 }
 
+.mark-all-read-btn {
+  font-size: 11px;
+  color: var(--primary);
+  background: none;
+  border: none;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.mark-all-read-btn:hover {
+  text-decoration: underline;
+}
+
 .notifications-list {
   max-height: 280px;
   overflow-y: auto;
