@@ -1060,26 +1060,53 @@ def import_connector_data(
     # nothing here can be wiped by the Dashboard's random "Sync API" feature.
     from app.models.identity import Identity
     if parsed_identities:
-        db.query(Identity).filter(Identity.source_connector_id == id).delete()
         for item in parsed_identities:
-            rec = Identity(
-                employee_id=item["employee_id"],
-                first_name=item["first_name"],
-                last_name=item["last_name"],
-                display_name=item["display_name"],
-                email=item["email"],
-                department=item["department"],
-                job_title=item["job_title"],
-                manager=item["manager"],
-                status=item["status"],
-                attributes=item["attributes"],
-                source_connector_id=id,
-                source_connector_name=connector.connector_name,
-                imported_at=datetime.utcnow(),
-                created_by=x_user_name,
-                modified_by=x_user_name
-            )
-            db.add(rec)
+            # Query for existing identity in the repository
+            existing_identity = None
+            if item["employee_id"]:
+                existing_identity = db.query(Identity).filter(
+                    Identity.employee_id == item["employee_id"]
+                ).first()
+            elif item["email"]:
+                existing_identity = db.query(Identity).filter(
+                    Identity.email == item["email"]
+                ).first()
+
+            if existing_identity:
+                # Update existing identity
+                existing_identity.first_name = item["first_name"]
+                existing_identity.last_name = item["last_name"]
+                existing_identity.display_name = item["display_name"]
+                existing_identity.email = item["email"]
+                existing_identity.department = item["department"]
+                existing_identity.job_title = item["job_title"]
+                existing_identity.manager = item["manager"]
+                existing_identity.status = item["status"]
+                existing_identity.attributes = item["attributes"]
+                existing_identity.source_connector_id = id
+                existing_identity.source_connector_name = connector.connector_name
+                existing_identity.modified_by = x_user_name
+                existing_identity.updated_at = datetime.utcnow()
+            else:
+                # Add new identity
+                rec = Identity(
+                    employee_id=item["employee_id"],
+                    first_name=item["first_name"],
+                    last_name=item["last_name"],
+                    display_name=item["display_name"],
+                    email=item["email"],
+                    department=item["department"],
+                    job_title=item["job_title"],
+                    manager=item["manager"],
+                    status=item["status"],
+                    attributes=item["attributes"],
+                    source_connector_id=id,
+                    source_connector_name=connector.connector_name,
+                    imported_at=datetime.utcnow(),
+                    created_by=x_user_name,
+                    modified_by=x_user_name
+                )
+                db.add(rec)
         db.commit()
 
     duration_ms = int((time.time() - start_time) * 1000)

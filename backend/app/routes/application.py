@@ -592,12 +592,7 @@ def import_accounts(
     if not rows:
         return {"success": True, "total": 0, "imported": 0, "errors": 0, "duration_ms": 0}
 
-    # Delete the child rows (account-entitlement links) before the parent
-    # accounts, otherwise MySQL rejects the accounts delete with a foreign
-    # key constraint error.
-    db.query(ApplicationAccountEntitlement).filter(ApplicationAccountEntitlement.application_id == id).delete()
-    db.query(ApplicationAccount).filter(ApplicationAccount.application_id == id).delete()
-
+    # Do not wipe all accounts. Instead, upsert each row.
     mapping_dict = _get_field_mapping_dict(db, id, "Account")
 
     # Build a case-insensitive lookup of entitlements already imported for this
@@ -622,18 +617,42 @@ def import_accounts(
             status_val = _resolve_field(row, mapping_dict, "status", ["status", "active_status"]) or "Active"
             entitlements_val = _resolve_field(row, mapping_dict, "entitlements", ["entitlements", "entitlement", "groups", "group", "roles", "permissions"])
 
-            record = ApplicationAccount(
-                application_id=id,
-                account_id=account_id_val,
-                account_name=account_name_val,
-                email=email_val,
-                status=status_val,
-                raw_data=_clean_row_for_json(row),
-                created_by=x_user_name,
-                modified_by=x_user_name
-            )
-            db.add(record)
-            imported_count += 1
+            existing_account = db.query(ApplicationAccount).filter(
+                ApplicationAccount.application_id == id,
+                ApplicationAccount.account_id == account_id_val,
+                ApplicationAccount.is_deleted == False
+            ).first()
+
+            if existing_account:
+                # Update existing account
+                existing_account.account_name = account_name_val
+                existing_account.email = email_val
+                existing_account.status = status_val
+                existing_account.raw_data = _clean_row_for_json(row)
+                existing_account.modified_by = x_user_name
+                existing_account.updated_at = datetime.utcnow()
+
+                # Delete old links for this account
+                db.query(ApplicationAccountEntitlement).filter(
+                    ApplicationAccountEntitlement.application_id == id,
+                    ApplicationAccountEntitlement.account_id == existing_account.id
+                ).delete()
+
+                record = existing_account
+            else:
+                # Insert new account
+                record = ApplicationAccount(
+                    application_id=id,
+                    account_id=account_id_val,
+                    account_name=account_name_val,
+                    email=email_val,
+                    status=status_val,
+                    raw_data=_clean_row_for_json(row),
+                    created_by=x_user_name,
+                    modified_by=x_user_name
+                )
+                db.add(record)
+                imported_count += 1
 
             if entitlements_val:
                 db.flush()  # assign record.id so the link rows can reference it
@@ -767,8 +786,7 @@ def import_entitlements(
     if not rows:
         return {"success": True, "total": 0, "imported": 0, "errors": 0, "duration_ms": 0}
 
-    db.query(ApplicationEntitlement).filter(ApplicationEntitlement.application_id == id).delete()
-
+    # Do not wipe all entitlements. Instead, upsert each row.
     mapping_dict = _get_field_mapping_dict(db, id, "Entitlement")
 
     imported_count = 0
@@ -779,17 +797,32 @@ def import_entitlements(
             type_val = _resolve_field(row, mapping_dict, "entitlement_type", ["entitlement_type", "type", "category", "permission_type"])
             desc_val = _resolve_field(row, mapping_dict, "description", ["description", "desc"])
 
-            record = ApplicationEntitlement(
-                application_id=id,
-                entitlement_name=name_val,
-                entitlement_type=type_val,
-                description=desc_val,
-                raw_data=_clean_row_for_json(row),
-                created_by=x_user_name,
-                modified_by=x_user_name
-            )
-            db.add(record)
-            imported_count += 1
+            existing_entitlement = db.query(ApplicationEntitlement).filter(
+                ApplicationEntitlement.application_id == id,
+                ApplicationEntitlement.entitlement_name == name_val,
+                ApplicationEntitlement.is_deleted == False
+            ).first()
+
+            if existing_entitlement:
+                # Update existing entitlement
+                existing_entitlement.entitlement_type = type_val
+                existing_entitlement.description = desc_val
+                existing_entitlement.raw_data = _clean_row_for_json(row)
+                existing_entitlement.modified_by = x_user_name
+                existing_entitlement.updated_at = datetime.utcnow()
+            else:
+                # Insert new entitlement
+                record = ApplicationEntitlement(
+                    application_id=id,
+                    entitlement_name=name_val,
+                    entitlement_type=type_val,
+                    description=desc_val,
+                    raw_data=_clean_row_for_json(row),
+                    created_by=x_user_name,
+                    modified_by=x_user_name
+                )
+                db.add(record)
+                imported_count += 1
         except Exception:
             error_count += 1
 
@@ -904,8 +937,7 @@ def import_roles(
     if not rows:
         return {"success": True, "total": 0, "imported": 0, "errors": 0, "duration_ms": 0}
 
-    db.query(ApplicationRole).filter(ApplicationRole.application_id == id).delete()
-
+    # Do not wipe all roles. Instead, upsert each row.
     mapping_dict = _get_field_mapping_dict(db, id, "Role")
 
     imported_count = 0
@@ -915,16 +947,30 @@ def import_roles(
             name_val = _resolve_field(row, mapping_dict, "role_name", ["role_name", "name", "role"]) or f"row_{idx + 1}"
             desc_val = _resolve_field(row, mapping_dict, "description", ["description", "desc"])
 
-            record = ApplicationRole(
-                application_id=id,
-                role_name=name_val,
-                description=desc_val,
-                raw_data=_clean_row_for_json(row),
-                created_by=x_user_name,
-                modified_by=x_user_name
-            )
-            db.add(record)
-            imported_count += 1
+            existing_role = db.query(ApplicationRole).filter(
+                ApplicationRole.application_id == id,
+                ApplicationRole.role_name == name_val,
+                ApplicationRole.is_deleted == False
+            ).first()
+
+            if existing_role:
+                # Update existing role
+                existing_role.description = desc_val
+                existing_role.raw_data = _clean_row_for_json(row)
+                existing_role.modified_by = x_user_name
+                existing_role.updated_at = datetime.utcnow()
+            else:
+                # Insert new role
+                record = ApplicationRole(
+                    application_id=id,
+                    role_name=name_val,
+                    description=desc_val,
+                    raw_data=_clean_row_for_json(row),
+                    created_by=x_user_name,
+                    modified_by=x_user_name
+                )
+                db.add(record)
+                imported_count += 1
         except Exception:
             error_count += 1
 
