@@ -177,6 +177,8 @@ const ConnectorWorkspace = () => {
     id: null, rule_name: '', validation_type: 'Required', mapping_id: '', parameters: '', severity: 'Error', error_message: '', execution_order: 0, enabled: true
   });
   const [validationSubmitting, setValidationSubmitting] = useState(false);
+  const [validationError, setValidationError] = useState('');
+  const [transformError, setTransformError] = useState('');
 
   // Test validation sandbox
   const [testValidationValue, setTestValidationValue] = useState('');
@@ -801,6 +803,7 @@ const ConnectorWorkspace = () => {
     setTransformFormData({
       id: null, rule_name: '', transformation_type: 'Trim', mapping_id: mappingRows[0]?.source_field ? mappingRows.find(r => r.target_attribute_name)?.source_field || '' : '', expression: '', parameters: '', execution_order: transformations.length + 1, enabled: true
     });
+    setTransformError('');
     setTestTransformValue('');
     setTestTransformOutput('');
     setTestTransformError('');
@@ -819,6 +822,7 @@ const ConnectorWorkspace = () => {
       execution_order: rule.execution_order,
       enabled: rule.enabled
     });
+    setTransformError('');
     setTestTransformValue('');
     setTestTransformOutput('');
     setTestTransformError('');
@@ -827,21 +831,22 @@ const ConnectorWorkspace = () => {
 
   const handleSaveTransformation = async () => {
     if (!transformFormData.rule_name.trim()) {
-      alert("Rule name is required.");
+      setTransformError("Rule name is required.");
       return;
     }
     const mapping = mappingRows.find(r => r.source_field === transformFormData.mapping_id);
     if (!mapping) {
-      alert("A valid attribute mapping is required.");
+      setTransformError("A valid attribute mapping is required.");
       return;
     }
 
     try {
+      setTransformError('');
       setTransformSubmitting(true);
       const existingMappings = await getConnectorMappings(selectedConnector.id);
       const backendMapping = existingMappings.find(m => m.source_field === mapping.source_field);
       if (!backendMapping) {
-        alert("The mapping was not found on the backend. Please save the Mappings tab configuration first.");
+        setTransformError("The mapping was not found on the backend. Please save the Mappings tab configuration first.");
         return;
       }
 
@@ -864,7 +869,7 @@ const ConnectorWorkspace = () => {
       setShowTransformModal(false);
       fetchTransformations();
     } catch (err) {
-      alert("Failed to save rule: " + (err.response?.data?.detail || err.message));
+      setTransformError(err.response?.data?.detail || err.message);
     } finally {
       setTransformSubmitting(false);
     }
@@ -957,6 +962,7 @@ const ConnectorWorkspace = () => {
     setValidationFormData({
       id: null, rule_name: '', validation_type: 'Required', mapping_id: mappingRows[0]?.source_field ? mappingRows.find(r => r.target_attribute_name)?.source_field || '' : '', parameters: '', severity: 'Error', error_message: '', execution_order: validations.length + 1, enabled: true
     });
+    setValidationError('');
     setTestValidationValue('');
     setTestValidationStatus('');
     setTestValidationMessage('');
@@ -976,6 +982,7 @@ const ConnectorWorkspace = () => {
       execution_order: rule.execution_order,
       enabled: rule.enabled
     });
+    setValidationError('');
     setTestValidationValue('');
     setTestValidationStatus('');
     setTestValidationMessage('');
@@ -984,25 +991,26 @@ const ConnectorWorkspace = () => {
 
   const handleSaveValidation = async () => {
     if (!validationFormData.rule_name.trim()) {
-      alert("Rule name is required.");
+      setValidationError("Rule name is required.");
       return;
     }
     if (!validationFormData.error_message.trim()) {
-      alert("Error message is required.");
+      setValidationError("Error message is required.");
       return;
     }
     const mapping = mappingRows.find(r => r.source_field === validationFormData.mapping_id);
     if (!mapping) {
-      alert("A valid attribute mapping is required.");
+      setValidationError("A valid attribute mapping is required.");
       return;
     }
 
     try {
+      setValidationError('');
       setValidationSubmitting(true);
       const existingMappings = await getConnectorMappings(selectedConnector.id);
       const backendMapping = existingMappings.find(m => m.source_field === mapping.source_field);
       if (!backendMapping) {
-        alert("The mapping was not found on the backend. Please save the Mappings tab configuration first.");
+        setValidationError("The mapping was not found on the backend. Please save the Mappings tab configuration first.");
         return;
       }
 
@@ -1026,7 +1034,7 @@ const ConnectorWorkspace = () => {
       setShowValidationModal(false);
       fetchValidations();
     } catch (err) {
-      alert("Failed to save validation: " + (err.response?.data?.detail || err.message));
+      setValidationError(err.response?.data?.detail || err.message);
     } finally {
       setValidationSubmitting(false);
     }
@@ -1767,6 +1775,24 @@ const ConnectorWorkspace = () => {
                 <button className="modal-close-btn-custom" onClick={() => setShowTransformModal(false)}><X size={18} /></button>
               </div>
               <div className="modal-body-custom" style={{ padding: '20px', maxHeight: '75vh', overflowY: 'auto' }}>
+                {transformError && (
+                  <div className="error-banner" style={{ 
+                    padding: '12px 16px', 
+                    backgroundColor: 'rgba(239,68,68,0.08)', 
+                    color: 'var(--danger)', 
+                    border: '1px solid var(--danger)', 
+                    borderRadius: '6px', 
+                    fontSize: '13px', 
+                    fontWeight: '500', 
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <AlertTriangle size={16} />
+                    <span>{transformError}</span>
+                  </div>
+                )}
                 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                   <div className="input-group-custom">
@@ -2233,6 +2259,24 @@ const ConnectorWorkspace = () => {
                 <button className="modal-close-btn-custom" onClick={() => setShowValidationModal(false)}><X size={18} /></button>
               </div>
               <div className="modal-body-custom" style={{ padding: '20px', maxHeight: '75vh', overflowY: 'auto' }}>
+                {validationError && (
+                  <div className="error-banner" style={{ 
+                    padding: '12px 16px', 
+                    backgroundColor: 'rgba(239,68,68,0.08)', 
+                    color: 'var(--danger)', 
+                    border: '1px solid var(--danger)', 
+                    borderRadius: '6px', 
+                    fontSize: '13px', 
+                    fontWeight: '500', 
+                    marginBottom: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px'
+                  }}>
+                    <AlertTriangle size={16} />
+                    <span>{validationError}</span>
+                  </div>
+                )}
                 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '16px' }}>
                   <div className="input-group-custom">
@@ -3174,23 +3218,31 @@ const ConnectorWorkspace = () => {
                               </tbody>
                             </table>
 
-                            {transformTotal > transformLimit && (
-                              <div className="pagination-bar" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                                <button 
-                                  className="btn-pagination" 
-                                  disabled={transformPage === 1}
-                                  onClick={() => setTransformPage(prev => prev - 1)}
-                                >
-                                  Prev
-                                </button>
-                                <span style={{ fontSize: '13px', alignSelf: 'center' }}>Page {transformPage}</span>
-                                <button 
-                                  className="btn-pagination" 
-                                  disabled={transformPage * transformLimit >= transformTotal}
-                                  onClick={() => setTransformPage(prev => prev + 1)}
-                                >
-                                  Next
-                                </button>
+                            {transformTotal > 0 && (
+                              <div className="table-pagination-footer" style={{ borderTop: '1px solid var(--border-color)', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
+                                <div className="pagination-info" style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
+                                  Showing <b>{(transformPage - 1) * transformLimit + 1}</b> to <b>{Math.min(transformTotal, transformPage * transformLimit)}</b> of <b>{transformTotal}</b> transformation rules
+                                </div>
+                                {transformTotal > transformLimit && (
+                                  <div className="pagination-buttons" style={{ display: 'flex', gap: '8px' }}>
+                                    <button 
+                                      className="btn-action-premium" 
+                                      disabled={transformPage === 1}
+                                      onClick={() => setTransformPage(prev => prev - 1)}
+                                      style={{ padding: '4px 8px', fontSize: '12px' }}
+                                    >
+                                      Prev
+                                    </button>
+                                    <button 
+                                      className="btn-action-premium" 
+                                      disabled={transformPage * transformLimit >= transformTotal}
+                                      onClick={() => setTransformPage(prev => prev + 1)}
+                                      style={{ padding: '4px 8px', fontSize: '12px' }}
+                                    >
+                                      Next
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </>
@@ -3296,23 +3348,31 @@ const ConnectorWorkspace = () => {
                               </tbody>
                             </table>
 
-                            {validationTotal > validationLimit && (
-                              <div className="pagination-bar" style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                                <button 
-                                  className="btn-pagination" 
-                                  disabled={validationPage === 1}
-                                  onClick={() => setValidationPage(prev => prev - 1)}
-                                >
-                                  Prev
-                                </button>
-                                <span style={{ fontSize: '13px', alignSelf: 'center' }}>Page {validationPage}</span>
-                                <button 
-                                  className="btn-pagination" 
-                                  disabled={validationPage * validationLimit >= validationTotal}
-                                  onClick={() => setValidationPage(prev => prev + 1)}
-                                >
-                                  Next
-                                </button>
+                            {validationTotal > 0 && (
+                              <div className="table-pagination-footer" style={{ borderTop: '1px solid var(--border-color)', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
+                                <div className="pagination-info" style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
+                                  Showing <b>{(validationPage - 1) * validationLimit + 1}</b> to <b>{Math.min(validationTotal, validationPage * validationLimit)}</b> of <b>{validationTotal}</b> validation rules
+                                </div>
+                                {validationTotal > validationLimit && (
+                                  <div className="pagination-buttons" style={{ display: 'flex', gap: '8px' }}>
+                                    <button 
+                                      className="btn-action-premium" 
+                                      disabled={validationPage === 1}
+                                      onClick={() => setValidationPage(prev => prev - 1)}
+                                      style={{ padding: '4px 8px', fontSize: '12px' }}
+                                    >
+                                      Prev
+                                    </button>
+                                    <button 
+                                      className="btn-action-premium" 
+                                      disabled={validationPage * validationLimit >= validationTotal}
+                                      onClick={() => setValidationPage(prev => prev + 1)}
+                                      style={{ padding: '4px 8px', fontSize: '12px' }}
+                                    >
+                                      Next
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </>
@@ -3543,23 +3603,31 @@ const ConnectorWorkspace = () => {
                               </table>
                             </div>
 
-                            {previewTotal > previewLimit && (
-                              <div className="pagination-bar" style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                                <button 
-                                  className="btn-pagination" 
-                                  disabled={previewPage === 1}
-                                  onClick={() => { setPreviewPage(prev => prev - 1); fetchPreviewData(); }}
-                                >
-                                  Prev
-                                </button>
-                                <span style={{ fontSize: '13px', alignSelf: 'center' }}>Page {previewPage}</span>
-                                <button 
-                                  className="btn-pagination" 
-                                  disabled={previewPage * previewLimit >= previewTotal}
-                                  onClick={() => { setPreviewPage(prev => prev + 1); fetchPreviewData(); }}
-                                >
-                                  Next
-                                </button>
+                            {previewTotal > 0 && (
+                              <div className="table-pagination-footer" style={{ borderTop: '1px solid var(--border-color)', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px' }}>
+                                <div className="pagination-info" style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
+                                  Showing <b>{previewTotal === 0 ? 0 : (previewPage - 1) * previewLimit + 1}</b> to <b>{Math.min(previewTotal, previewPage * previewLimit)}</b> of <b>{previewTotal}</b> preview records
+                                </div>
+                                {previewTotal > previewLimit && (
+                                  <div className="pagination-buttons" style={{ display: 'flex', gap: '8px' }}>
+                                    <button 
+                                      className="btn-action-premium" 
+                                      disabled={previewPage === 1}
+                                      onClick={() => { setPreviewPage(prev => prev - 1); fetchPreviewData(); }}
+                                      style={{ padding: '4px 8px', fontSize: '12px' }}
+                                    >
+                                      Prev
+                                    </button>
+                                    <button 
+                                      className="btn-action-premium" 
+                                      disabled={previewPage * previewLimit >= previewTotal}
+                                      onClick={() => { setPreviewPage(prev => prev + 1); fetchPreviewData(); }}
+                                      style={{ padding: '4px 8px', fontSize: '12px' }}
+                                    >
+                                      Next
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </>
