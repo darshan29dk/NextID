@@ -2,11 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Search, Plus, Trash2, X, AlertTriangle, ArrowLeft, RotateCcw,
   CheckCircle2, XCircle, Info, Users, Layers, Target, PieChart,
-  GitCompare, ShieldAlert
+  GitCompare, ShieldAlert, Boxes, KeyRound, Gauge
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
 import RoleMiningMatrix from '../../components/RoleMiningMatrix/RoleMiningMatrix';
+import RoleAnalyticalCharts, { VIEW_MODES } from '../../components/RoleMiningMatrix/RoleAnalyticalCharts';
 import {
   getMiningCampaigns,
   createMiningCampaign,
@@ -25,6 +26,14 @@ import './RoleDiscoveryWorkspace.css';
 const INITIAL_FORM = {
   campaign_name: '', description: '', scope_type: 'All', application_id: '',
   eps: 0.4, min_samples: 2
+};
+
+const ANALYTICAL_VIEW_HINTS = {
+  grid: 'Entitlement grants by member, based on verified account data.',
+  coverage: 'Member coverage percentage per entitlement.',
+  core: 'Core and non-core entitlement distribution.',
+  member: 'Entitlement match percentage per member.',
+  role: 'Entitlement distribution across candidate roles.',
 };
 
 const RoleDiscoveryWorkspace = () => {
@@ -72,6 +81,7 @@ const RoleDiscoveryWorkspace = () => {
   const [campaignMatrix, setCampaignMatrix] = useState(null);
   const [matrixLoading, setMatrixLoading] = useState(false);
   const [matrixError, setMatrixError] = useState('');
+  const [analyticalViewMode, setAnalyticalViewMode] = useState('grid'); // 'grid' | 'coverage' | 'core' | 'member' | 'role'
 
   const fetchCampaigns = useCallback(async () => {
     try {
@@ -171,6 +181,7 @@ const RoleDiscoveryWorkspace = () => {
   const handleRunCampaign = async (campaign, e) => {
     if (e) e.stopPropagation();
     try {
+      setErrorMsg(null);
       setRunningCampaignId(campaign.id);
       const updated = await runMiningCampaign(campaign.id);
       fetchCampaigns();
@@ -179,14 +190,13 @@ const RoleDiscoveryWorkspace = () => {
         fetchCandidateRoles(campaign.id);
         fetchOutliers(campaign.id);
       }
-      alert(
-        `Mining run complete. Analyzed ${updated.total_accounts_analyzed} account(s), found ` +
-        `${updated.total_candidate_roles} candidate role(s), ${updated.total_outliers} outlier(s), ` +
-        `${updated.coverage_percentage}% coverage.`
-      );
+      // No blocking popup on success - the KPI cards update in place, and
+      // the backend already raises a bell notification with the same
+      // summary (accounts analyzed, roles found, coverage), so the result
+      // is visible in-platform without interrupting the flow.
     } catch (err) {
       console.error('Mining run failed:', err);
-      alert(err.response?.data?.detail || 'Mining run failed.');
+      setErrorMsg(err.response?.data?.detail || 'Mining run failed.');
     } finally {
       setRunningCampaignId(null);
     }
@@ -333,10 +343,16 @@ const RoleDiscoveryWorkspace = () => {
           </div>
         </div>
 
-        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
-          <DashboardCard title="Accounts Analyzed" value={selectedCampaign.total_accounts_analyzed} icon={Users} color="blue" loading={false} />
-          <DashboardCard title="Candidate Roles" value={selectedCampaign.total_candidate_roles} icon={Layers} color="green" loading={false} />
-          <DashboardCard title="Coverage" value={`${selectedCampaign.coverage_percentage}%`} icon={PieChart} color="indigo" loading={false} />
+        {errorMsg && <div className="error-banner" style={{ margin: '0 0 16px' }}>{errorMsg}</div>}
+
+        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
+          <DashboardCard title="Identities Analyzed" value={selectedCampaign.identities_analyzed ?? 0} icon={Users} color="blue" loading={false} />
+          <DashboardCard title="Applications Analyzed" value={selectedCampaign.applications_analyzed ?? 0} icon={Boxes} color="cyan" loading={false} />
+          <DashboardCard title="Accounts Correlated" value={selectedCampaign.total_accounts_analyzed} icon={CheckCircle2} color="teal" loading={false} />
+          <DashboardCard title="Entitlements Analyzed" value={selectedCampaign.entitlements_analyzed ?? 0} icon={KeyRound} color="purple" loading={false} />
+          <DashboardCard title="Discovered Role Candidates" value={selectedCampaign.total_candidate_roles} icon={Layers} color="green" loading={false} />
+          <DashboardCard title="Coverage" value={`${selectedCampaign.coverage_percentage}%`} icon={PieChart} color="violet" loading={false} />
+          <DashboardCard title="Confidence" value={`${selectedCampaign.avg_confidence_score ?? 0}%`} icon={Gauge} color="blue" loading={false} />
           <DashboardCard title="Outliers" value={selectedCampaign.total_outliers} icon={ShieldAlert} color="yellow" loading={false} />
         </div>
 
@@ -360,7 +376,7 @@ const RoleDiscoveryWorkspace = () => {
             onClick={() => { setDetailTab('matrix'); if (!campaignMatrix) fetchCampaignMatrixData(selectedCampaign.id, selectedForCompare); }}
             style={{ padding: '10px 18px' }}
           >
-            <PieChart size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} /> Matrix View
+            <PieChart size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} /> Analytical View
           </button>
         </div>
 
@@ -448,31 +464,55 @@ const RoleDiscoveryWorkspace = () => {
 
         {detailTab === 'matrix' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-              <p className="text-muted" style={{ fontSize: '12px', margin: 0 }}>
-                {selectedForCompare.length > 0
-                  ? `Showing the ${selectedForCompare.length} role(s) checked in Candidate Roles.`
-                  : 'Showing up to the top 10 roles by confidence. Check specific roles in the Candidate Roles tab, then reopen this tab to narrow it down.'}
-                {' '}Dots reflect real entitlement grants, not just role membership.
-              </p>
-              <button
-                className="btn-add-connector"
-                onClick={() => fetchCampaignMatrixData(selectedCampaign.id, selectedForCompare)}
-                style={{ padding: '8px 14px', fontSize: '12.5px' }}
-              >
-                <RotateCcw size={13} className={matrixLoading ? 'spinner-icon' : ''} />
-                <span>Refresh</span>
-              </button>
+            <div className="analytical-view-toolbar">
+              <div className="analytical-view-caption">
+                <span className="analytical-view-caption-title">
+                  {selectedForCompare.length > 0
+                    ? `Scope: ${selectedForCompare.length} selected role(s)`
+                    : 'Scope: Top 10 roles by confidence score'}
+                </span>
+                <span className="analytical-view-caption-desc">{ANALYTICAL_VIEW_HINTS[analyticalViewMode]}</span>
+              </div>
+              <div className="analytical-view-controls">
+                <select
+                  className="analytical-view-select"
+                  value={analyticalViewMode}
+                  onChange={(e) => setAnalyticalViewMode(e.target.value)}
+                >
+                  {VIEW_MODES.map((vm) => (
+                    <option key={vm.value} value={vm.value}>{vm.label}</option>
+                  ))}
+                </select>
+                <button
+                  className="btn-add-connector"
+                  onClick={() => fetchCampaignMatrixData(selectedCampaign.id, selectedForCompare)}
+                  style={{ padding: '8px 14px', fontSize: '12.5px' }}
+                >
+                  <RotateCcw size={13} className={matrixLoading ? 'spinner-icon' : ''} />
+                  <span>Refresh</span>
+                </button>
+              </div>
             </div>
             {matrixError && <div className="drawer-tab-empty-msg"><p>{matrixError}</p></div>}
-            <RoleMiningMatrix
-              loading={matrixLoading}
-              entitlements={campaignMatrix?.entitlements || []}
-              members={campaignMatrix?.members || []}
-              cells={campaignMatrix?.cells || []}
-              roles={campaignMatrix?.roles || []}
-              emptyMessage="No candidate roles with mined entitlements/members yet - run mining first."
-            />
+            {analyticalViewMode === 'grid' ? (
+              <RoleMiningMatrix
+                loading={matrixLoading}
+                entitlements={campaignMatrix?.entitlements || []}
+                members={campaignMatrix?.members || []}
+                cells={campaignMatrix?.cells || []}
+                roles={campaignMatrix?.roles || []}
+                emptyMessage="No candidate roles with mined entitlements/members yet - run mining first."
+              />
+            ) : (
+              <RoleAnalyticalCharts
+                loading={matrixLoading}
+                mode={analyticalViewMode}
+                entitlements={campaignMatrix?.entitlements || []}
+                members={campaignMatrix?.members || []}
+                cells={campaignMatrix?.cells || []}
+                emptyMessage="No candidate roles with mined entitlements/members yet - run mining first."
+              />
+            )}
           </div>
         )}
 
@@ -587,7 +627,7 @@ const RoleDiscoveryWorkspace = () => {
       <div className="page-header-actions">
         <div className="header-title-section">
           <h2>Role Discovery</h2>
-          <p>Discover candidate business roles by clustering account access patterns within each job function.</p>
+          <p>Analyzes correlated identity and application access data to surface discovered role candidates for refinement in Role Engineering.</p>
         </div>
         <div className="header-buttons-section">
           {canCreate('Role Discovery') && (

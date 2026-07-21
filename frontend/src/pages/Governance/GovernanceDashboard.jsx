@@ -154,7 +154,7 @@ const GovernanceDashboard = () => {
       <div className="sod-page-header">
         <div className="header-titles">
           <h1>Governance Risk Control Center</h1>
-          <p className="subtitle">Real-time compliance dashboard tracking active policy conflicts, exception bounds, and SLA alerts.</p>
+          <p className="subtitle">Ongoing oversight of roles published to the catalog — active policy conflicts, exception bounds, and SLA alerts.</p>
         </div>
         <div className="header-actions">
           {lastRefreshed && (

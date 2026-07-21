@@ -38,6 +38,14 @@ class MiningCampaign(Base):
     coverage_percentage = Column(Float, default=0.0, nullable=False)
     last_run_at = Column(DateTime, nullable=True)
 
+    # Extended mining summary metrics (per Dharankumar Bera's enterprise IAM
+    # feedback - the summary should tell the full data-ingestion story, not
+    # just accounts/roles/coverage/outliers).
+    identities_analyzed = Column(Integer, default=0, nullable=False)
+    applications_analyzed = Column(Integer, default=0, nullable=False)
+    entitlements_analyzed = Column(Integer, default=0, nullable=False)
+    avg_confidence_score = Column(Float, default=0.0, nullable=False)
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     created_by = Column(String(100), default="System", nullable=False)

@@ -40,6 +40,10 @@ class MiningCampaignResponse(BaseModel):
     total_candidate_roles: int
     total_outliers: int
     coverage_percentage: float
+    identities_analyzed: int = 0
+    applications_analyzed: int = 0
+    entitlements_analyzed: int = 0
+    avg_confidence_score: float = 0.0
     last_run_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime

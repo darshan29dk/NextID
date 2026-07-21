@@ -6,7 +6,7 @@ import RoleCatalogList from './RoleCatalogList';
 const TechnicalRoles = () => (
   <RoleCatalogList
     title="Technical Roles"
-    subtitle="Published roles classified as Technical role type."
+    subtitle="Approved roles of type Technical, published to the catalog for provisioning and ongoing governance."
     roleTypeFilter="Technical"
     headerIcon={Cpu}
   />

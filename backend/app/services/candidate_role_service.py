@@ -10,6 +10,99 @@ from app.models.audit_log import AuditLog
 from app.models.dashboard import RecentActivity
 
 
+def _build_discovery_insights(role: CandidateRole, campaign) -> dict:
+    """
+    Enterprise IAM feedback item 5: the candidate role detail view should
+    explain *why* the role was discovered, not just list its members and
+    entitlements. Surfaces the mining parameters and grouping logic that
+    produced this specific cluster.
+    """
+    from app.services.role_mining_engine import CORE_THRESHOLD_PCT
+
+    if role.source != "Mining" or not campaign:
+        return {
+            "job_function": role.job_function,
+            "member_count": role.member_count,
+            "confidence_score": role.confidence_score,
+            "entitlement_count": role.entitlement_count,
+            "core_threshold_pct": CORE_THRESHOLD_PCT,
+            "similarity_eps": None,
+            "min_cluster_size": None,
+            "campaign_name": None,
+            "summary": "This role was created manually rather than produced by a mining run, so no clustering rationale applies."
+        }
+
+    return {
+        "job_function": role.job_function,
+        "member_count": role.member_count,
+        "confidence_score": role.confidence_score,
+        "entitlement_count": role.entitlement_count,
+        "core_threshold_pct": CORE_THRESHOLD_PCT,
+        "similarity_eps": campaign.eps,
+        "min_cluster_size": campaign.min_samples,
+        "campaign_name": campaign.campaign_name,
+        "summary": (
+            f"Grouped from {role.member_count} account(s) sharing the '{role.job_function}' job function whose "
+            f"entitlement sets matched within a Jaccard distance threshold (eps) of {campaign.eps}. "
+            f"Entitlements held by at least {CORE_THRESHOLD_PCT:.0f}% of members were retained as the role's core "
+            f"definition ({role.entitlement_count} entitlement(s)); each member's overlap with that core set "
+            f"produced an average confidence score of {role.confidence_score}%."
+        )
+    }
+
+
+def _recommend_action(role: CandidateRole, sod_violation_count: int, campaign) -> dict:
+    """
+    Enterprise IAM feedback item 5: a Merge / Split / Publish / Discard
+    recommendation, derived from confidence, SoD exposure, and cluster
+    size rather than left for the reviewer to judge from raw numbers.
+    """
+    if role.source != "Mining":
+        return {
+            "action": "Publish",
+            "reason": "Manually created role — confirm classification, ownership, and entitlements before publishing."
+        }
+
+    if sod_violation_count > 0:
+        return {
+            "action": "Split",
+            "reason": (
+                f"The core entitlement set triggers {sod_violation_count} segregation-of-duties conflict(s). "
+                "Splitting the conflicting entitlements into separate roles would clear the violation before Approval."
+            )
+        }
+
+    confidence = role.confidence_score or 0.0
+    min_cluster_size = campaign.min_samples if campaign else 2
+
+    if confidence >= 80:
+        return {
+            "action": "Publish",
+            "reason": f"Member similarity to the core entitlement set is high ({confidence}%), indicating a consistent, well-defined access pattern ready for Approval."
+        }
+
+    if confidence < 50:
+        return {
+            "action": "Discard",
+            "reason": f"Member similarity to the core entitlement set is low ({confidence}%), suggesting this cluster does not represent a consistent access pattern."
+        }
+
+    if role.member_count <= max(3, min_cluster_size + 1):
+        return {
+            "action": "Merge",
+            "reason": (
+                f"Moderate similarity ({confidence}%) combined with a small member count ({role.member_count}) "
+                f"suggests this may be a fragment of a broader access pattern for '{role.job_function}'. "
+                "Consider merging with a related candidate role for the same job function."
+            )
+        }
+
+    return {
+        "action": "Publish",
+        "reason": f"Similarity is moderate but consistent ({confidence}%) across {role.member_count} members, supporting progression to Approval."
+    }
+
+
 class CandidateRoleService:
     @staticmethod
     def get_stats(db: Session) -> dict:
@@ -22,9 +115,17 @@ class CandidateRoleService:
 
         total = base.count()
 
+        # Classification (how access is granted: Birthright vs Request-Based)
+        # and Role Type (what kind of access it is: Business/Technical/
+        # Composite) are separate concepts - kept as two independent
+        # group-bys rather than one, so the KPI cards don't conflate them.
         classification_counts = dict(
             base.with_entities(CandidateRole.classification, func.count(CandidateRole.id))
             .group_by(CandidateRole.classification).all()
+        )
+        role_type_counts = dict(
+            base.with_entities(CandidateRole.role_type, func.count(CandidateRole.id))
+            .group_by(CandidateRole.role_type).all()
         )
         status_counts = dict(
             base.with_entities(CandidateRole.status, func.count(CandidateRole.id))
@@ -41,9 +142,10 @@ class CandidateRoleService:
         return {
             "total": total,
             "birthright": classification_counts.get("Birthright", 0),
-            "requestable": classification_counts.get("Requestable", 0),
-            "business": classification_counts.get("Business", 0),
-            "technical": classification_counts.get("Technical", 0),
+            "request_based": classification_counts.get("Request-Based", 0),
+            "business": role_type_counts.get("Business", 0),
+            "technical": role_type_counts.get("Technical", 0),
+            "composite": role_type_counts.get("Composite", 0),
             "draft": status_counts.get("Draft", 0),
             "departments": sorted(departments),
             "business_units": sorted(business_units)
@@ -169,6 +271,17 @@ class CandidateRoleService:
             Application, ApplicationAccount.application_id == Application.id
         ).filter(CampaignAccountResult.candidate_role_id == role_id).all()
 
+        # Discovery Insights + Recommended Action (enterprise IAM feedback
+        # item 5) - explain why this role was generated and what to do
+        # with it next, rather than leaving the reviewer to infer it from
+        # raw member/entitlement lists.
+        campaign = None
+        if role.campaign_id:
+            from app.models.mining_campaign import MiningCampaign
+            campaign = db.query(MiningCampaign).filter(MiningCampaign.id == role.campaign_id).first()
+        discovery_insights = _build_discovery_insights(role, campaign)
+        recommended_action = _recommend_action(role, len(sod_violations), campaign)
+
         # Load audit logs for this role
         audit_logs = db.query(AuditLog).filter(
             or_(
@@ -236,6 +349,8 @@ class CandidateRoleService:
             ],
             "applications": applications,
             "sod_violations": sod_violations,
+            "discovery_insights": discovery_insights,
+            "recommended_action": recommended_action,
             "audit_timeline": [
                 {
                     "id": a.id,

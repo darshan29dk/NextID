@@ -148,23 +148,13 @@ def get_role_matrix(db: Session, role_id: int) -> Optional[dict]:
     }
 
 
-def get_campaign_matrix(db: Session, campaign_id: int, role_ids: Optional[List[int]] = None) -> Optional[dict]:
-    """Multi-role matrix for Role Discovery - several roles shown together,
-    color-coded, matching the Role Studio reference image."""
-    query = db.query(CandidateRole).filter(
-        CandidateRole.campaign_id == campaign_id,
-        CandidateRole.is_deleted == False
-    )
-    if role_ids:
-        query = query.filter(CandidateRole.id.in_(role_ids))
-        roles = query.all()
-        # preserve the order the caller asked for
-        order = {rid: i for i, rid in enumerate(role_ids)}
-        roles.sort(key=lambda r: order.get(r.id, 999))
-    else:
-        # Default: cap at 10 roles (one per palette color) so the grid stays readable
-        roles = query.order_by(CandidateRole.confidence_score.desc()).limit(10).all()
-
+def _build_multi_role_matrix(db: Session, roles: List[CandidateRole]) -> dict:
+    """Shared body for both the campaign-scoped and global multi-role
+    matrices: assigns each role a palette color, stacks their entitlement
+    rows and de-duplicates shared members, then builds the combined grant
+    grid. Used by both get_campaign_matrix (Role Discovery) and
+    get_multi_role_matrix (Role Engineering, sir's request to move the
+    analytical view up to the list level instead of per-role)."""
     if not roles:
         return {"roles": [], "entitlements": [], "members": [], "cells": []}
 
@@ -201,9 +191,47 @@ def get_campaign_matrix(db: Session, campaign_id: int, role_ids: Optional[List[i
         cells.append(row_cells)
 
     return {
-        "campaign_id": campaign_id,
         "roles": role_legend,
         "entitlements": all_entitlement_rows,
         "members": all_member_columns,
         "cells": cells,
     }
+
+
+def get_campaign_matrix(db: Session, campaign_id: int, role_ids: Optional[List[int]] = None) -> Optional[dict]:
+    """Multi-role matrix for Role Discovery - several roles shown together,
+    color-coded, matching the Role Studio reference image."""
+    query = db.query(CandidateRole).filter(
+        CandidateRole.campaign_id == campaign_id,
+        CandidateRole.is_deleted == False
+    )
+    if role_ids:
+        query = query.filter(CandidateRole.id.in_(role_ids))
+        roles = query.all()
+        # preserve the order the caller asked for
+        order = {rid: i for i, rid in enumerate(role_ids)}
+        roles.sort(key=lambda r: order.get(r.id, 999))
+    else:
+        # Default: cap at 10 roles (one per palette color) so the grid stays readable
+        roles = query.order_by(CandidateRole.confidence_score.desc()).limit(10).all()
+
+    result = _build_multi_role_matrix(db, roles)
+    result["campaign_id"] = campaign_id
+    return result
+
+
+def get_multi_role_matrix(db: Session, role_ids: Optional[List[int]] = None) -> dict:
+    """Multi-role matrix for Role Engineering's list-level Analytical View -
+    not tied to a single mining campaign, spans every candidate role in the
+    system (Mining or Manual). Scoped to whatever's checked in the table, or
+    the top 10 candidate roles by confidence score if nothing's checked."""
+    query = db.query(CandidateRole).filter(CandidateRole.is_deleted == False)
+    if role_ids:
+        query = query.filter(CandidateRole.id.in_(role_ids))
+        roles = query.all()
+        order = {rid: i for i, rid in enumerate(role_ids)}
+        roles.sort(key=lambda r: order.get(r.id, 999))
+    else:
+        roles = query.order_by(CandidateRole.confidence_score.desc()).limit(10).all()
+
+    return _build_multi_role_matrix(db, roles)

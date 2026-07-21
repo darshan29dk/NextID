@@ -225,6 +225,24 @@ def check_and_add_columns():
             except Exception as e:
                 print(f"Error checking/altering platform_settings column {col}: {e}")
 
+        # Extended Role Discovery summary metrics (identities/applications/
+        # entitlements analyzed, avg confidence) per Dharankumar Bera's
+        # feedback that the campaign summary should tell the full story.
+        mining_campaign_cols = {
+            "identities_analyzed": "INT NOT NULL DEFAULT 0",
+            "applications_analyzed": "INT NOT NULL DEFAULT 0",
+            "entitlements_analyzed": "INT NOT NULL DEFAULT 0",
+            "avg_confidence_score": "FLOAT NOT NULL DEFAULT 0",
+        }
+        for col, col_type in mining_campaign_cols.items():
+            try:
+                res = connection.execute(text(f"SHOW COLUMNS FROM mining_campaigns LIKE '{col}'")).fetchone()
+                if not res:
+                    print(f"Adding {col} to mining_campaigns...")
+                    connection.execute(text(f"ALTER TABLE mining_campaigns ADD COLUMN {col} {col_type}"))
+            except Exception as e:
+                print(f"Error checking/altering mining_campaigns column {col}: {e}")
+
 check_and_add_columns()
 
 

@@ -119,7 +119,7 @@ const ApprovalRequests = () => {
         <div>
           <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>Approval Requests</h2>
           <p className="text-muted" style={{ fontSize: '13px', margin: '4px 0 0 0' }}>
-            Submit, track, and monitor role engineering approvals across the organization.
+            Business and security review of roles refined in Role Engineering, prior to publication to the Role Catalog.
           </p>
         </div>
       </div>

@@ -76,7 +76,7 @@ const ExecutiveDashboard = () => {
         <div className="visual-card" style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', backgroundColor: 'var(--bg-card)' }}>
           <div className="card-header" style={{ marginBottom: '12px' }}>
             <h3 style={{ fontSize: '14px', fontWeight: 600, margin: 0 }}>Roles by Classification</h3>
-            <p className="text-muted" style={{ fontSize: '12px', margin: '2px 0 0 0' }}>Birthright / Requestable / Business / Technical breakdown</p>
+            <p className="text-muted" style={{ fontSize: '12px', margin: '2px 0 0 0' }}>Birthright / Request-Based breakdown</p>
           </div>
           <DepartmentBarChart data={charts.roles_by_classification || {}} onDrilldown={() => {}} />
         </div>

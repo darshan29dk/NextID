@@ -5,8 +5,13 @@ from app.database import Base
 
 class CandidateRole(Base):
     """
-    Candidate Business/Technical/Hybrid Role.
+    Candidate Business/Technical/Composite Role.
     Tracks discovered and created candidate roles, their classification, and metadata.
+
+    role_type and classification are deliberately separate, independent
+    concepts (per Dharankumar Bera's enterprise-IAM-alignment feedback):
+      - role_type: WHAT KIND of access this is - "Business", "Technical", "Composite"
+      - classification: HOW the access is granted - "Birthright", "Request-Based"
     """
     __tablename__ = "candidate_roles"
 
@@ -15,9 +20,9 @@ class CandidateRole(Base):
 
     role_name = Column(String(150), nullable=False)
     role_description = Column(String(500), nullable=True)
-    role_type = Column(String(50), default="Business", nullable=False)  # "Business", "Technical", "Hybrid"
+    role_type = Column(String(50), default="Business", nullable=False)  # "Business", "Technical", "Composite"
     risk_level = Column(String(50), default="Low", nullable=False)  # "Low", "Medium", "High"
-    classification = Column(String(100), nullable=True)  # "Birthright", "Requestable", "Business", "Technical"
+    classification = Column(String(100), nullable=True)  # "Birthright", "Request-Based"
     status = Column(String(50), default="Draft", nullable=False)  # "Draft", "Reviewed", "Approved", "Rejected", "Published"
     confidence_score = Column(Float, default=0.0, nullable=False)  # 0-100
 

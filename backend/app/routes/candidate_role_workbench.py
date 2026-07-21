@@ -94,6 +94,27 @@ def get_candidate_role_stats(
     return CandidateRoleService.get_stats(db)
 
 
+@router.get("/candidate-roles/analytical-view/matrix")
+def get_candidate_roles_analytical_matrix(
+    role_ids: Optional[str] = None,  # comma-separated candidate role ids to include; default = top 10 by confidence
+    db: Session = Depends(get_db),
+    _perm: bool = Depends(require_permission("Role Engineering", "view"))
+):
+    """Entitlement x member grid across multiple candidate roles at once,
+    color-coded per role. List-level Analytical View for Role Engineering
+    (moved up from a per-role tab per sir's feedback) - not tied to a single
+    mining campaign, spans every candidate role in the system."""
+    parsed_role_ids = None
+    if role_ids:
+        try:
+            parsed_role_ids = [int(x) for x in role_ids.split(",") if x.strip()]
+        except ValueError:
+            raise HTTPException(status_code=400, detail="role_ids must be a comma-separated list of integers")
+
+    from app.services.role_matrix_service import get_multi_role_matrix
+    return get_multi_role_matrix(db, parsed_role_ids)
+
+
 @router.get("/candidate-roles")
 def get_candidate_roles(
     page: int = 1,
@@ -460,7 +481,14 @@ def delete_candidate_role(
 def get_classifications(
     _perm: bool = Depends(require_permission("Role Engineering", "view"))
 ):
-    return ["Birthright", "Requestable", "Business", "Technical"]
+    return ["Birthright", "Request-Based"]
+
+
+@router.get("/role-types")
+def get_role_types(
+    _perm: bool = Depends(require_permission("Role Engineering", "view"))
+):
+    return ["Business", "Technical", "Composite"]
 
 
 @router.put("/candidate-roles/{role_id}/classification")

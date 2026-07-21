@@ -66,6 +66,26 @@ def _jaccard_similarity(a: Set[str], b: Set[str]) -> float:
     return len(a & b) / len(union) * 100.0
 
 
+# Business-friendly candidate role naming (enterprise IAM feedback item 2):
+# when a job function produces more than one cluster, the variants are
+# ranked by core-entitlement count (narrowest access first) and labeled
+# with a business-meaningful access tier instead of a literal cluster
+# number like "Candidate Role 1" / "Candidate Role 2".
+_TIER_LABELS_BY_VARIANT_COUNT = {
+    1: ["Standard Access"],
+    2: ["Core Access", "Extended Access"],
+    3: ["Read Only", "Standard Access", "Extended Access"],
+}
+
+
+def _tier_labels_for(variant_count: int) -> List[str]:
+    if variant_count in _TIER_LABELS_BY_VARIANT_COUNT:
+        return _TIER_LABELS_BY_VARIANT_COUNT[variant_count]
+    # 4+ variants for the same job function - fall back to Variant A/B/C...
+    # per the mentor's guidance rather than inventing more tier names.
+    return [f"Variant {chr(65 + i)}" for i in range(variant_count)]
+
+
 class RoleMiningEngine:
     @staticmethod
     def run_campaign(db: Session, campaign: MiningCampaign) -> MiningCampaign:
@@ -180,6 +200,10 @@ class RoleMiningEngine:
             campaign.total_candidate_roles = 0
             campaign.total_outliers = 0
             campaign.coverage_percentage = 0.0
+            campaign.identities_analyzed = 0
+            campaign.applications_analyzed = 0
+            campaign.entitlements_analyzed = 0
+            campaign.avg_confidence_score = 0.0
             campaign.status = "Completed"
             campaign.last_run_at = datetime.utcnow()
             db.add(Notification(
@@ -238,6 +262,7 @@ class RoleMiningEngine:
         total_candidate_roles = 0
         total_outliers = 0
         account_result_rows = []
+        role_confidence_scores: List[float] = []
 
         for job_function, accounts in groups.items():
             clusterable = [acc for acc in accounts if account_entitlements.get(acc.id)]
@@ -270,7 +295,14 @@ class RoleMiningEngine:
 
             labels = DBSCAN(eps=campaign.eps, min_samples=campaign.min_samples, metric="jaccard").fit_predict(matrix)
 
-            cluster_number = 0
+            # First pass: resolve each non-noise cluster's membership, core
+            # entitlement set and department before any CandidateRole rows
+            # are created. This is needed so that when a job function
+            # splits into multiple clusters, they can be ranked by
+            # core-entitlement count and given a meaningful tier label
+            # (Standard/Extended/Read Only, etc.) instead of a number that
+            # depends on arbitrary cluster-label ordering.
+            cluster_infos = []
             for label in sorted(set(labels)):
                 member_idxs = [i for i, l in enumerate(labels) if l == label]
                 members = [clusterable[i] for i in member_idxs]
@@ -284,7 +316,6 @@ class RoleMiningEngine:
                         ))
                     continue
 
-                cluster_number += 1
                 # Coverage of each entitlement across this cluster's members
                 coverage: Dict[str, float] = {}
                 for key in all_keys:
@@ -312,6 +343,37 @@ class RoleMiningEngine:
                 unique_identities = {acc_id_to_identity[acc.id] for acc in members}
                 user_count = len(unique_identities)
 
+                cluster_infos.append({
+                    "label": label,
+                    "members": members,
+                    "coverage": coverage,
+                    "core_set": core_set,
+                    "core_app_names": core_app_names,
+                    "role_dept": role_dept,
+                    "user_count": user_count,
+                })
+
+            # Rank this job function's clusters by core-entitlement count
+            # (narrowest access first) and assign business-friendly tier
+            # labels accordingly.
+            tier_labels = _tier_labels_for(len(cluster_infos))
+            ranked_indexes = sorted(
+                range(len(cluster_infos)), key=lambda i: len(cluster_infos[i]["core_set"])
+            )
+            tier_label_by_index = {
+                cluster_idx: tier_labels[tier_rank] for tier_rank, cluster_idx in enumerate(ranked_indexes)
+            }
+
+            for cluster_idx, info in enumerate(cluster_infos):
+                label = info["label"]
+                members = info["members"]
+                coverage = info["coverage"]
+                core_set = info["core_set"]
+                core_app_names = info["core_app_names"]
+                role_dept = info["role_dept"]
+                user_count = info["user_count"]
+                tier_label = tier_label_by_index[cluster_idx]
+
                 # Calculate SoD violations on the core set
                 from app.services.classification_service import ClassificationService
                 core_entitlement_names = [key_to_display.get(key, key) for key in core_set]
@@ -319,8 +381,8 @@ class RoleMiningEngine:
 
                 role = CandidateRole(
                     campaign_id=campaign.id,
-                    role_name=f"{job_function} - Candidate Role {cluster_number}",
-                    role_description=f"Auto-generated candidate role for {job_function} with {len(members)} users and {len(core_set)} entitlements.",
+                    role_name=f"{job_function} - {tier_label}",
+                    role_description=f"Auto-generated candidate role for {job_function} ({tier_label}) with {len(members)} users and {len(core_set)} entitlements.",
                     role_type="Business",
                     risk_level="Low",
                     classification=None,
@@ -366,6 +428,7 @@ class RoleMiningEngine:
                         added_identities.add(ident.id)
 
                 role.confidence_score = round(sum(similarities) / len(similarities), 1) if similarities else 0.0
+                role_confidence_scores.append(role.confidence_score)
 
                 for key, pct in coverage.items():
                     ent_id = key_to_entitlement_id.get(key)
@@ -393,6 +456,20 @@ class RoleMiningEngine:
         campaign.coverage_percentage = round(
             (total_accounts_analyzed - total_outliers) / total_accounts_analyzed * 100.0, 1
         ) if total_accounts_analyzed > 0 else 0.0
+
+        # Extended summary metrics - identities/applications behind the
+        # scoped accounts, entitlements actually considered by the
+        # clustering matrix, and the average confidence across every role
+        # this run produced (0 if nothing was found).
+        campaign.identities_analyzed = len({ident.id for _, ident in scoped})
+        campaign.applications_analyzed = len({acc.application_id for acc, _ in scoped})
+        campaign.entitlements_analyzed = len({
+            key for acc_id in account_ids for key in account_entitlements.get(acc_id, set())
+        })
+        campaign.avg_confidence_score = round(
+            sum(role_confidence_scores) / len(role_confidence_scores), 1
+        ) if role_confidence_scores else 0.0
+
         campaign.status = "Completed"
         campaign.last_run_at = datetime.utcnow()
         campaign.error_message = None

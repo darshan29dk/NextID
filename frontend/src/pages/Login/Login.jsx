@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Eye, EyeOff, Network } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
 import { useAuth } from '../../context/AuthContext'
+import { getSettings, FILES_BASE_URL } from '../../services/dashboardService'
 import './Login.css'
 
 function Login() {
@@ -14,10 +15,19 @@ function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
+  const [logoPath, setLogoPath] = useState('')
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') || 'dark'
     document.body.className = `theme-${savedTheme}`
+  }, [])
+
+  useEffect(() => {
+    // Public endpoint - no auth needed, so the uploaded company logo can
+    // show up beside the rAnalyzer wordmark before the user signs in.
+    getSettings()
+      .then((data) => setLogoPath(data?.logo_path || ''))
+      .catch(() => setLogoPath(''))
   }, [])
 
   const handleSubmit = async (e) => {
@@ -49,6 +59,13 @@ function Login() {
 
         <div className="login-left-content">
           <div className="login-brand">
+            {logoPath && (
+              <img
+                className="login-brand-icon"
+                src={`${FILES_BASE_URL}/${logoPath}`}
+                alt="Company logo"
+              />
+            )}
             <div className="login-brand-text">
               <h2>rAnalyzer</h2>
               <p>ROLE INTELLIGENCE PLATFORM</p>
@@ -71,6 +88,13 @@ function Login() {
       <div className="login-right">
         <div className="login-form-box">
           <div className="login-form-brand">
+            {logoPath && (
+              <img
+                className="login-form-brand-icon"
+                src={`${FILES_BASE_URL}/${logoPath}`}
+                alt="Company logo"
+              />
+            )}
             <span className="login-form-brand-name">rAnalyzer</span>
           </div>
           <h1>Welcome Back</h1>
