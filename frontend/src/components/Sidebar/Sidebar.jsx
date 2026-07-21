@@ -106,7 +106,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
 
   const navItemsBefore = [
     { type: 'heading', label: 'ROLE DISCOVERY' },
-    { type: 'item', label: 'Role Discovery', icon: Search, path: 'role-discovery', hasSub: true },
+    { type: 'item', label: 'Role Discovery', icon: Search, path: 'role-discovery' },
     { type: 'heading', label: 'ROLE LIFE CYCLE' },
     { type: 'item', label: 'Role Engineering', icon: Wrench, path: 'role-engineering/workbench' },
   ];
