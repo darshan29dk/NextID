@@ -11,6 +11,10 @@ class ApplicationBase(BaseModel):
     health_status: Optional[str] = "Unknown"
     environment: Optional[str] = "Development"
     tags: Optional[str] = None
+    owner_id: Optional[int] = None
+    owner_employee_id: Optional[str] = None
+    owner_name: Optional[str] = None
+    owner_email: Optional[str] = None
     csv_delimiter: Optional[str] = ","
     csv_encoding: Optional[str] = "UTF-8"
     excel_sheet_name: Optional[str] = None
@@ -28,6 +32,10 @@ class ApplicationUpdate(BaseModel):
     health_status: Optional[str] = None
     environment: Optional[str] = None
     tags: Optional[str] = None
+    owner_id: Optional[int] = None
+    owner_employee_id: Optional[str] = None
+    owner_name: Optional[str] = None
+    owner_email: Optional[str] = None
     csv_delimiter: Optional[str] = None
     csv_encoding: Optional[str] = None
     excel_sheet_name: Optional[str] = None
@@ -44,6 +52,10 @@ class ApplicationResponse(BaseModel):
     environment: str
     tags: Optional[str] = None
     version: int
+    owner_id: Optional[int] = None
+    owner_employee_id: Optional[str] = None
+    owner_name: Optional[str] = None
+    owner_email: Optional[str] = None
     csv_delimiter: Optional[str] = None
     csv_encoding: Optional[str] = None
     excel_sheet_name: Optional[str] = None

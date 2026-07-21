@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Search, Plus, Trash2, X, AlertTriangle, ArrowLeft, RotateCcw,
   CheckCircle2, XCircle, Info, Users, Layers, Target, PieChart,
-  GitCompare, ShieldAlert, Boxes, KeyRound, Gauge, ChevronLeft, ChevronRight
+  GitCompare, ShieldAlert, Boxes, KeyRound, Gauge, ChevronLeft, ChevronRight,
+  LayoutDashboard
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
@@ -67,6 +68,7 @@ const RoleDiscoveryWorkspace = () => {
 
   // Detail state
   const [selectedCampaign, setSelectedCampaign] = useState(null);
+  const [showDashboard, setShowDashboard] = useState(false);
   const [detailTab, setDetailTab] = useState('roles');
   const [candidateRoles, setCandidateRoles] = useState([]);
   const [rolesLoading, setRolesLoading] = useState(false);
@@ -335,6 +337,21 @@ const RoleDiscoveryWorkspace = () => {
             <p>{selectedCampaign.description || 'Scope: ' + (selectedCampaign.scope_type === 'Application' ? 'Single Application' : 'All correlated accounts')}</p>
           </div>
           <div className="header-buttons-section">
+            <button
+              className={`btn-dashboard-toggle ${showDashboard ? 'active' : ''}`}
+              onClick={() => {
+                const next = !showDashboard;
+                setShowDashboard(next);
+                if (next && detailTab !== 'matrix') {
+                  setDetailTab('matrix');
+                  if (!campaignMatrix) fetchCampaignMatrixData(selectedCampaign.id, selectedForCompare);
+                }
+              }}
+              title="Show Campaign Dashboard & Analytics"
+            >
+              <LayoutDashboard size={15} />
+              <span>{showDashboard ? 'Hide Dashboard' : 'Dashboard'}</span>
+            </button>
             {canEdit('Role Discovery') && (
               <button
                 className="btn-add-connector"
@@ -350,16 +367,18 @@ const RoleDiscoveryWorkspace = () => {
 
         {errorMsg && <div className="error-banner" style={{ margin: '0 0 16px' }}>{errorMsg}</div>}
 
-        <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
-          <DashboardCard title="Identities Analyzed" value={selectedCampaign.identities_analyzed ?? 0} icon={Users} color="blue" loading={false} />
-          <DashboardCard title="Applications Analyzed" value={selectedCampaign.applications_analyzed ?? 0} icon={Boxes} color="cyan" loading={false} />
-          <DashboardCard title="Accounts Correlated" value={selectedCampaign.total_accounts_analyzed} icon={CheckCircle2} color="teal" loading={false} />
-          <DashboardCard title="Entitlements Analyzed" value={selectedCampaign.entitlements_analyzed ?? 0} icon={KeyRound} color="purple" loading={false} />
-          <DashboardCard title="Discovered Role Candidates" value={selectedCampaign.total_candidate_roles} icon={Layers} color="green" loading={false} />
-          <DashboardCard title="Coverage" value={`${selectedCampaign.coverage_percentage}%`} icon={PieChart} color="violet" loading={false} />
-          <DashboardCard title="Confidence" value={`${selectedCampaign.avg_confidence_score ?? 0}%`} icon={Gauge} color="blue" loading={false} />
-          <DashboardCard title="Outliers" value={selectedCampaign.total_outliers} icon={ShieldAlert} color="yellow" loading={false} />
-        </div>
+        {showDashboard && (
+          <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))' }}>
+            <DashboardCard title="Identities Analyzed" value={selectedCampaign.identities_analyzed ?? 0} icon={Users} color="blue" loading={false} />
+            <DashboardCard title="Applications Analyzed" value={selectedCampaign.applications_analyzed ?? 0} icon={Boxes} color="cyan" loading={false} />
+            <DashboardCard title="Accounts Correlated" value={selectedCampaign.total_accounts_analyzed} icon={CheckCircle2} color="teal" loading={false} />
+            <DashboardCard title="Entitlements Analyzed" value={selectedCampaign.entitlements_analyzed ?? 0} icon={KeyRound} color="purple" loading={false} />
+            <DashboardCard title="Discovered Role Candidates" value={selectedCampaign.total_candidate_roles} icon={Layers} color="green" loading={false} />
+            <DashboardCard title="Coverage" value={`${selectedCampaign.coverage_percentage}%`} icon={PieChart} color="violet" loading={false} />
+            <DashboardCard title="Confidence" value={`${selectedCampaign.avg_confidence_score ?? 0}%`} icon={Gauge} color="blue" loading={false} />
+            <DashboardCard title="Outliers" value={selectedCampaign.total_outliers} icon={ShieldAlert} color="yellow" loading={false} />
+          </div>
+        )}
 
         <div className="controls-card" style={{ display: 'flex', gap: '8px', padding: '4px', marginBottom: '16px' }}>
           <button
@@ -747,6 +766,18 @@ const RoleDiscoveryWorkspace = () => {
                             <RotateCcw size={14} className={runningCampaignId === c.id ? 'spinner-icon' : ''} />
                           </button>
                         )}
+                        <button
+                          className="btn-row-action"
+                          title="View Dashboard"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenDetail(c);
+                            setShowDashboard(true);
+                            setDetailTab('matrix');
+                          }}
+                        >
+                          <LayoutDashboard size={14} />
+                        </button>
                         {canDelete('Role Discovery') && (
                           <button className="btn-row-action delete" title="Delete" onClick={(e) => handleOpenDeleteConfirm(c, e)}>
                             <Trash2 size={14} />

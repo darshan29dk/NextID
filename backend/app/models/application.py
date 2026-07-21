@@ -16,6 +16,12 @@ class Application(Base):
     tags = Column(String(255), nullable=True)  # Comma-separated tags
     version = Column(Integer, default=1, nullable=False)
 
+    # Application Owner fields
+    owner_id = Column(Integer, nullable=True)
+    owner_employee_id = Column(String(100), nullable=True)
+    owner_name = Column(String(200), nullable=True)
+    owner_email = Column(String(200), nullable=True)
+
     # File specific config
     csv_delimiter = Column(String(5), default=",", nullable=True)
     csv_encoding = Column(String(20), default="UTF-8", nullable=True)

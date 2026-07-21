@@ -53,7 +53,8 @@ import {
   getApplicationRoles,
   getApplicationMappings,
   saveApplicationMappings,
-  getApplicationImportHistory
+  getApplicationImportHistory,
+  searchOwnerCandidates
 } from '../../services/applicationService';
 import './ApplicationWorkspace.css';
 const MAPPING_MODULES = ['Account', 'Entitlement', 'Role'];
@@ -84,6 +85,10 @@ const INITIAL_FORM_STATE = {
   health_status: 'Unknown',
   environment: 'Development',
   tags: '',
+  owner_id: null,
+  owner_employee_id: '',
+  owner_name: '',
+  owner_email: '',
   csv_delimiter: ',',
   csv_encoding: 'UTF-8',
   excel_sheet_name: '',
@@ -183,6 +188,128 @@ const ApplicationWorkspace = () => {
   const [importingRoles, setImportingRoles] = useState(false);
   const [roleImportResult, setRoleImportResult] = useState(null);
 
+  // Owner picker state for wizard & quick modal
+  const [ownerSearchQuery, setOwnerSearchQuery] = useState('');
+  const [ownerCandidates, setOwnerCandidates] = useState([]);
+  const [ownerLoading, setOwnerLoading] = useState(false);
+  const [showOwnerDropdown, setShowOwnerDropdown] = useState(false);
+
+  // Quick Assign Owner modal state
+  const [showAssignOwnerModal, setShowAssignOwnerModal] = useState(false);
+  const [quickOwnerId, setQuickOwnerId] = useState(null);
+  const [quickOwnerEmpId, setQuickOwnerEmpId] = useState('');
+  const [quickOwnerName, setQuickOwnerName] = useState('');
+  const [quickOwnerEmail, setQuickOwnerEmail] = useState('');
+  const [quickOwnerSearchQuery, setQuickOwnerSearchQuery] = useState('');
+  const [quickOwnerCandidates, setQuickOwnerCandidates] = useState([]);
+  const [quickOwnerLoading, setQuickOwnerLoading] = useState(false);
+  const [showQuickOwnerDropdown, setShowQuickOwnerDropdown] = useState(false);
+  const [quickOwnerSubmitting, setQuickOwnerSubmitting] = useState(false);
+
+  const handleOwnerSearch = async (q) => {
+    setOwnerSearchQuery(q);
+    if (!q || q.trim().length < 1) {
+      setOwnerCandidates([]);
+      setShowOwnerDropdown(false);
+      return;
+    }
+    try {
+      setOwnerLoading(true);
+      const res = await searchOwnerCandidates(q.trim());
+      setOwnerCandidates(res || []);
+      setShowOwnerDropdown(true);
+    } catch (err) {
+      console.error('Failed to search owner candidates:', err);
+    } finally {
+      setOwnerLoading(false);
+    }
+  };
+
+  const handleSelectOwner = (candidate) => {
+    setFormData((prev) => ({
+      ...prev,
+      owner_id: candidate.id,
+      owner_employee_id: candidate.employee_id || '',
+      owner_name: candidate.name,
+      owner_email: candidate.email
+    }));
+    setOwnerSearchQuery('');
+    setShowOwnerDropdown(false);
+  };
+
+  const handleClearOwner = () => {
+    setFormData((prev) => ({
+      ...prev,
+      owner_id: null,
+      owner_employee_id: '',
+      owner_name: '',
+      owner_email: ''
+    }));
+    setOwnerSearchQuery('');
+    setShowOwnerDropdown(false);
+  };
+
+  const handleOpenAssignOwnerModal = () => {
+    if (!selectedApplication) return;
+    setQuickOwnerId(selectedApplication.owner_id || null);
+    setQuickOwnerEmpId(selectedApplication.owner_employee_id || '');
+    setQuickOwnerName(selectedApplication.owner_name || '');
+    setQuickOwnerEmail(selectedApplication.owner_email || '');
+    setQuickOwnerSearchQuery('');
+    setQuickOwnerCandidates([]);
+    setShowQuickOwnerDropdown(false);
+    setShowAssignOwnerModal(true);
+  };
+
+  const handleQuickOwnerSearch = async (q) => {
+    setQuickOwnerSearchQuery(q);
+    if (!q || q.trim().length < 1) {
+      setQuickOwnerCandidates([]);
+      setShowQuickOwnerDropdown(false);
+      return;
+    }
+    try {
+      setQuickOwnerLoading(true);
+      const res = await searchOwnerCandidates(q.trim());
+      setQuickOwnerCandidates(res || []);
+      setShowQuickOwnerDropdown(true);
+    } catch (err) {
+      console.error('Failed to search owner candidates:', err);
+    } finally {
+      setQuickOwnerLoading(false);
+    }
+  };
+
+  const handleSelectQuickOwner = (cand) => {
+    setQuickOwnerId(cand.id);
+    setQuickOwnerEmpId(cand.employee_id || '');
+    setQuickOwnerName(cand.name);
+    setQuickOwnerEmail(cand.email);
+    setQuickOwnerSearchQuery('');
+    setShowQuickOwnerDropdown(false);
+  };
+
+  const handleSaveQuickOwner = async () => {
+    if (!selectedApplication) return;
+    try {
+      setQuickOwnerSubmitting(true);
+      const updated = await updateApplication(selectedApplication.id, {
+        owner_id: quickOwnerId,
+        owner_employee_id: quickOwnerEmpId.trim() || null,
+        owner_name: quickOwnerName.trim() || null,
+        owner_email: quickOwnerEmail.trim() || null
+      });
+      setSelectedApplication(updated);
+      setShowAssignOwnerModal(false);
+      fetchApplicationsList();
+    } catch (err) {
+      console.error('Failed to update owner:', err);
+      alert(err.response?.data?.detail || 'Failed to update application owner.');
+    } finally {
+      setQuickOwnerSubmitting(false);
+    }
+  };
+
   const fetchApplicationsList = useCallback(async () => {
     try {
       setLoading(true);
@@ -261,6 +388,9 @@ const ApplicationWorkspace = () => {
     setFormBannerError(null);
     setSelectedFile(null);
     setExcelSheets([]);
+    setOwnerSearchQuery('');
+    setOwnerCandidates([]);
+    setShowOwnerDropdown(false);
     setWizardStep(1);
     setShowWizard(true);
   };
@@ -276,6 +406,10 @@ const ApplicationWorkspace = () => {
       health_status: application.health_status,
       environment: application.environment,
       tags: application.tags || '',
+      owner_id: application.owner_id || null,
+      owner_employee_id: application.owner_employee_id || '',
+      owner_name: application.owner_name || '',
+      owner_email: application.owner_email || '',
       csv_delimiter: application.csv_delimiter || ',',
       csv_encoding: application.csv_encoding || 'UTF-8',
       excel_sheet_name: application.excel_sheet_name || '',
@@ -285,6 +419,9 @@ const ApplicationWorkspace = () => {
     setFormBannerError(null);
     setSelectedFile(null);
     setExcelSheets([]);
+    setOwnerSearchQuery('');
+    setOwnerCandidates([]);
+    setShowOwnerDropdown(false);
     setWizardStep(1);
     setShowWizard(true);
   };
@@ -827,6 +964,97 @@ const ApplicationWorkspace = () => {
                           <input type="text" name="tags" value={formData.tags} onChange={handleFieldChange} placeholder="e.g. CRM, Sales, Production" />
                         </div>
                       </div>
+
+                      <div className="input-group-custom" style={{ marginTop: '16px', position: 'relative' }}>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '600' }}>
+                          <User size={15} /> Application Owner
+                        </label>
+                        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                          Assign a user as the designated owner responsible for this application.
+                        </p>
+
+                        <div style={{ position: 'relative', marginBottom: '8px' }}>
+                          <input
+                            type="text"
+                            placeholder="Search existing users by name or email..."
+                            value={ownerSearchQuery}
+                            onChange={(e) => handleOwnerSearch(e.target.value)}
+                            onFocus={() => { if (ownerCandidates.length > 0) setShowOwnerDropdown(true); }}
+                            style={{ padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border-color)', borderRadius: '6px', width: '100%', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)' }}
+                          />
+                          {ownerLoading && (
+                            <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: 'var(--text-muted)' }}>Searching...</span>
+                          )}
+                          {showOwnerDropdown && ownerCandidates.length > 0 && (
+                            <div className="owner-candidates-dropdown" style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '8px', boxShadow: 'var(--shadow-lg)', maxHeight: '180px', overflowY: 'auto', marginTop: '4px' }}>
+                              {ownerCandidates.map((cand) => (
+                                <div
+                                  key={`${cand.source}-${cand.id}-${cand.email}`}
+                                  onClick={() => handleSelectOwner(cand)}
+                                  style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                                  onMouseDown={(e) => e.preventDefault()}
+                                >
+                                  <div>
+                                    <div style={{ fontWeight: '600', fontSize: '13px', color: 'var(--text-main)' }}>
+                                      {cand.name} {cand.employee_id ? <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 'normal' }}>({cand.employee_id})</span> : ''}
+                                    </div>
+                                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{cand.email} {cand.department ? `• ${cand.department}` : ''}</div>
+                                  </div>
+                                  <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--primary-light, #3b82f620)', color: 'var(--primary, #3b82f6)', fontWeight: '600' }}>{cand.source}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="form-row-3col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                          <div className="input-group-custom">
+                            <label>Owner Emp ID</label>
+                            <input
+                              type="text"
+                              name="owner_employee_id"
+                              value={formData.owner_employee_id || ''}
+                              onChange={handleFieldChange}
+                              placeholder="e.g. EMP-1002"
+                            />
+                          </div>
+                          <div className="input-group-custom">
+                            <label>Owner Name</label>
+                            <input
+                              type="text"
+                              name="owner_name"
+                              value={formData.owner_name || ''}
+                              onChange={handleFieldChange}
+                              placeholder="e.g. Jane Smith"
+                            />
+                          </div>
+                          <div className="input-group-custom">
+                            <label>Owner Email</label>
+                            <input
+                              type="email"
+                              name="owner_email"
+                              value={formData.owner_email || ''}
+                              onChange={handleFieldChange}
+                              placeholder="e.g. jane.smith@company.com"
+                            />
+                          </div>
+                        </div>
+
+                        {(formData.owner_name || formData.owner_employee_id) && (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '6px', padding: '8px 12px', borderRadius: '6px', backgroundColor: 'var(--bg-muted, rgba(0,0,0,0.03))', border: '1px solid var(--border-color)' }}>
+                            <span style={{ fontSize: '12px', color: 'var(--success, #10b981)', fontWeight: '600' }}>
+                              ✓ Assigned Owner: {formData.owner_employee_id ? `[${formData.owner_employee_id}] ` : ''}{formData.owner_name || 'N/A'} {formData.owner_email ? `(${formData.owner_email})` : ''}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={handleClearOwner}
+                              style={{ border: 'none', background: 'none', color: 'var(--danger, #ef4444)', fontSize: '12px', cursor: 'pointer', fontWeight: '600', textDecoration: 'underline' }}
+                            >
+                              Clear Owner
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -846,7 +1074,7 @@ const ApplicationWorkspace = () => {
                                 style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: '600' }}>
                                 Browse Local File
                               </button>
-                              <input type="file" id="app-csv-file-input" accept=".csv" onChange={handleFileChange} style={{ display: 'none' }} />
+                              <input type="file" id="app-csv-file-input" accept=".csv" multiple onChange={handleFileChange} style={{ display: 'none' }} />
                             </div>
                             {formErrors.file && <span className="form-error-text">{formErrors.file}</span>}
                             {formData.file_path && <span className="current-file-indicator">Current File: {formData.file_path}</span>}
@@ -887,7 +1115,7 @@ const ApplicationWorkspace = () => {
                                 style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: '600' }}>
                                 Browse Local File
                               </button>
-                              <input type="file" id="app-excel-file-input" accept=".xlsx" onChange={handleFileChange} style={{ display: 'none' }} />
+                              <input type="file" id="app-excel-file-input" accept=".xlsx" multiple onChange={handleFileChange} style={{ display: 'none' }} />
                             </div>
                             {formErrors.file && <span className="form-error-text">{formErrors.file}</span>}
                             {formData.file_path && <span className="current-file-indicator">Current File: {formData.file_path}</span>}
@@ -924,6 +1152,7 @@ const ApplicationWorkspace = () => {
                             <div className="review-item"><label>Name</label><span>{formData.application_name}</span></div>
                             <div className="review-item"><label>Type</label><span>{formData.application_type}</span></div>
                             <div className="review-item"><label>Environment</label><span>{formData.environment}</span></div>
+                            <div className="review-item"><label>Application Owner</label><span>{formData.owner_name || formData.owner_employee_id ? `${formData.owner_employee_id ? `[${formData.owner_employee_id}] ` : ''}${formData.owner_name || ''}${formData.owner_email ? ` (${formData.owner_email})` : ''}` : 'Unassigned'}</span></div>
                             {formData.description && (
                               <div className="review-item full-width"><label>Description</label><span>{formData.description}</span></div>
                             )}
@@ -991,6 +1220,113 @@ const ApplicationWorkspace = () => {
             </div>
           </div>
         )}
+
+        {showAssignOwnerModal && (
+          <div className="modal-overlay-custom">
+            <div className="modal-content-custom" style={{ maxWidth: '520px', width: '90%' }}>
+              <div className="modal-header-custom">
+                <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <User size={18} /> Assign Application Owner
+                </h3>
+                <button className="modal-close-btn-custom" onClick={() => setShowAssignOwnerModal(false)}>
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="modal-form-custom" style={{ padding: '20px' }}>
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: 0, marginBottom: '16px' }}>
+                  Assign or update the designated owner for <b>{selectedApplication?.application_name}</b>.
+                </p>
+
+                <div className="input-group-custom" style={{ position: 'relative', marginBottom: '16px' }}>
+                  <label style={{ fontWeight: '600', marginBottom: '6px' }}>Search Existing Users</label>
+                  <input
+                    type="text"
+                    placeholder="Search by name, email, or department..."
+                    value={quickOwnerSearchQuery}
+                    onChange={(e) => handleQuickOwnerSearch(e.target.value)}
+                    onFocus={() => { if (quickOwnerCandidates.length > 0) setShowQuickOwnerDropdown(true); }}
+                    style={{ padding: '8px 12px', fontSize: '13px', border: '1px solid var(--border-color)', borderRadius: '6px', width: '100%', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)' }}
+                  />
+                  {quickOwnerLoading && (
+                    <span style={{ position: 'absolute', right: '12px', top: '35px', fontSize: '12px', color: 'var(--text-muted)' }}>Searching...</span>
+                  )}
+                  {showQuickOwnerDropdown && quickOwnerCandidates.length > 0 && (
+                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '8px', boxShadow: 'var(--shadow-lg)', maxHeight: '180px', overflowY: 'auto', marginTop: '4px' }}>
+                      {quickOwnerCandidates.map((cand) => (
+                        <div
+                          key={`${cand.source}-${cand.id}-${cand.email}`}
+                          onClick={() => handleSelectQuickOwner(cand)}
+                          style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+                          onMouseDown={(e) => e.preventDefault()}
+                        >
+                          <div>
+                            <div style={{ fontWeight: '600', fontSize: '13px', color: 'var(--text-main)' }}>
+                              {cand.name} {cand.employee_id ? <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 'normal' }}>({cand.employee_id})</span> : ''}
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{cand.email} {cand.department ? `• ${cand.department}` : ''}</div>
+                          </div>
+                          <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--primary-light, #3b82f620)', color: 'var(--primary, #3b82f6)', fontWeight: '600' }}>{cand.source}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="form-row-3col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                  <div className="input-group-custom">
+                    <label>Owner Emp ID</label>
+                    <input
+                      type="text"
+                      value={quickOwnerEmpId}
+                      onChange={(e) => setQuickOwnerEmpId(e.target.value)}
+                      placeholder="e.g. EMP-1002"
+                    />
+                  </div>
+                  <div className="input-group-custom">
+                    <label>Owner Name</label>
+                    <input
+                      type="text"
+                      value={quickOwnerName}
+                      onChange={(e) => setQuickOwnerName(e.target.value)}
+                      placeholder="e.g. Jane Smith"
+                    />
+                  </div>
+                  <div className="input-group-custom">
+                    <label>Owner Email</label>
+                    <input
+                      type="email"
+                      value={quickOwnerEmail}
+                      onChange={(e) => setQuickOwnerEmail(e.target.value)}
+                      placeholder="e.g. jane.smith@company.com"
+                    />
+                  </div>
+                </div>
+
+                {(quickOwnerName || quickOwnerEmpId) && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px', padding: '8px 12px', borderRadius: '6px', backgroundColor: 'var(--bg-muted, rgba(0,0,0,0.03))', border: '1px solid var(--border-color)' }}>
+                    <span style={{ fontSize: '12.5px', color: 'var(--success, #10b981)', fontWeight: '600' }}>
+                      ✓ Owner: {quickOwnerEmpId ? `[${quickOwnerEmpId}] ` : ''}{quickOwnerName || 'N/A'} {quickOwnerEmail ? `(${quickOwnerEmail})` : ''}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => { setQuickOwnerId(null); setQuickOwnerEmpId(''); setQuickOwnerName(''); setQuickOwnerEmail(''); }}
+                      style={{ border: 'none', background: 'none', color: 'var(--danger, #ef4444)', fontSize: '12px', cursor: 'pointer', fontWeight: '600', textDecoration: 'underline' }}
+                    >
+                      Remove Owner
+                    </button>
+                  </div>
+                )}
+
+                <div className="modal-footer-custom" style={{ padding: 0, marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                  <button className="btn-modal-cancel" type="button" disabled={quickOwnerSubmitting} onClick={() => setShowAssignOwnerModal(false)}>Cancel</button>
+                  <button className="btn-modal-submit" type="button" disabled={quickOwnerSubmitting} onClick={handleSaveQuickOwner}>
+                    {quickOwnerSubmitting ? 'Saving Owner...' : 'Save Owner'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </>
     );
   }
@@ -1024,6 +1360,18 @@ const ApplicationWorkspace = () => {
                 <p>{selectedApplication.description || 'No description provided.'}</p>
               </div>
               <div className="header-buttons-section" style={{ gap: '8px' }}>
+                <button
+                  className="btn-browse-file"
+                  onClick={handleOpenAssignOwnerModal}
+                  style={{
+                    padding: '8px 14px', fontSize: '13px', border: '1px solid var(--border-color)',
+                    borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)',
+                    cursor: 'pointer', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '6px'
+                  }}
+                >
+                  <User size={14} />
+                  <span>Assign Owner</span>
+                </button>
                 <button
                   className="btn-browse-file"
                   onClick={handleTestConnection}
@@ -1142,9 +1490,20 @@ const ApplicationWorkspace = () => {
                     {detailTab === 'info' && (
                       <div className="drawer-tab-info-pane">
                         <div className="info-summary-group">
-                          <h5>Application Metadata</h5>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                            <h5 style={{ margin: 0 }}>Application Metadata</h5>
+                            <button
+                              type="button"
+                              onClick={handleOpenAssignOwnerModal}
+                              style={{ border: 'none', background: 'none', color: 'var(--primary)', fontSize: '12px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                            >
+                              <User size={13} /> {selectedApplication.owner_name ? 'Change Owner' : 'Assign Owner'}
+                            </button>
+                          </div>
                           <div className="info-summary-grid">
                             <div className="summary-item"><label>Status</label><span>{renderStatusBadge(selectedApplication.status)}</span></div>
+                            <div className="summary-item"><label>Application Owner</label><span style={{ fontWeight: '600', color: selectedApplication.owner_name ? 'var(--text-main)' : 'var(--text-muted)' }}>{selectedApplication.owner_name ? `${selectedApplication.owner_name}${selectedApplication.owner_email ? ` (${selectedApplication.owner_email})` : ''}` : 'Unassigned'}</span></div>
+                            <div className="summary-item"><label>Owner Emp ID</label><span style={{ fontWeight: '600', color: selectedApplication.owner_employee_id ? 'var(--text-main)' : 'var(--text-muted)' }}>{selectedApplication.owner_employee_id || 'Unassigned'}</span></div>
                             <div className="summary-item"><label>Source Type</label><span>{selectedApplication.application_type}</span></div>
                             <div className="summary-item"><label>Environment</label><span>{selectedApplication.environment || 'Development'}</span></div>
                             <div className="summary-item"><label>System Version</label><span>v{selectedApplication.version}</span></div>
@@ -1769,6 +2128,9 @@ const ApplicationWorkspace = () => {
                 <th style={{ cursor: 'pointer' }} onClick={() => handleSort('application_type')}>
                   Type {sortBy === 'application_type' && (sortOrder === 'asc' ? '▲' : '▼')}
                 </th>
+                <th style={{ cursor: 'pointer' }} onClick={() => handleSort('owner_name')}>
+                  Owner {sortBy === 'owner_name' && (sortOrder === 'asc' ? '▲' : '▼')}
+                </th>
                 <th style={{ cursor: 'pointer' }} onClick={() => handleSort('status')}>
                   Status {sortBy === 'status' && (sortOrder === 'asc' ? '▲' : '▼')}
                 </th>
@@ -1782,7 +2144,7 @@ const ApplicationWorkspace = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="7">
+                  <td colSpan="8">
                     <div className="table-loading-container">
                       <div className="spinner-element"></div>
                       <p>Loading applications...</p>
@@ -1791,7 +2153,7 @@ const ApplicationWorkspace = () => {
                 </tr>
               ) : applications.length === 0 ? (
                 <tr>
-                  <td colSpan="7">
+                  <td colSpan="8">
                     <div className="table-empty-container">
                       <Cpu size={36} className="text-muted" />
                       <div className="empty-state-text">
@@ -1814,6 +2176,16 @@ const ApplicationWorkspace = () => {
                       </div>
                     </td>
                     <td>{a.application_type}</td>
+                    <td>
+                      {a.owner_name ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <User size={13} className="text-muted" />
+                          <span className="font-semibold text-main" style={{ fontSize: '13px' }}>{a.owner_name}</span>
+                        </div>
+                      ) : (
+                        <span className="text-muted" style={{ fontSize: '12px', fontStyle: 'italic' }}>Unassigned</span>
+                      )}
+                    </td>
                     <td>{renderStatusBadge(a.status)}</td>
                     <td>{a.last_tested ? new Date(a.last_tested).toLocaleString() : 'Never'}</td>
                     <td>{a.created_by}</td>

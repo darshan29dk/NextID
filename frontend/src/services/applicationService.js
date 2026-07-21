@@ -105,3 +105,8 @@ export const getApplicationImportHistory = async (id, params) => {
   const response = await apiClient.get(`/applications/${id}/import-history`, { params });
   return response.data;
 };
+
+export const searchOwnerCandidates = async (query) => {
+  const response = await apiClient.get('/applications-owner-candidates', { params: { q: query } });
+  return response.data;
+};

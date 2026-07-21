@@ -999,6 +999,7 @@ const RoleAttributes = () => {
                   <input
                     type="file"
                     accept=".csv"
+                    multiple
                     onChange={(e) => setImportFile(e.target.files[0])}
                     id="import-csv-uploader-role"
                   />

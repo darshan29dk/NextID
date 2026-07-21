@@ -1446,7 +1446,7 @@ const ConnectorWorkspace = () => {
                                 style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: '600' }}>
                                 Browse Local File
                               </button>
-                              <input type="file" id="csv-file-input" accept=".csv" onChange={handleFileChange} style={{ display: 'none' }} />
+                              <input type="file" id="csv-file-input" accept=".csv" multiple onChange={handleFileChange} style={{ display: 'none' }} />
                             </div>
                             {formErrors.file && <span className="form-error-text">{formErrors.file}</span>}
                             {formData.file_path && <span className="current-file-indicator">Current File: {formData.file_path}</span>}
@@ -1487,7 +1487,7 @@ const ConnectorWorkspace = () => {
                                 style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: '600' }}>
                                 Browse Local File
                               </button>
-                              <input type="file" id="excel-file-input" accept=".xlsx" onChange={handleFileChange} style={{ display: 'none' }} />
+                              <input type="file" id="excel-file-input" accept=".xlsx" multiple onChange={handleFileChange} style={{ display: 'none' }} />
                             </div>
                             {formErrors.file && <span className="form-error-text">{formErrors.file}</span>}
                             {formData.file_path && <span className="current-file-indicator">Current File: {formData.file_path}</span>}

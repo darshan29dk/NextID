@@ -945,6 +945,13 @@ const CandidateRoleWorkbench = () => {
       {/* Sub-Navigation Tabs by Role Type */}
       <div className="controls-card">
         <button
+          className={`drawer-tab-btn ${typeFilter === '' ? 'active' : ''}`}
+          onClick={() => { setTypeFilter(''); setPage(1); }}
+        >
+          <Shield size={14} />
+          <span>All Roles ({kpiStats.total})</span>
+        </button>
+        <button
           className={`drawer-tab-btn ${typeFilter === 'Business' ? 'active' : ''}`}
           onClick={() => { setTypeFilter('Business'); setPage(1); }}
         >
@@ -964,13 +971,6 @@ const CandidateRoleWorkbench = () => {
         >
           <Boxes size={14} />
           <span>Composite Roles ({kpiStats.composite})</span>
-        </button>
-        <button
-          className={`drawer-tab-btn ${typeFilter === '' ? 'active' : ''}`}
-          onClick={() => { setTypeFilter(''); setPage(1); }}
-        >
-          <Shield size={14} />
-          <span>All Roles ({kpiStats.total})</span>
         </button>
       </div>
 

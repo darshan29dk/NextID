@@ -14,6 +14,8 @@ from app.database import get_db
 from app.models.application import Application
 from app.models.audit_log import AuditLog
 from app.models.dashboard import RecentActivity
+from app.models.platform_user import PlatformUser
+from app.models.identity import Identity
 from app.schemas.application import (
     ApplicationCreate, ApplicationUpdate, ApplicationResponse,
     ApplicationPaginatedResponse
@@ -57,6 +59,80 @@ def write_application_audit(db: Session, user: str, action: str, old_val: dict =
         print(f"Warning: Failed to write application audit: {e}")
 
 
+@router.get("/applications-owner-candidates")
+def search_owner_candidates(
+    q: Optional[str] = None,
+    limit: int = 20,
+    db: Session = Depends(get_db)
+):
+    """
+    Returns candidate users (from PlatformUsers and Identities) to assign as Application Owner.
+    """
+    candidates = []
+    seen_emails = set()
+
+    pu_query = db.query(PlatformUser).filter(PlatformUser.is_deleted == False, PlatformUser.status == "Active")
+    if q:
+        like_term = f"%{q}%"
+        pu_query = pu_query.filter(
+            or_(
+                PlatformUser.first_name.like(like_term),
+                PlatformUser.last_name.like(like_term),
+                PlatformUser.email.like(like_term),
+                PlatformUser.employee_id.like(like_term),
+                PlatformUser.department.like(like_term)
+            )
+        )
+    p_users = pu_query.limit(limit).all()
+    for u in p_users:
+        full_name = f"{u.first_name or ''} {u.last_name or ''}".strip() or u.username or u.email
+        email = u.email or ""
+        if email:
+            seen_emails.add(email.lower())
+        candidates.append({
+            "id": u.id,
+            "employee_id": u.employee_id or "",
+            "name": full_name,
+            "email": email,
+            "source": "Platform User",
+            "department": u.department or ""
+        })
+
+    if len(candidates) < limit:
+        id_query = db.query(Identity).filter(Identity.is_deleted == False, Identity.status == "Active")
+        if q:
+            like_term = f"%{q}%"
+            id_query = id_query.filter(
+                or_(
+                    Identity.display_name.like(like_term),
+                    Identity.first_name.like(like_term),
+                    Identity.last_name.like(like_term),
+                    Identity.email.like(like_term),
+                    Identity.employee_id.like(like_term),
+                    Identity.department.like(like_term)
+                )
+            )
+        identities = id_query.limit(limit).all()
+        for i in identities:
+            email = i.email or ""
+            if email and email.lower() in seen_emails:
+                continue
+            full_name = i.display_name or f"{i.first_name or ''} {i.last_name or ''}".strip() or email
+            if full_name:
+                if email:
+                    seen_emails.add(email.lower())
+                candidates.append({
+                    "id": i.id,
+                    "employee_id": i.employee_id or "",
+                    "name": full_name,
+                    "email": email,
+                    "source": "Identity",
+                    "department": i.department or ""
+                })
+
+    return candidates[:limit]
+
+
 @router.get("/applications", response_model=ApplicationPaginatedResponse)
 def get_applications(
     page: int = 1,
@@ -81,7 +157,10 @@ def get_applications(
         query = query.filter(
             or_(
                 Application.application_name.like(search_term),
-                Application.description.like(search_term)
+                Application.description.like(search_term),
+                Application.owner_name.like(search_term),
+                Application.owner_email.like(search_term),
+                Application.owner_employee_id.like(search_term)
             )
         )
 
@@ -95,6 +174,7 @@ def get_applications(
     sort_fields = {
         "application_name": Application.application_name,
         "application_type": Application.application_type,
+        "owner_name": Application.owner_name,
         "status": Application.status,
         "created_at": Application.created_at,
         "updated_at": Application.updated_at,
@@ -154,6 +234,10 @@ def create_application(
         health_status=payload.health_status or "Unknown",
         environment=payload.environment or "Development",
         tags=payload.tags,
+        owner_id=payload.owner_id,
+        owner_employee_id=payload.owner_employee_id.strip() if payload.owner_employee_id else None,
+        owner_name=payload.owner_name.strip() if payload.owner_name else None,
+        owner_email=payload.owner_email.strip() if payload.owner_email else None,
         csv_delimiter=payload.csv_delimiter or ",",
         csv_encoding=payload.csv_encoding or "UTF-8",
         excel_sheet_name=payload.excel_sheet_name,
@@ -170,7 +254,10 @@ def create_application(
         "id": application.id,
         "application_name": application.application_name,
         "application_type": application.application_type,
-        "status": application.status
+        "status": application.status,
+        "owner_employee_id": application.owner_employee_id,
+        "owner_name": application.owner_name,
+        "owner_email": application.owner_email
     }
     write_application_audit(db=db, user=x_user_name, action="Create", old_val=None, new_val=app_dict)
 
@@ -192,7 +279,10 @@ def update_application(
         "id": application.id,
         "application_name": application.application_name,
         "application_type": application.application_type,
-        "status": application.status
+        "status": application.status,
+        "owner_employee_id": application.owner_employee_id,
+        "owner_name": application.owner_name,
+        "owner_email": application.owner_email
     }
 
     if payload.application_name and payload.application_name.strip() != application.application_name:
@@ -208,6 +298,8 @@ def update_application(
     update_data.pop("application_name", None)  # already handled above
 
     for key, value in update_data.items():
+        if key in ["owner_employee_id", "owner_name", "owner_email"] and isinstance(value, str):
+            value = value.strip() if value.strip() else None
         setattr(application, key, value)
 
     application.modified_by = x_user_name
@@ -221,7 +313,10 @@ def update_application(
         "id": application.id,
         "application_name": application.application_name,
         "application_type": application.application_type,
-        "status": application.status
+        "status": application.status,
+        "owner_employee_id": application.owner_employee_id,
+        "owner_name": application.owner_name,
+        "owner_email": application.owner_email
     }
     write_application_audit(db=db, user=x_user_name, action="Update", old_val=old_dict, new_val=new_dict)
 

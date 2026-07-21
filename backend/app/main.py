@@ -101,6 +101,22 @@ def check_and_add_columns():
         except Exception as e:
             print(f"Error checking/altering applications table: {e}")
 
+        # Check and add owner columns for applications table
+        applications_owner_cols = {
+            "owner_id": "INT NULL",
+            "owner_employee_id": "VARCHAR(100) NULL",
+            "owner_name": "VARCHAR(200) NULL",
+            "owner_email": "VARCHAR(200) NULL"
+        }
+        for col, col_type in applications_owner_cols.items():
+            try:
+                res = connection.execute(text(f"SHOW COLUMNS FROM applications LIKE '{col}'")).fetchone()
+                if not res:
+                    print(f"Adding {col} to applications...")
+                    connection.execute(text(f"ALTER TABLE applications ADD COLUMN {col} {col_type}"))
+            except Exception as e:
+                print(f"Error checking/altering applications column {col}: {e}")
+
         # Make campaign_id nullable for manually created/custom candidate roles
         try:
             print("Altering candidate_roles.campaign_id to allow NULL...")

@@ -780,7 +780,7 @@ INSERT INTO identities VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'S
                     <Upload size={32} className="dropzone-icon" />
                     <p className="dropzone-text">Drop your identity data file here</p>
                     <span className="dropzone-sub">CSV · JSON · Excel (.xlsx) · LDIF · SQL — enterprise import formats supported</span>
-                    <input type="file" accept=".csv,.xlsx,.json,.ldif,.sql" onChange={handleFileUploadChange} className="dropzone-file-input" id="identity-file-upload" />
+                    <input type="file" accept=".csv,.xlsx,.json,.ldif,.sql" multiple onChange={handleFileUploadChange} className="dropzone-file-input" id="identity-file-upload" />
                     <label htmlFor="identity-file-upload" className="dropzone-select-btn">Choose File</label>
                     {uploadFile && <div className="selected-filename">Selected: {uploadFile.name}</div>}
                   </div>

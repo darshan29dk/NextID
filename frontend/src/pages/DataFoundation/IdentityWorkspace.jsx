@@ -104,7 +104,7 @@ const IdentityWorkspace = () => {
 
   // Bulk Upload modal state
   const [showBulkModal, setShowBulkModal] = useState(false);
-  const [bulkFile, setBulkFile] = useState(null);
+  const [bulkFiles, setBulkFiles] = useState([]);
   const [bulkSubmitting, setBulkSubmitting] = useState(false);
   const [bulkResult, setBulkResult] = useState(null);
   const [bulkError, setBulkError] = useState(null);
@@ -418,25 +418,42 @@ const IdentityWorkspace = () => {
   };
 
   const handleOpenBulkModal = () => {
-    setBulkFile(null);
+    setBulkFiles([]);
     setBulkResult(null);
     setBulkError(null);
     setShowBulkModal(true);
   };
 
   const handleBulkFileChange = (e) => {
-    const file = e.target.files[0];
-    if (file) setBulkFile(file);
+    const files = Array.from(e.target.files || []);
+    if (files.length > 0) setBulkFiles(files);
   };
 
   const handleSubmitBulkUpload = async () => {
-    if (!bulkFile) return;
+    if (!bulkFiles || bulkFiles.length === 0) return;
     try {
       setBulkSubmitting(true);
       setBulkError(null);
       setBulkResult(null);
-      const result = await bulkUploadIdentities(bulkFile);
-      setBulkResult(result);
+      let totalCreated = 0;
+      let totalUpdated = 0;
+      let totalErrors = 0;
+      let totalCount = 0;
+
+      for (const file of bulkFiles) {
+        const result = await bulkUploadIdentities(file);
+        totalCreated += result.created || 0;
+        totalUpdated += result.updated || 0;
+        totalErrors += result.errors || 0;
+        totalCount += result.total || 0;
+      }
+
+      setBulkResult({
+        total: totalCount,
+        created: totalCreated,
+        updated: totalUpdated,
+        errors: totalErrors
+      });
       fetchIdentitiesList();
       fetchFilterMeta();
       fetchKPIStats();
@@ -1163,15 +1180,21 @@ const IdentityWorkspace = () => {
                 </p>
                 {bulkError && <div className="modal-form-banner-error">{bulkError}</div>}
                 <div className="input-group-custom">
-                  <label className="required">CSV File</label>
+                  <label className="required">CSV Files</label>
                   <div className="file-drop-area">
                     <UploadCloud className="upload-icon" size={24} />
-                    <span style={{ marginBottom: '8px' }}>{bulkFile ? bulkFile.name : 'Select or drop CSV file'}</span>
+                    <span style={{ marginBottom: '8px' }}>
+                      {bulkFiles.length > 1
+                        ? `${bulkFiles.length} files selected: ${bulkFiles.map(f => f.name).join(', ')}`
+                        : bulkFiles.length === 1
+                        ? bulkFiles[0].name
+                        : 'Select or drop CSV file(s)'}
+                    </span>
                     <button type="button" className="btn-browse-file" onClick={(e) => { e.stopPropagation(); document.getElementById('identity-bulk-file-input').click(); }}
                       style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--border-color)', borderRadius: '6px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: '600' }}>
-                      Browse Local File
+                      Browse Local Files
                     </button>
-                    <input type="file" id="identity-bulk-file-input" accept=".csv" onChange={handleBulkFileChange} style={{ display: 'none' }} />
+                    <input type="file" id="identity-bulk-file-input" accept=".csv" multiple onChange={handleBulkFileChange} style={{ display: 'none' }} />
                   </div>
                 </div>
 
@@ -1188,7 +1211,7 @@ const IdentityWorkspace = () => {
               </div>
               <div className="modal-footer-custom">
                 <button className="btn-modal-cancel" type="button" onClick={() => setShowBulkModal(false)}>Close</button>
-                <button className="btn-modal-submit" type="button" disabled={!bulkFile || bulkSubmitting} onClick={handleSubmitBulkUpload}>
+                <button className="btn-modal-submit" type="button" disabled={bulkFiles.length === 0 || bulkSubmitting} onClick={handleSubmitBulkUpload}>
                   {bulkSubmitting ? 'Uploading...' : 'Upload'}
                 </button>
               </div>
