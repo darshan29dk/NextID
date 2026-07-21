@@ -15,6 +15,7 @@ from sqlalchemy import func
 
 from app.models.identity import Identity
 from app.models.application import Application
+from app.models.application_account import ApplicationAccount
 from app.models.candidate_role import CandidateRole
 from app.models.candidate_role_member import CandidateRoleMember
 from app.models.application_account_entitlement import ApplicationAccountEntitlement
@@ -31,12 +32,29 @@ def get_executive_kpis(db: Session) -> dict:
     total_candidate_roles = role_base.count()
     published_roles = role_base.filter(CandidateRole.status == "Published").count()
 
-    total_entitlements_mapped = db.query(ApplicationAccountEntitlement).filter(
-        ApplicationAccountEntitlement.matched == True
+    # Joined to both parents and filtered on is_deleted so entitlement
+    # links belonging to an already-deleted Application/account (a
+    # pre-existing data-hygiene gap - deleting an Application didn't used
+    # to cascade to its accounts/entitlements) don't keep inflating this
+    # count after the parent is gone.
+    total_entitlements_mapped = db.query(ApplicationAccountEntitlement).join(
+        Application, ApplicationAccountEntitlement.application_id == Application.id
+    ).join(
+        ApplicationAccount, ApplicationAccountEntitlement.account_id == ApplicationAccount.id
+    ).filter(
+        ApplicationAccountEntitlement.matched == True,
+        Application.is_deleted == False,
+        ApplicationAccount.is_deleted == False
     ).count()
 
-    open_violations = db.query(SodViolation).filter(
-        SodViolation.status.in_(["OPEN", "UNDER_REVIEW"])
+    # Same reasoning - a violation tied to an identity that's since been
+    # removed from the Identity Repository isn't an actionable finding
+    # anymore, so it shouldn't count toward "Open SoD Violations".
+    open_violations = db.query(SodViolation).join(
+        Identity, SodViolation.user_id == Identity.id
+    ).filter(
+        SodViolation.status.in_(["OPEN", "UNDER_REVIEW"]),
+        Identity.is_deleted == False
     ).count()
     active_exceptions = db.query(SodException).filter(
         SodException.status.in_(["APPROVED", "ACTIVE"])

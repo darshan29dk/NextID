@@ -76,7 +76,7 @@ const RoleAnalytics = ({ hideHeader }) => {
             <h3 style={{ fontSize: '14px', fontWeight: 600, margin: 0 }}>Roles by Type</h3>
             <p className="text-muted" style={{ fontSize: '12px', margin: '2px 0 0 0' }}>Business / Technical / Composite</p>
           </div>
-          <DepartmentBarChart data={charts.roles_by_type || {}} onDrilldown={() => {}} />
+          <DepartmentBarChart data={charts.roles_by_type || {}} onDrilldown={() => {}} emptyLabel="No candidate roles yet." />
         </div>
 
         <div className="visual-card" style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', backgroundColor: 'var(--bg-card)' }}>
@@ -84,7 +84,7 @@ const RoleAnalytics = ({ hideHeader }) => {
             <h3 style={{ fontSize: '14px', fontWeight: 600, margin: 0 }}>Roles by Risk Level</h3>
             <p className="text-muted" style={{ fontSize: '12px', margin: '2px 0 0 0' }}>Low / Medium / High</p>
           </div>
-          <DepartmentBarChart data={charts.roles_by_risk_level || {}} onDrilldown={() => {}} />
+          <DepartmentBarChart data={charts.roles_by_risk_level || {}} onDrilldown={() => {}} emptyLabel="No candidate roles yet." />
         </div>
 
         <div className="visual-card" style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', backgroundColor: 'var(--bg-card)' }}>
@@ -92,7 +92,7 @@ const RoleAnalytics = ({ hideHeader }) => {
             <h3 style={{ fontSize: '14px', fontWeight: 600, margin: 0 }}>Roles by Source</h3>
             <p className="text-muted" style={{ fontSize: '12px', margin: '2px 0 0 0' }}>Mining / Manual / Split / Merge</p>
           </div>
-          <DepartmentBarChart data={charts.roles_by_source || {}} onDrilldown={() => {}} />
+          <DepartmentBarChart data={charts.roles_by_source || {}} onDrilldown={() => {}} emptyLabel="No candidate roles yet." />
         </div>
 
         <div className="visual-card" style={{ padding: '16px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', backgroundColor: 'var(--bg-card)' }}>

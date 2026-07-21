@@ -73,13 +73,16 @@ export const SeverityDonut = ({ data = {}, onDrilldown }) => {
   );
 };
 
-// Department Horizontal Bar Chart
-export const DepartmentBarChart = ({ data = {}, onDrilldown }) => {
+// Generic horizontal bar chart - originally built for department
+// breakdowns, but reused wherever a category -> count bar list is needed
+// (e.g. Roles by Classification, Roles by Status), so the empty-state
+// text is configurable per usage instead of hardcoded to "department".
+export const DepartmentBarChart = ({ data = {}, onDrilldown, emptyLabel = 'No department data.' }) => {
   const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
   const maxVal = entries.length > 0 ? entries[0][1] : 1;
 
   if (entries.length === 0) {
-    return <div className="chart-no-data">No department data.</div>;
+    return <div className="chart-no-data">{emptyLabel}</div>;
   }
 
   return (

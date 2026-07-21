@@ -249,6 +249,27 @@ def delete_application(
     application.modified_by = x_user_name
     application.updated_at = datetime.utcnow()
 
+    # Cascade: an Application's imported accounts and the entitlement
+    # links on those accounts are meaningless once the parent Application
+    # is gone, and previously stayed live in the DB even after delete -
+    # inflating Analytics KPIs (Entitlements Mapped, etc.) with orphaned
+    # rows from a source the user thought they'd removed. Entitlement
+    # links have no is_deleted column of their own (they're a pure join
+    # table), so they're hard-deleted here; accounts follow the same
+    # soft-delete pattern used everywhere else in the app.
+    accounts = db.query(ApplicationAccount).filter(
+        ApplicationAccount.application_id == id, ApplicationAccount.is_deleted == False
+    ).all()
+    account_ids = [a.id for a in accounts]
+
+    if account_ids:
+        db.query(ApplicationAccountEntitlement).filter(
+            ApplicationAccountEntitlement.application_id == id
+        ).delete(synchronize_session=False)
+        db.query(ApplicationAccount).filter(
+            ApplicationAccount.id.in_(account_ids)
+        ).update({ApplicationAccount.is_deleted: True, ApplicationAccount.modified_by: x_user_name}, synchronize_session=False)
+
     db.commit()
 
     write_application_audit(db=db, user=x_user_name, action="Delete", old_val=old_dict, new_val=None)
