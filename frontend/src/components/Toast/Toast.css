@@ -30,8 +30,8 @@
   opacity: 0;
   transform: scale(0.92);
   transition: opacity 0.3s ease, transform 0.3s ease;
-  backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
   border: 1px solid transparent;
 }
 
