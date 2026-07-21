@@ -58,11 +58,10 @@
   width: 80px;
   height: 80px;
   border-radius: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
-  overflow: hidden;
+  object-fit: contain;
+  background: #ffffff;
+  padding: 8px;
 }
 
 .login-brand-text h2 {
@@ -125,6 +124,16 @@
   align-items: center;
   gap: 10px;
   margin-bottom: 24px;
+}
+
+.login-form-brand-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  object-fit: contain;
+  background: #ffffff;
+  padding: 2px;
+  flex-shrink: 0;
 }
 
 .login-form-brand-name {

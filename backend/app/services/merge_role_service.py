@@ -159,7 +159,7 @@ class MergeRoleService:
         dest_role = CandidateRole(
             role_name=destination_name,
             role_description=description,
-            role_type="Hybrid" if len(set(r.role_type for r in roles)) > 1 else roles[0].role_type,
+            role_type="Composite" if len(set(r.role_type for r in roles)) > 1 else roles[0].role_type,
             risk_level=dest_risk,
             status="Draft",
             confidence_score=preview["estimated_confidence_score"],

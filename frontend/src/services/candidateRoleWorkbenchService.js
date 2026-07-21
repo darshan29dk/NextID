@@ -20,6 +20,15 @@ export const getCandidateRoleMatrix = async (id) => {
   return response.data;
 };
 
+// List-level Analytical View (moved up from a per-role tab) - scoped to
+// whatever role ids are checked in the table, or the top 10 by confidence
+// if none are checked.
+export const getCandidateRolesMatrix = async (roleIds) => {
+  const params = roleIds && roleIds.length ? { role_ids: roleIds.join(',') } : {};
+  const response = await apiClient.get('/candidate-roles/analytical-view/matrix', { params });
+  return response.data;
+};
+
 export const createCandidateRole = async (data) => {
   const response = await apiClient.post('/candidate-roles', data);
   return response.data;

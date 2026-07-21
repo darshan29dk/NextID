@@ -24,7 +24,8 @@ class RolePreviewService:
           - risk_level field        (Low=10, Medium=40, High=70)
           - SoD violations          (+15 per violation, capped at 30)
           - Entitlement risk ratio  (% of high-risk entitlements × 20)
-          - Classification          (Birthright=+5, Requestable=+8, Business=+10, Technical=+15)
+          - Classification          (how access is granted: Birthright=+5, Request-Based=+8)
+          - Role Type               (what kind of access it is: Business=+10, Technical=+15, Composite=+15)
           - Member coverage         (large roles slightly higher risk)
         """
         score = 0
@@ -43,17 +44,22 @@ class RolePreviewService:
             ratio = len(high_risk_ents) / len(entitlements)
             score += int(ratio * 20)
 
-        # Classification bonus — reflects how much oversight each category
-        # implies: Birthright is auto-assigned (lowest), Technical carries
-        # elevated/system-level access requiring the most justification.
+        # Classification bonus — how the access is granted. Birthright is
+        # auto-assigned (lowest oversight needed), Request-Based requires a
+        # person to actively ask for it (slightly more scrutiny).
         cls = (role.classification or "").lower()
         if cls == "birthright":
             score += 5
-        elif cls == "requestable":
+        elif cls == "request-based":
             score += 8
-        elif cls == "business":
+
+        # Role Type bonus — what kind of access it is, independent of how
+        # it's granted. Technical/Composite roles carry elevated or
+        # system-level access requiring the most justification.
+        r_type = (role.role_type or "").lower()
+        if r_type == "business":
             score += 10
-        elif cls == "technical":
+        elif r_type in ("technical", "composite"):
             score += 15
 
         return min(score, 100)

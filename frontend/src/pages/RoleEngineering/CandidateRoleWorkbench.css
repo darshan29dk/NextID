@@ -63,36 +63,16 @@
   gap: 12px;
 }
 
+/* Layout sizing only - the icon/input styling itself (flex row, padding,
+   border, icon size) comes from the shared !important rules in index.css
+   that every other page's .search-input-wrapper relies on. This page used
+   to fight those rules with its own absolute-positioned icon + padding-left
+   overlay, which the global !important declarations partially overrode,
+   causing the search icon to sit on top of the placeholder text. */
 .search-input-wrapper {
-  position: relative;
   flex: 1;
   min-width: 280px;
   max-width: 480px;
-}
-
-.search-input-wrapper input {
-  width: 100%;
-  padding: 10px 16px 10px 40px;
-  background-color: var(--bg-app);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  color: var(--text-main);
-  font-size: 13px;
-  transition: all var(--transition-speed);
-}
-
-.search-input-wrapper input:focus {
-  outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-light);
-}
-
-.search-icon-inside {
-  position: absolute;
-  left: 14px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
 }
 
 .toolbar-actions {

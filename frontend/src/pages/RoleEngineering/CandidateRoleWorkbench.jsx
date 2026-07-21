@@ -38,16 +38,20 @@ import {
   Scissors,
   BookOpen,
   Maximize2,
-  Minimize2
+  Minimize2,
+  PieChart,
+  Lightbulb,
+  ArrowRightCircle
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
 import RoleMiningMatrix from '../../components/RoleMiningMatrix/RoleMiningMatrix';
+import RoleAnalyticalCharts, { VIEW_MODES } from '../../components/RoleMiningMatrix/RoleAnalyticalCharts';
 import {
   getCandidateRoleStats,
   getCandidateRoles,
   getCandidateRoleDetail,
-  getCandidateRoleMatrix,
+  getCandidateRolesMatrix,
   createCandidateRole,
   updateCandidateRole,
   deleteCandidateRole,
@@ -74,6 +78,14 @@ import { publishRole } from '../../services/roleCatalogService';
 import './CandidateRoleWorkbench.css';
 import { useAuth } from '../../context/AuthContext';
 import SubmitApprovalModal from '../../components/SubmitApprovalModal/SubmitApprovalModal';
+
+const ANALYTICAL_VIEW_HINTS = {
+  grid: 'Entitlement grants by member, based on verified account data.',
+  coverage: 'Member coverage percentage per entitlement.',
+  core: 'Core and non-core entitlement distribution.',
+  member: 'Entitlement match percentage per member.',
+  role: 'Entitlement distribution across candidate roles.',
+};
 
 const CandidateRoleWorkbench = () => {
   const { currentUser } = useAuth();
@@ -163,8 +175,9 @@ const CandidateRoleWorkbench = () => {
     total: 0,
     business: 0,
     technical: 0,
+    composite: 0,
     birthright: 0,
-    requestable: 0,
+    requestBased: 0,
     draft: 0
   });
 
@@ -197,10 +210,14 @@ const CandidateRoleWorkbench = () => {
   const [previewError, setPreviewError] = useState('');
   const [exportingPreview, setExportingPreview] = useState('');
 
-  // ── Entitlement x User matrix (sir's Role Studio reference) ───────────────
-  const [roleMatrix, setRoleMatrix] = useState(null);
+  // ── Analytical View (sir's Role Studio reference) - list-level now, not
+  // per-role, per sir's feedback. Scoped to whatever's checked in the table,
+  // or the top 10 roles by confidence if nothing's checked. ─────────────────
+  const [showAnalyticalView, setShowAnalyticalView] = useState(false);
+  const [multiRoleMatrix, setMultiRoleMatrix] = useState(null);
   const [matrixLoading, setMatrixLoading] = useState(false);
   const [matrixError, setMatrixError] = useState('');
+  const [analyticalViewMode, setAnalyticalViewMode] = useState('grid'); // 'grid' | 'coverage' | 'core' | 'member' | 'role'
 
   // ── Drawer fullscreen toggle - the matrix needs the room ─────────────────
   const [drawerFullscreen, setDrawerFullscreen] = useState(false);
@@ -214,9 +231,10 @@ const CandidateRoleWorkbench = () => {
       setKpiStats({
         total: stats.total || 0,
         birthright: stats.birthright || 0,
-        requestable: stats.requestable || 0,
+        requestBased: stats.request_based || 0,
         business: stats.business || 0,
         technical: stats.technical || 0,
+        composite: stats.composite || 0,
         draft: stats.draft || 0
       });
 
@@ -337,7 +355,6 @@ const CandidateRoleWorkbench = () => {
       setOwnerData({ primary: null, backup: null });
       setOwnerHistory([]);
       setRolePreview(null);
-      setRoleMatrix(null);
       setDrawerFullscreen(true);
       setShowAssignOwnerForm(false);
       setShowOwnerHistory(false);
@@ -373,7 +390,6 @@ const CandidateRoleWorkbench = () => {
     setOwnerData({ primary: null, backup: null });
     setOwnerHistory([]);
     setRolePreview(null);
-    setRoleMatrix(null);
     setDrawerFullscreen(false);
     setShowAssignOwnerForm(false);
     setShowOwnerHistory(false);
@@ -789,13 +805,13 @@ const CandidateRoleWorkbench = () => {
     finally { setOwnerHistoryLoading(false); }
   };
 
-  // ── Load entitlement x user matrix for this role ─────────────────────────
-  const handleLoadMatrix = async (roleId) => {
+  // ── Load entitlement x user matrix across the checked (or top 10) roles ──
+  const handleLoadMultiRoleMatrix = async () => {
     try {
       setMatrixLoading(true);
       setMatrixError('');
-      const matrix = await getCandidateRoleMatrix(roleId);
-      setRoleMatrix(matrix);
+      const matrix = await getCandidateRolesMatrix(selectedRoleIds);
+      setMultiRoleMatrix(matrix);
     } catch (err) {
       setMatrixError(err?.response?.data?.detail || 'Failed to load matrix.');
     } finally {
@@ -857,7 +873,16 @@ const CandidateRoleWorkbench = () => {
   return (
     <div className="workbench-container">
       <Breadcrumb items={['Role Engineering', 'Candidate Role Workbench']} />
-      
+
+      <div className="page-header-actions" style={{ marginBottom: '4px' }}>
+        <div className="header-title-section">
+          <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>Role Engineering</h2>
+          <p className="text-muted" style={{ fontSize: '13px', margin: '4px 0 0 0' }}>
+            Refines discovered role candidates through ownership assignment, classification, and SoD review prior to Approval.
+          </p>
+        </div>
+      </div>
+
       {errorMsg && (
         <div className="error-banner-alert">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -883,8 +908,8 @@ const CandidateRoleWorkbench = () => {
           color="green"
         />
         <DashboardCard
-          title="Requestable Roles"
-          value={kpiStats.requestable}
+          title="Request-Based Roles"
+          value={kpiStats.requestBased}
           icon={Shield}
           color="purple"
         />
@@ -901,6 +926,12 @@ const CandidateRoleWorkbench = () => {
           color="cyan"
         />
         <DashboardCard
+          title="Composite Roles"
+          value={kpiStats.composite}
+          icon={ShieldAlert}
+          color="indigo"
+        />
+        <DashboardCard
           title="Draft Roles"
           value={kpiStats.draft}
           icon={History}
@@ -912,9 +943,9 @@ const CandidateRoleWorkbench = () => {
       <div className="toolbar-section">
         <div className="toolbar-row">
           <div className="search-input-wrapper">
-            <Search className="search-icon-inside" size={16} />
-            <input 
-              type="text" 
+            <Search size={16} className="text-muted" />
+            <input
+              type="text"
               placeholder="Search by role name, department, business unit, application..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -922,7 +953,19 @@ const CandidateRoleWorkbench = () => {
           </div>
 
           <div className="toolbar-actions">
-            <button 
+            <button
+              className={`btn-action-premium ${showAnalyticalView ? 'primary' : ''}`}
+              onClick={() => {
+                const next = !showAnalyticalView;
+                setShowAnalyticalView(next);
+                if (next) handleLoadMultiRoleMatrix();
+              }}
+            >
+              <PieChart size={14} />
+              <span>Analytical View</span>
+            </button>
+
+            <button
               className={`btn-action-premium ${showFilters ? 'primary' : ''}`}
               onClick={() => setShowFilters(prev => !prev)}
             >
@@ -960,14 +1003,8 @@ const CandidateRoleWorkbench = () => {
                     <button className="bulk-dropdown-item" onClick={() => handleBulkClassify('Birthright')}>
                       Mark as Birthright
                     </button>
-                    <button className="bulk-dropdown-item" onClick={() => handleBulkClassify('Requestable')}>
-                      Mark as Requestable
-                    </button>
-                    <button className="bulk-dropdown-item" onClick={() => handleBulkClassify('Business')}>
-                      Mark as Business
-                    </button>
-                    <button className="bulk-dropdown-item" onClick={() => handleBulkClassify('Technical')}>
-                      Mark as Technical
+                    <button className="bulk-dropdown-item" onClick={() => handleBulkClassify('Request-Based')}>
+                      Mark as Request-Based
                     </button>
                   </div>
                 )}
@@ -992,9 +1029,7 @@ const CandidateRoleWorkbench = () => {
               <select value={classificationFilter} onChange={(e) => { setClassificationFilter(e.target.value); setPage(1); }}>
                 <option value="">All Classifications</option>
                 <option value="Birthright">Birthright</option>
-                <option value="Requestable">Requestable</option>
-                <option value="Business">Business</option>
-                <option value="Technical">Technical</option>
+                <option value="Request-Based">Request-Based</option>
                 <option value="None">None / Unassigned</option>
               </select>
             </div>
@@ -1005,7 +1040,7 @@ const CandidateRoleWorkbench = () => {
                 <option value="">All Types</option>
                 <option value="Business">Business</option>
                 <option value="Technical">Technical</option>
-                <option value="Hybrid">Hybrid</option>
+                <option value="Composite">Composite</option>
               </select>
             </div>
 
@@ -1061,6 +1096,7 @@ const CandidateRoleWorkbench = () => {
       </div>
 
       {/* Main Table view */}
+      {!showAnalyticalView && (
       <div className="workbench-table-wrapper">
         {loading ? (
           <div className="table-loading-container">
@@ -1209,6 +1245,56 @@ const CandidateRoleWorkbench = () => {
           </>
         )}
       </div>
+      )}
+
+      {/* Analytical View - list-level, spans the checked (or top 10) candidate roles */}
+      {showAnalyticalView && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div className="analytical-view-toolbar">
+            <div className="analytical-view-caption">
+              <span className="analytical-view-caption-title">
+                {selectedRoleIds.length > 0 ? `Scope: ${selectedRoleIds.length} selected role(s)` : 'Scope: Top 10 roles by confidence score'}
+              </span>
+              <span className="analytical-view-caption-desc">{ANALYTICAL_VIEW_HINTS[analyticalViewMode]}</span>
+            </div>
+            <div className="analytical-view-controls">
+              <select
+                className="analytical-view-select"
+                value={analyticalViewMode}
+                onChange={(e) => setAnalyticalViewMode(e.target.value)}
+              >
+                {VIEW_MODES.map((vm) => (
+                  <option key={vm.value} value={vm.value}>{vm.label}</option>
+                ))}
+              </select>
+              <button className="btn-action-premium" onClick={handleLoadMultiRoleMatrix}>
+                <RefreshCw size={14} className={matrixLoading ? 'spin-element' : ''} />
+                <span>Refresh</span>
+              </button>
+            </div>
+          </div>
+          {matrixError && <div className="drawer-tab-empty-msg"><p>{matrixError}</p></div>}
+          {analyticalViewMode === 'grid' ? (
+            <RoleMiningMatrix
+              loading={matrixLoading}
+              entitlements={multiRoleMatrix?.entitlements || []}
+              members={multiRoleMatrix?.members || []}
+              cells={multiRoleMatrix?.cells || []}
+              roles={multiRoleMatrix?.roles || []}
+              emptyMessage="No candidate roles with mined entitlements/members yet."
+            />
+          ) : (
+            <RoleAnalyticalCharts
+              loading={matrixLoading}
+              mode={analyticalViewMode}
+              entitlements={multiRoleMatrix?.entitlements || []}
+              members={multiRoleMatrix?.members || []}
+              cells={multiRoleMatrix?.cells || []}
+              emptyMessage="No candidate roles with mined entitlements/members yet."
+            />
+          )}
+        </div>
+      )}
 
       {/* Right Detail Panel Drawer */}
       <div 
@@ -1270,7 +1356,15 @@ const CandidateRoleWorkbench = () => {
               >
                 General Info
               </button>
-              <button 
+              <button
+                className={`drawer-tab-btn ${detailTab === 'insights' ? 'active' : ''}`}
+                onClick={() => setDetailTab('insights')}
+                style={{ display: 'flex', alignItems: 'center', gap: '4px' }}
+              >
+                <Lightbulb size={13} />
+                Discovery Insights
+              </button>
+              <button
                 className={`drawer-tab-btn ${detailTab === 'entitlements' ? 'active' : ''}`}
                 onClick={() => setDetailTab('entitlements')}
               >
@@ -1281,12 +1375,6 @@ const CandidateRoleWorkbench = () => {
                 onClick={() => setDetailTab('users')}
               >
                 Assigned Users ({selectedRole.members ? selectedRole.members.length : 0})
-              </button>
-              <button
-                className={`drawer-tab-btn ${detailTab === 'matrix' ? 'active' : ''}`}
-                onClick={() => { setDetailTab('matrix'); if (!roleMatrix) handleLoadMatrix(selectedRole.id); }}
-              >
-                Matrix View
               </button>
               {selectedRole.sod_violation_count > 0 && (
                 <button 
@@ -1358,7 +1446,7 @@ const CandidateRoleWorkbench = () => {
                       <div className="classification-editor-panel">
                         <h5>Role Classification</h5>
                         <div className="classification-options-layout">
-                          {['Birthright', 'Requestable', 'Business', 'Technical'].map(opt => (
+                          {['Birthright', 'Request-Based'].map(opt => (
                             <div 
                               key={opt}
                               className={`classification-option-row ${editClassification === opt ? 'selected' : ''}`}
@@ -1374,9 +1462,7 @@ const CandidateRoleWorkbench = () => {
                                 <span>{opt}</span>
                                 <span className="classification-option-desc">
                                   {opt === 'Birthright' && 'Assigned automatically to all new identities matching their job function.'}
-                                  {opt === 'Requestable' && 'Available for identities to request on demand, subject to approval.'}
-                                  {opt === 'Business' && 'Governs access aligned to a business function or department.'}
-                                  {opt === 'Technical' && 'Governs technical/system-level access requiring additional oversight.'}
+                                  {opt === 'Request-Based' && 'Available for identities to request on demand, subject to approval.'}
                                 </span>
                               </div>
                             </div>
@@ -1454,6 +1540,72 @@ const CandidateRoleWorkbench = () => {
                           )}
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {detailTab === 'insights' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      {selectedRole.discovery_insights ? (
+                        <>
+                          <div className="meta-attribute-item">
+                            <label>How This Role Was Discovered</label>
+                            <span>{selectedRole.discovery_insights.summary}</span>
+                          </div>
+
+                          <div className="meta-attributes-list">
+                            <div className="meta-attribute-item">
+                              <label>Job Function</label>
+                              <span>{selectedRole.discovery_insights.job_function || '-'}</span>
+                            </div>
+                            <div className="meta-attribute-item">
+                              <label>Mining Campaign</label>
+                              <span>{selectedRole.discovery_insights.campaign_name || '-'}</span>
+                            </div>
+                            <div className="meta-attribute-item">
+                              <label>Similarity Threshold (eps)</label>
+                              <span>{selectedRole.discovery_insights.similarity_eps ?? '-'}</span>
+                            </div>
+                            <div className="meta-attribute-item">
+                              <label>Minimum Cluster Size</label>
+                              <span>{selectedRole.discovery_insights.min_cluster_size ?? '-'}</span>
+                            </div>
+                            <div className="meta-attribute-item">
+                              <label>Core Entitlement Threshold</label>
+                              <span>{selectedRole.discovery_insights.core_threshold_pct}%</span>
+                            </div>
+                            <div className="meta-attribute-item">
+                              <label>Confidence Score</label>
+                              <span>{selectedRole.discovery_insights.confidence_score}%</span>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="drawer-tab-empty-msg">
+                          <p>No discovery insights available for this role.</p>
+                        </div>
+                      )}
+
+                      {selectedRole.recommended_action && (
+                        <div className="classification-editor-panel">
+                          <h5 style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <ArrowRightCircle size={15} />
+                            Recommended Action
+                          </h5>
+                          <div style={{ marginTop: '10px' }}>
+                            <span className={`status-badge ${
+                              selectedRole.recommended_action.action === 'Publish' ? 'approved' :
+                              selectedRole.recommended_action.action === 'Merge' ? 'reviewed' :
+                              selectedRole.recommended_action.action === 'Split' ? 'rejected' :
+                              'draft'
+                            }`}>
+                              {selectedRole.recommended_action.action}
+                            </span>
+                          </div>
+                          <p style={{ marginTop: '10px', fontSize: '13px', color: 'var(--text-muted)' }}>
+                            {selectedRole.recommended_action.reason}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1544,24 +1696,6 @@ const CandidateRoleWorkbench = () => {
                           <p>No assigned identities found for this candidate role.</p>
                         </div>
                       )}
-                    </div>
-                  )}
-
-                  {detailTab === 'matrix' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                      <p className="text-muted" style={{ fontSize: '12px', margin: 0 }}>
-                        Real entitlement grants per member, before this role gets published. A blank cell means that member doesn't actually hold that entitlement yet.
-                      </p>
-                      {matrixError && (
-                        <div className="drawer-tab-empty-msg"><p>{matrixError}</p></div>
-                      )}
-                      <RoleMiningMatrix
-                        loading={matrixLoading}
-                        entitlements={roleMatrix?.entitlements || []}
-                        members={roleMatrix?.members || []}
-                        cells={roleMatrix?.cells || []}
-                        emptyMessage="No entitlement/member data available yet to build a matrix for this role."
-                      />
                     </div>
                   )}
 
@@ -2003,7 +2137,7 @@ const CandidateRoleWorkbench = () => {
                   >
                     <option value="Business">Business</option>
                     <option value="Technical">Technical</option>
-                    <option value="Hybrid">Hybrid</option>
+                    <option value="Composite">Composite</option>
                   </select>
                 </div>
 

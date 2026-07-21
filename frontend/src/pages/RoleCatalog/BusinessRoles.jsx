@@ -6,7 +6,7 @@ import RoleCatalogList from './RoleCatalogList';
 const BusinessRoles = () => (
   <RoleCatalogList
     title="Business Roles"
-    subtitle="Published roles classified as Business role type."
+    subtitle="Approved roles of type Business, published to the catalog for provisioning and ongoing governance."
     roleTypeFilter="Business"
     headerIcon={Briefcase}
   />

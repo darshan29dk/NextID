@@ -197,17 +197,17 @@ const Settings = () => {
       {errorMsg && <div className="error-banner" style={{ marginBottom: '16px' }}>{errorMsg}</div>}
       {successMsg && <div className="success-banner" style={{ marginBottom: '16px' }}>{successMsg}</div>}
 
-      <div className="settings-category-picker">
-        <label htmlFor="settings-category-select">Settings Category</label>
-        <select
-          id="settings-category-select"
-          value={category}
-          onChange={(e) => { setCategory(e.target.value); setSuccessMsg(null); }}
-        >
-          {CATEGORIES.map((c) => (
-            <option key={c.value} value={c.value}>{c.label}</option>
-          ))}
-        </select>
+      <div className="settings-tabs-nav">
+        {CATEGORIES.map((c) => (
+          <button
+            key={c.value}
+            type="button"
+            className={`settings-tab-btn ${category === c.value ? 'active' : ''}`}
+            onClick={() => { setCategory(c.value); setSuccessMsg(null); }}
+          >
+            {c.label}
+          </button>
+        ))}
       </div>
 
       <form onSubmit={handleSubmit} className="settings-card">
