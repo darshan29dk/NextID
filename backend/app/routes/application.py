@@ -609,6 +609,13 @@ def import_accounts(
     entitlement_links_created = 0
     unmatched_entitlement_names = set()
 
+    # Load existing accounts in a single query to avoid N+1 query overhead over remote DB
+    existing_accounts = db.query(ApplicationAccount).filter(
+        ApplicationAccount.application_id == id,
+        ApplicationAccount.is_deleted == False
+    ).all()
+    account_lookup = {acc.account_id: acc for acc in existing_accounts}
+
     for idx, row in enumerate(rows):
         try:
             account_id_val = _resolve_field(row, mapping_dict, "account_id", ["account_id", "id", "employee_id", "user_id", "emp_id"]) or f"row_{idx + 1}"
@@ -617,11 +624,7 @@ def import_accounts(
             status_val = _resolve_field(row, mapping_dict, "status", ["status", "active_status"]) or "Active"
             entitlements_val = _resolve_field(row, mapping_dict, "entitlements", ["entitlements", "entitlement", "groups", "group", "roles", "permissions"])
 
-            existing_account = db.query(ApplicationAccount).filter(
-                ApplicationAccount.application_id == id,
-                ApplicationAccount.account_id == account_id_val,
-                ApplicationAccount.is_deleted == False
-            ).first()
+            existing_account = account_lookup.get(account_id_val)
 
             if existing_account:
                 # Update existing account
@@ -789,6 +792,13 @@ def import_entitlements(
     # Do not wipe all entitlements. Instead, upsert each row.
     mapping_dict = _get_field_mapping_dict(db, id, "Entitlement")
 
+    # Load existing entitlements in a single query to avoid N+1 query overhead over remote DB
+    existing_ents = db.query(ApplicationEntitlement).filter(
+        ApplicationEntitlement.application_id == id,
+        ApplicationEntitlement.is_deleted == False
+    ).all()
+    ent_lookup = {ent.entitlement_name.lower(): ent for ent in existing_ents if ent.entitlement_name}
+
     imported_count = 0
     error_count = 0
     for idx, row in enumerate(rows):
@@ -797,11 +807,7 @@ def import_entitlements(
             type_val = _resolve_field(row, mapping_dict, "entitlement_type", ["entitlement_type", "type", "category", "permission_type"])
             desc_val = _resolve_field(row, mapping_dict, "description", ["description", "desc"])
 
-            existing_entitlement = db.query(ApplicationEntitlement).filter(
-                ApplicationEntitlement.application_id == id,
-                ApplicationEntitlement.entitlement_name == name_val,
-                ApplicationEntitlement.is_deleted == False
-            ).first()
+            existing_entitlement = ent_lookup.get(name_val.lower())
 
             if existing_entitlement:
                 # Update existing entitlement
@@ -940,6 +946,13 @@ def import_roles(
     # Do not wipe all roles. Instead, upsert each row.
     mapping_dict = _get_field_mapping_dict(db, id, "Role")
 
+    # Load existing roles in a single query to avoid N+1 query overhead over remote DB
+    existing_roles = db.query(ApplicationRole).filter(
+        ApplicationRole.application_id == id,
+        ApplicationRole.is_deleted == False
+    ).all()
+    role_lookup = {r.role_name.lower(): r for r in existing_roles if r.role_name}
+
     imported_count = 0
     error_count = 0
     for idx, row in enumerate(rows):
@@ -947,11 +960,7 @@ def import_roles(
             name_val = _resolve_field(row, mapping_dict, "role_name", ["role_name", "name", "role"]) or f"row_{idx + 1}"
             desc_val = _resolve_field(row, mapping_dict, "description", ["description", "desc"])
 
-            existing_role = db.query(ApplicationRole).filter(
-                ApplicationRole.application_id == id,
-                ApplicationRole.role_name == name_val,
-                ApplicationRole.is_deleted == False
-            ).first()
+            existing_role = role_lookup.get(name_val.lower())
 
             if existing_role:
                 # Update existing role

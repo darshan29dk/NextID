@@ -1060,17 +1060,17 @@ def import_connector_data(
     # nothing here can be wiped by the Dashboard's random "Sync API" feature.
     from app.models.identity import Identity
     if parsed_identities:
+        # Load all active identities in a single query to avoid N+1 query overhead over remote DB
+        existing_identities = db.query(Identity).filter(Identity.is_deleted == False).all()
+        identity_by_emp_id = {i.employee_id: i for i in existing_identities if i.employee_id}
+        identity_by_email = {i.email.lower(): i for i in existing_identities if i.email}
+
         for item in parsed_identities:
-            # Query for existing identity in the repository
             existing_identity = None
-            if item["employee_id"]:
-                existing_identity = db.query(Identity).filter(
-                    Identity.employee_id == item["employee_id"]
-                ).first()
-            elif item["email"]:
-                existing_identity = db.query(Identity).filter(
-                    Identity.email == item["email"]
-                ).first()
+            if item["employee_id"] and item["employee_id"] in identity_by_emp_id:
+                existing_identity = identity_by_emp_id[item["employee_id"]]
+            elif item["email"] and item["email"].lower() in identity_by_email:
+                existing_identity = identity_by_email[item["email"].lower()]
 
             if existing_identity:
                 # Update existing identity
