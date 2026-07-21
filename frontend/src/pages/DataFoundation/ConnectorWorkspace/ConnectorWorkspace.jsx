@@ -324,7 +324,17 @@ const ConnectorWorkspace = () => {
       fetchConnectorsData();
     } catch (err) {
       console.error("Error saving connector:", err);
-      const detail = err.response?.data?.detail || "Error saving connector configuration.";
+      const rawDetail = err.response?.data?.detail;
+      let detail = "Error saving connector configuration.";
+      if (typeof rawDetail === 'string') {
+        detail = rawDetail;
+      } else if (Array.isArray(rawDetail)) {
+        detail = rawDetail.map((d) => (typeof d === 'object' && d.msg ? d.msg : String(d))).join('; ');
+      } else if (typeof rawDetail === 'object' && rawDetail !== null) {
+        detail = rawDetail.msg || rawDetail.message || JSON.stringify(rawDetail);
+      } else if (err.message) {
+        detail = err.message;
+      }
       setFormErrors({ banner: detail });
     } finally {
       setSubmitting(false);

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Header, UploadFile, File
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, asc, desc
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 import json
 import os
@@ -151,20 +152,24 @@ def create_connector(
     db: Session = Depends(get_db),
     x_user_name: str = Header(default="System")
 ):
+    if not payload.connector_name or not payload.connector_name.strip():
+        raise HTTPException(status_code=400, detail="Connector name is required")
+
+    name = payload.connector_name.strip()
     # Unique constraint check
     existing = db.query(Connector).filter(
-        Connector.connector_name == payload.connector_name.strip(),
+        Connector.connector_name == name,
         Connector.is_deleted == False
     ).first()
     if existing:
-        raise HTTPException(status_code=400, detail="A connector with this name already exists")
+        raise HTTPException(status_code=400, detail=f"A connector named '{name}' already exists")
 
     encrypted_pw = None
     if payload.password:
         encrypted_pw = encrypt_password(payload.password)
 
     connector = Connector(
-        connector_name=payload.connector_name.strip(),
+        connector_name=name,
         connector_type=payload.connector_type,
         description=payload.description,
         status=payload.status or "Draft",
@@ -189,8 +194,15 @@ def create_connector(
     )
 
     db.add(connector)
-    db.commit()
-    db.refresh(connector)
+    try:
+        db.commit()
+        db.refresh(connector)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail=f"A connector named '{name}' already exists"
+        )
 
     # Logging and auditing
     write_connector_log(
@@ -229,18 +241,21 @@ def update_connector(
         "status": connector.status
     }
 
-    # Unique check if name changed
-    if payload.connector_name and payload.connector_name.strip() != connector.connector_name:
-        existing = db.query(Connector).filter(
-            Connector.connector_name == payload.connector_name.strip(),
-            Connector.is_deleted == False
-        ).first()
-        if existing:
-            raise HTTPException(status_code=400, detail="A connector with this name already exists")
-        connector.connector_name = payload.connector_name.strip()
-
     # Update logic
     update_data = payload.dict(exclude_unset=True)
+
+    if "connector_name" in update_data and update_data["connector_name"] is not None:
+        stripped_name = update_data["connector_name"].strip()
+        if not stripped_name:
+            raise HTTPException(status_code=400, detail="Connector name cannot be empty")
+        update_data["connector_name"] = stripped_name
+        if stripped_name != connector.connector_name:
+            existing = db.query(Connector).filter(
+                Connector.connector_name == stripped_name,
+                Connector.is_deleted == False
+            ).first()
+            if existing:
+                raise HTTPException(status_code=400, detail=f"A connector named '{stripped_name}' already exists")
     
     # Handle password encryption update specifically
     if "password" in update_data:
@@ -259,8 +274,15 @@ def update_connector(
     # Bump version
     connector.version = (connector.version or 1) + 1
 
-    db.commit()
-    db.refresh(connector)
+    try:
+        db.commit()
+        db.refresh(connector)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=400,
+            detail="A connector with this name already exists"
+        )
 
     # Logging and auditing
     write_connector_log(

@@ -199,10 +199,18 @@ def bulk_upload_identities(
 
     for row in rows:
         try:
-            email = get(row, "email", "email_address")
-            employee_id = get(row, "employee_id", "emp_id")
-            first_name = get(row, "first_name", "firstname")
-            last_name = get(row, "last_name", "lastname")
+            email = get(row, "email", "email_address", "mail", "user_email")
+            employee_id = get(row, "employee_id", "emp_id", "identity_id", "id", "user_id")
+            first_name = get(row, "first_name", "firstname", "first", "given_name")
+            last_name = get(row, "last_name", "lastname", "last", "family_name", "surname")
+            department = get(row, "department", "dept", "org_unit")
+            job_title = get(row, "job_title", "title", "job_level", "role", "designation", "position")
+            manager = get(row, "manager", "manager_id", "manager_email", "reports_to")
+            status_val = get(row, "status", "user_status", "state", "active_status") or "Active"
+
+            if not email and not employee_id:
+                error_count += 1
+                continue
 
             existing = _find_existing_identity(db, email, employee_id)
             if existing:
@@ -210,24 +218,24 @@ def bulk_upload_identities(
                 existing.first_name = first_name or existing.first_name
                 existing.last_name = last_name or existing.last_name
                 existing.email = email or existing.email
-                existing.department = get(row, "department") or existing.department
-                existing.job_title = get(row, "job_title", "title") or existing.job_title
-                existing.manager = get(row, "manager") or existing.manager
-                existing.status = get(row, "status") or existing.status
+                existing.department = department or existing.department
+                existing.job_title = job_title or existing.job_title
+                existing.manager = manager or existing.manager
+                existing.status = status_val or existing.status
                 existing.modified_by = x_user_name
                 updated_count += 1
             else:
-                display_name = get(row, "display_name") or f"{first_name or ''} {last_name or ''}".strip() or email
+                display_name = get(row, "display_name", "name", "full_name") or f"{first_name or ''} {last_name or ''}".strip() or email
                 identity = Identity(
                     employee_id=employee_id,
                     first_name=first_name,
                     last_name=last_name,
                     display_name=display_name or None,
                     email=email,
-                    department=get(row, "department"),
-                    job_title=get(row, "job_title", "title"),
-                    manager=get(row, "manager"),
-                    status=get(row, "status") or "Active",
+                    department=department,
+                    job_title=job_title,
+                    manager=manager,
+                    status=status_val,
                     source_connector_id=None,
                     source_connector_name="Bulk Upload",
                     imported_at=datetime.utcnow(),
@@ -236,7 +244,8 @@ def bulk_upload_identities(
                 )
                 db.add(identity)
                 created_count += 1
-        except Exception:
+        except Exception as exc:
+            print(f"Error processing identity row {row}: {exc}")
             error_count += 1
 
     db.commit()

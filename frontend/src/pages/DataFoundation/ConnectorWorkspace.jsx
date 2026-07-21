@@ -98,6 +98,19 @@ const formatDateOnly = (dateVal) => {
   return new Date(s).toLocaleDateString();
 };
 
+const extractErrorMessage = (err, fallbackMessage = 'Failed to save connector configuration.') => {
+  if (!err) return fallbackMessage;
+  const detail = err.response?.data?.detail;
+  if (typeof detail === 'string') return detail;
+  if (Array.isArray(detail)) {
+    return detail.map((d) => (typeof d === 'object' && d.msg ? d.msg : String(d))).join('; ');
+  }
+  if (typeof detail === 'object' && detail !== null) {
+    return detail.msg || detail.message || JSON.stringify(detail);
+  }
+  return err.message || fallbackMessage;
+};
+
 const INITIAL_FORM_STATE = {
   connector_name: '',
   connector_type: 'CSV',
@@ -512,7 +525,12 @@ const ConnectorWorkspace = () => {
         savedConnector = await createConnector(payload);
       }
       if (selectedFile && savedConnector && savedConnector.id) {
-        await uploadConnectorFile(savedConnector.id, selectedFile);
+        try {
+          await uploadConnectorFile(savedConnector.id, selectedFile);
+        } catch (uploadErr) {
+          console.error('File upload failed after connector creation:', uploadErr);
+          throw new Error('Connector created, but file upload failed: ' + extractErrorMessage(uploadErr, 'Upload error'));
+        }
       }
       setShowWizard(false);
 
@@ -525,7 +543,7 @@ const ConnectorWorkspace = () => {
       }
     } catch (err) {
       console.error(err);
-      setFormBannerError(err.response?.data?.detail || 'Failed to save connector configuration.');
+      setFormBannerError(extractErrorMessage(err, 'Failed to save connector configuration.'));
     } finally {
       setSubmitting(false);
     }
