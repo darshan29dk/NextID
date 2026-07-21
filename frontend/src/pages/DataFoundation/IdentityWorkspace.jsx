@@ -9,6 +9,7 @@ import {
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
 import CorrelationWorkspace from './CorrelationWorkspace';
+import { ToastContainer, showToast } from '../../components/Toast/Toast';
 import {
   getIdentities,
   getIdentityStats,
@@ -95,6 +96,11 @@ const IdentityWorkspace = () => {
   const [formData, setFormData] = useState(INITIAL_IDENTITY_FORM);
   const [formBannerError, setFormBannerError] = useState(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
+
+  // Unlink confirm modal
+  const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
+  const [unlinkAccountId, setUnlinkAccountId] = useState(null);
+  const [unlinkSubmitting, setUnlinkSubmitting] = useState(false);
 
   // Bulk Upload modal state
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -240,7 +246,7 @@ const IdentityWorkspace = () => {
     try {
       setRunningAutoCorrelation(true);
       const res = await runAutoCorrelation();
-      alert(res.message || 'Auto-correlation complete!');
+      showToast(res.message || 'Auto-correlation complete!', 'success');
       if (view === 'detail') {
         fetchAccounts();
       } else {
@@ -248,7 +254,7 @@ const IdentityWorkspace = () => {
       }
     } catch (err) {
       console.error('Auto-correlation failed:', err);
-      alert('Auto-correlation failed.');
+      showToast('Auto-correlation failed.', 'error');
     } finally {
       setRunningAutoCorrelation(false);
     }
@@ -285,22 +291,34 @@ const IdentityWorkspace = () => {
       await manualLinkAccount(accountId, selectedIdentity.id);
       setShowLinkModal(false);
       fetchAccounts();
+      showToast('Account linked successfully.', 'success');
     } catch (err) {
       console.error('Failed to link account:', err);
-      alert('Failed to link account.');
+      showToast('Failed to link account.', 'error');
     } finally {
       setLinkSubmitting(false);
     }
   };
 
-  const handleUnlinkAccount = async (accountId) => {
-    if (!window.confirm('Are you sure you want to break the correlation link for this account?')) return;
+  const handleOpenUnlinkConfirm = (accountId) => {
+    setUnlinkAccountId(accountId);
+    setShowUnlinkConfirm(true);
+  };
+
+  const handleUnlinkAccount = async () => {
+    if (!unlinkAccountId) return;
     try {
-      await manualUnlinkAccount(accountId);
+      setUnlinkSubmitting(true);
+      await manualUnlinkAccount(unlinkAccountId);
+      setShowUnlinkConfirm(false);
+      setUnlinkAccountId(null);
       fetchAccounts();
+      showToast('Account unlinked successfully.', 'success');
     } catch (err) {
       console.error('Failed to unlink account:', err);
-      alert('Failed to unlink account.');
+      showToast('Failed to unlink account.', 'error');
+    } finally {
+      setUnlinkSubmitting(false);
     }
   };
 
@@ -446,9 +464,10 @@ const IdentityWorkspace = () => {
       fetchIdentitiesList();
       fetchFilterMeta();
       fetchKPIStats();
+      showToast('Identity deleted successfully.', 'success');
     } catch (err) {
       console.error('Failed to delete identity:', err);
-      alert(err.response?.data?.detail || 'Failed to delete identity.');
+      showToast(err.response?.data?.detail || 'Failed to delete identity.', 'error');
     } finally {
       setDeleteSubmitting(false);
     }
@@ -462,12 +481,15 @@ const IdentityWorkspace = () => {
       fetchIdentitiesList();
       fetchFilterMeta();
       fetchKPIStats();
-      alert(result.deleted > 0
-        ? `Removed ${result.deleted} bulk-uploaded identit${result.deleted === 1 ? 'y' : 'ies'}. Connector-imported and manually created identities were not affected.`
-        : 'No bulk-uploaded identities were found — nothing to reset.');
+      showToast(
+        result.deleted > 0
+          ? `Removed ${result.deleted} bulk-uploaded identit${result.deleted === 1 ? 'y' : 'ies'}. Connector-imported and manually created identities were not affected.`
+          : 'No bulk-uploaded identities were found — nothing to reset.',
+        result.deleted > 0 ? 'success' : 'info'
+      );
     } catch (err) {
       console.error('Failed to reset bulk-uploaded identities:', err);
-      alert(err.response?.data?.detail || 'Failed to reset bulk-uploaded identities.');
+      showToast(err.response?.data?.detail || 'Failed to reset bulk-uploaded identities.', 'error');
     } finally {
       setResetSubmitting(false);
     }
@@ -499,14 +521,15 @@ const IdentityWorkspace = () => {
       fetchIdentitiesList();
       fetchFilterMeta();
       fetchKPIStats();
-      alert(`Deleted ${result.deleted} identit${result.deleted === 1 ? 'y' : 'ies'}.`);
+      showToast(`Deleted ${result.deleted} identit${result.deleted === 1 ? 'y' : 'ies'}.`, 'success');
     } catch (err) {
       console.error('Failed to bulk delete identities:', err);
-      alert(err.response?.data?.detail || 'Failed to delete selected identities.');
+      showToast(err.response?.data?.detail || 'Failed to delete selected identities.', 'error');
     } finally {
       setBulkDeleteSubmitting(false);
     }
   };
+
 
   const renderStatusBadge = (status) => {
     switch (status) {
@@ -688,7 +711,7 @@ const IdentityWorkspace = () => {
                                       <button 
                                         className="btn-row-action delete" 
                                         title="Unlink account" 
-                                        onClick={() => handleUnlinkAccount(a.id)}
+                                        onClick={() => handleOpenUnlinkConfirm(a.id)}
                                         style={{ padding: '4px 8px', border: '1px solid var(--border-color)', borderRadius: '4px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '11px' }}
                                       >
                                         <Link2 size={11} /> Unlink
@@ -1325,10 +1348,35 @@ const IdentityWorkspace = () => {
           </div>
         </div>
       )}
+
+      {/* Unlink account confirmation modal */}
+      {showUnlinkConfirm && (
+        <div className="modal-overlay-custom">
+          <div className="modal-content-custom delete-dialog-content">
+            <div className="delete-dialog-body">
+              <div className="delete-dialog-icon"><AlertTriangle size={24} /></div>
+              <div className="delete-dialog-text">
+                <h4>Unlink Account?</h4>
+                <p>
+                  Are you sure you want to break the correlation link for this account?
+                  The account will become uncorrelated.
+                </p>
+              </div>
+            </div>
+            <div className="modal-footer-custom">
+              <button className="btn-modal-cancel" type="button" disabled={unlinkSubmitting} onClick={() => setShowUnlinkConfirm(false)}>Cancel</button>
+              <button className="btn-modal-delete" type="button" disabled={unlinkSubmitting} onClick={handleUnlinkAccount}>
+                {unlinkSubmitting ? 'Unlinking...' : 'Confirm Unlink'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
         </>
       ) : (
         <CorrelationWorkspace hideHeader={true} />
       )}
+      <ToastContainer />
     </div>
   );
 };

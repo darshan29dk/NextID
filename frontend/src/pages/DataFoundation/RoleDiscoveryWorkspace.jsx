@@ -2,12 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Search, Plus, Trash2, X, AlertTriangle, ArrowLeft, RotateCcw,
   CheckCircle2, XCircle, Info, Users, Layers, Target, PieChart,
-  GitCompare, ShieldAlert, Boxes, KeyRound, Gauge
+  GitCompare, ShieldAlert, Boxes, KeyRound, Gauge, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
 import RoleMiningMatrix from '../../components/RoleMiningMatrix/RoleMiningMatrix';
 import RoleAnalyticalCharts, { VIEW_MODES } from '../../components/RoleMiningMatrix/RoleAnalyticalCharts';
+import { ToastContainer, showToast } from '../../components/Toast/Toast';
 import {
   getMiningCampaigns,
   createMiningCampaign,
@@ -44,6 +45,10 @@ const RoleDiscoveryWorkspace = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [errorMsg, setErrorMsg] = useState(null);
+
+  // Pagination for campaigns list
+  const CAMPAIGNS_PER_PAGE = 10;
+  const [campaignPage, setCampaignPage] = useState(1);
 
   // Add Campaign modal
   const [showFormModal, setShowFormModal] = useState(false);
@@ -169,7 +174,7 @@ const RoleDiscoveryWorkspace = () => {
       setCampaignToDelete(null);
       fetchCampaigns();
     } catch (err) {
-      alert(err.response?.data?.detail || 'Failed to delete campaign.');
+      showToast(err.response?.data?.detail || 'Failed to delete campaign.', 'error');
     } finally {
       setDeleteSubmitting(false);
     }
@@ -268,7 +273,7 @@ const RoleDiscoveryWorkspace = () => {
       const data = await getCandidateRoleDetail(roleId);
       setSelectedRoleDetail(data);
     } catch (err) {
-      alert('Failed to load candidate role details.');
+      showToast('Failed to load candidate role details.', 'error');
     } finally {
       setRoleDetailLoading(false);
     }
@@ -282,7 +287,7 @@ const RoleDiscoveryWorkspace = () => {
 
   const handleCompare = async () => {
     if (selectedForCompare.length < 2) {
-      alert('Select at least 2 candidate roles to compare.');
+      showToast('Select at least 2 candidate roles to compare.', 'warning');
       return;
     }
     try {
@@ -290,7 +295,7 @@ const RoleDiscoveryWorkspace = () => {
       setCompareResult(data);
       setShowCompareModal(true);
     } catch (err) {
-      alert(err.response?.data?.detail || 'Failed to compare candidate roles.');
+      showToast(err.response?.data?.detail || 'Failed to compare candidate roles.', 'error');
     }
   };
 
@@ -715,9 +720,11 @@ const RoleDiscoveryWorkspace = () => {
                   </td>
                 </tr>
               ) : (
-                campaigns.map((c, idx) => (
+                campaigns
+                  .slice((campaignPage - 1) * CAMPAIGNS_PER_PAGE, campaignPage * CAMPAIGNS_PER_PAGE)
+                  .map((c, idx) => (
                   <tr key={c.id} className="row-clickable" onClick={() => handleOpenDetail(c)}>
-                    <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>{idx + 1}</td>
+                    <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>{(campaignPage - 1) * CAMPAIGNS_PER_PAGE + idx + 1}</td>
                     <td className="connector-name-cell">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Target size={16} className="type-icon" />
@@ -753,13 +760,33 @@ const RoleDiscoveryWorkspace = () => {
             </tbody>
           </table>
         </div>
-        {campaigns.length > 0 && (
-          <div className="table-pagination-footer" style={{ borderTop: '1px solid var(--border-color)', padding: '12px 24px' }}>
-            <div className="pagination-info">
-              Showing <b>1</b> to <b>{campaigns.length}</b> of <b>{campaigns.length}</b> campaigns
+        {campaigns.length > 0 && (() => {
+          const totalPages = Math.ceil(campaigns.length / CAMPAIGNS_PER_PAGE);
+          const startIdx = (campaignPage - 1) * CAMPAIGNS_PER_PAGE;
+          const endIdx = Math.min(startIdx + CAMPAIGNS_PER_PAGE, campaigns.length);
+          return (
+            <div className="table-pagination-footer" style={{ borderTop: '1px solid var(--border-color)', padding: '12px 24px' }}>
+              <div className="pagination-info">
+                Showing <b>{startIdx + 1}</b> to <b>{endIdx}</b> of <b>{campaigns.length}</b> campaigns
+              </div>
+              {totalPages > 1 && (
+                <div className="pagination-buttons">
+                  <button className="btn-page-nav" disabled={campaignPage === 1} onClick={() => setCampaignPage(campaignPage - 1)}>
+                    <ChevronLeft size={14} />
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => (
+                    <button key={pNum} className={`btn-page-number ${campaignPage === pNum ? 'active' : ''}`} onClick={() => setCampaignPage(pNum)}>
+                      {pNum}
+                    </button>
+                  ))}
+                  <button className="btn-page-nav" disabled={campaignPage === totalPages} onClick={() => setCampaignPage(campaignPage + 1)}>
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
 
       {/* Add Campaign Modal */}
@@ -846,6 +873,7 @@ const RoleDiscoveryWorkspace = () => {
           </div>
         </div>
       )}
+      <ToastContainer />
     </div>
   );
 };

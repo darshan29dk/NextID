@@ -6,6 +6,7 @@ import {
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import { apiClient } from '../../services/dashboardService';
 import { canEdit } from '../../utils/permissions';
+import { ToastContainer, showToast } from '../../components/Toast/Toast';
 import '../DataFoundation/IdentityWorkspace.css';
 
 const CorrelationWorkspace = ({ hideHeader }) => {
@@ -123,10 +124,10 @@ const CorrelationWorkspace = ({ hideHeader }) => {
       await apiClient.post('/correlation/review-queue/approve', { account_ids: selectedAccountIds });
       setSelectedAccountIds([]);
       fetchReviewQueue();
-      alert('Approved matching recommendations successfully.');
+      showToast('Approved matching recommendations successfully.', 'success');
     } catch (err) {
       console.error('Batch approval failed:', err);
-      alert('Failed to approve matches.');
+      showToast('Failed to approve matches.', 'error');
     } finally {
       setRunningAction(false);
     }
@@ -135,16 +136,15 @@ const CorrelationWorkspace = ({ hideHeader }) => {
   // Batch Rejection
   const handleBatchReject = async () => {
     if (selectedAccountIds.length === 0) return;
-    if (!window.confirm(`Are you sure you want to reject matches for ${selectedAccountIds.length} account(s)?`)) return;
     try {
       setRunningAction(true);
       await apiClient.post('/correlation/review-queue/reject', { account_ids: selectedAccountIds });
       setSelectedAccountIds([]);
       fetchReviewQueue();
-      alert('Rejected matching recommendations successfully.');
+      showToast('Rejected matching recommendations successfully.', 'success');
     } catch (err) {
       console.error('Batch rejection failed:', err);
-      alert('Failed to reject matches.');
+      showToast('Failed to reject matches.', 'error');
     } finally {
       setRunningAction(false);
     }
@@ -164,7 +164,6 @@ const CorrelationWorkspace = ({ hideHeader }) => {
   };
 
   const handleSingleReject = async (accountId) => {
-    if (!window.confirm('Are you sure you want to reject this match candidate?')) return;
     try {
       setRunningAction(true);
       await apiClient.post('/correlation/review-queue/reject', { account_ids: [accountId] });
@@ -216,7 +215,7 @@ const CorrelationWorkspace = ({ hideHeader }) => {
       fetchReviewQueue();
     } catch (err) {
       console.error('Failed to manually link account:', err);
-      alert('Failed to link account.');
+      showToast('Failed to link account.', 'error');
     } finally {
       setRunningAction(false);
     }
@@ -270,20 +269,20 @@ const CorrelationWorkspace = ({ hideHeader }) => {
       fetchRules();
     } catch (err) {
       console.error('Failed to save rule:', err);
-      alert('Failed to save rule.');
+      showToast('Failed to save rule.', 'error');
     } finally {
       setRuleSubmitting(false);
     }
   };
 
   const handleDeleteRule = async (ruleId) => {
-    if (!window.confirm('Are you sure you want to delete this matching rule?')) return;
     try {
       await apiClient.delete(`/correlation/rules/${ruleId}`);
       fetchRules();
+      showToast('Rule deleted.', 'success');
     } catch (err) {
       console.error('Failed to delete rule:', err);
-      alert('Failed to delete rule.');
+      showToast('Failed to delete rule.', 'error');
     }
   };
 
@@ -726,6 +725,7 @@ const CorrelationWorkspace = ({ hideHeader }) => {
           </div>
         </div>
       )}
+      <ToastContainer />
     </div>
   );
 };

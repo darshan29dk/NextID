@@ -77,6 +77,7 @@ import {
   getConnectorPreview,
   clearConnectorPreview
 } from '../../services/dashboardService';
+import { ToastContainer, showToast } from '../../components/Toast/Toast';
 import './ConnectorWorkspace.css';
 
 const formatDateTime = (dateVal) => {
@@ -876,12 +877,12 @@ const ConnectorWorkspace = () => {
   };
 
   const handleDeleteTransformation = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this transformation rule?")) return;
+    // Delete confirmed via action button
     try {
       await deleteTransformationRule(id);
       fetchTransformations();
     } catch (err) {
-      alert("Failed to delete rule: " + (err.response?.data?.detail || err.message));
+      showToast("Failed to delete rule: " + (err.response?.data?.detail || err.message), "error");
     }
   };
 
@@ -900,7 +901,7 @@ const ConnectorWorkspace = () => {
       await createTransformationRule(rule.connector_id, payload);
       fetchTransformations();
     } catch (err) {
-      alert("Failed to duplicate rule: " + (err.response?.data?.detail || err.message));
+      showToast("Failed to duplicate rule: " + (err.response?.data?.detail || err.message), "error");
     }
   };
 
@@ -909,7 +910,7 @@ const ConnectorWorkspace = () => {
       await updateTransformationRule(rule.id, { enabled: !rule.enabled });
       fetchTransformations();
     } catch (err) {
-      alert("Failed to toggle rule: " + (err.response?.data?.detail || err.message));
+      showToast("Failed to toggle rule: " + (err.response?.data?.detail || err.message), "error");
     }
   };
 
@@ -1041,12 +1042,12 @@ const ConnectorWorkspace = () => {
   };
 
   const handleDeleteValidation = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this validation rule?")) return;
+    // Delete confirmed via action button
     try {
       await deleteValidationRule(id);
       fetchValidations();
     } catch (err) {
-      alert("Failed to delete rule: " + (err.response?.data?.detail || err.message));
+      showToast("Failed to delete rule: " + (err.response?.data?.detail || err.message), "error");
     }
   };
 
@@ -1066,7 +1067,7 @@ const ConnectorWorkspace = () => {
       await createValidationRule(rule.connector_id, payload);
       fetchValidations();
     } catch (err) {
-      alert("Failed to duplicate rule: " + (err.response?.data?.detail || err.message));
+      showToast("Failed to duplicate rule: " + (err.response?.data?.detail || err.message), "error");
     }
   };
 
@@ -1075,7 +1076,7 @@ const ConnectorWorkspace = () => {
       await updateValidationRule(rule.id, { enabled: !rule.enabled });
       fetchValidations();
     } catch (err) {
-      alert("Failed to toggle rule: " + (err.response?.data?.detail || err.message));
+      showToast("Failed to toggle rule: " + (err.response?.data?.detail || err.message), "error");
     }
   };
 
@@ -1134,7 +1135,7 @@ const ConnectorWorkspace = () => {
       setPreviewPage(1);
       fetchPreviewData();
     } catch (err) {
-      alert("Failed to generate preview: " + (err.response?.data?.detail || err.message));
+      showToast("Failed to generate preview: " + (err.response?.data?.detail || err.message), "error");
     } finally {
       setGeneratingPreview(false);
     }
@@ -1142,7 +1143,7 @@ const ConnectorWorkspace = () => {
 
   const handleClearPreview = async () => {
     if (!selectedConnector) return;
-    if (!window.confirm("Are you sure you want to clear the dry-run preview cache?")) return;
+    // Clear confirmed via action button
     try {
       setClearingPreview(true);
       await clearConnectorPreview(selectedConnector.id);
@@ -1150,7 +1151,7 @@ const ConnectorWorkspace = () => {
       setPreviewTotal(0);
       setPreviewSummary(null);
     } catch (err) {
-      alert("Failed to clear preview cache: " + (err.response?.data?.detail || err.message));
+      showToast("Failed to clear preview cache: " + (err.response?.data?.detail || err.message), "error");
     } finally {
       setClearingPreview(false);
     }
@@ -1158,7 +1159,7 @@ const ConnectorWorkspace = () => {
 
   const handleExportPreview = (format) => {
     if (previewRecords.length === 0) {
-      alert("No preview records found to export.");
+      showToast("No preview records found to export.", "warning");
       return;
     }
     
@@ -1252,7 +1253,7 @@ const ConnectorWorkspace = () => {
         fetchConnectorsList();
         fetchKPIStats();
       } else {
-        alert(err.response?.data?.detail || 'Failed to delete connector.');
+        showToast(err.response?.data?.detail || 'Failed to delete connector.', 'error');
       }
     } finally {
       deletingRef.current = false;
@@ -3945,8 +3946,11 @@ const ConnectorWorkspace = () => {
       </div>
 
       {renderModals()}
+      <ToastContainer />
     </div>
   );
 };
 
 export default ConnectorWorkspace;
+
+
