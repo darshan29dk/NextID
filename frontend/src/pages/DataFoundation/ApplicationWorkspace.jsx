@@ -1762,6 +1762,7 @@ const ApplicationWorkspace = () => {
           <table className="users-table">
             <thead>
               <tr>
+                <th style={{ width: '40px', textAlign: 'center' }}>#</th>
                 <th style={{ cursor: 'pointer' }} onClick={() => handleSort('application_name')}>
                   Name {sortBy === 'application_name' && (sortOrder === 'asc' ? '▲' : '▼')}
                 </th>
@@ -1781,7 +1782,7 @@ const ApplicationWorkspace = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="6">
+                  <td colSpan="7">
                     <div className="table-loading-container">
                       <div className="spinner-element"></div>
                       <p>Loading applications...</p>
@@ -1790,7 +1791,7 @@ const ApplicationWorkspace = () => {
                 </tr>
               ) : applications.length === 0 ? (
                 <tr>
-                  <td colSpan="6">
+                  <td colSpan="7">
                     <div className="table-empty-container">
                       <Cpu size={36} className="text-muted" />
                       <div className="empty-state-text">
@@ -1801,8 +1802,11 @@ const ApplicationWorkspace = () => {
                   </td>
                 </tr>
               ) : (
-                applications.map((a) => (
+                applications.map((a, idx) => (
                   <tr key={a.id} className="row-clickable" onClick={() => handleOpenDetail(a)}>
+                    <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                      {(page - 1) * limit + idx + 1}
+                    </td>
                     <td className="connector-name-cell">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {renderTypeIcon(a.application_type)}
@@ -1833,24 +1837,26 @@ const ApplicationWorkspace = () => {
           </table>
         </div>
 
-        {totalPages > 1 && (
+        {totalCount > 0 && (
           <div className="table-pagination-footer">
             <div className="pagination-info">
-              Showing page <b>{page}</b> of <b>{totalPages}</b> (Total {totalCount} records)
+              Showing <b>{totalCount === 0 ? 0 : (page - 1) * limit + 1}</b> to <b>{Math.min(totalCount, page * limit)}</b> of <b>{totalCount}</b> applications
             </div>
-            <div className="pagination-buttons">
-              <button className="btn-page-nav" disabled={page === 1} onClick={() => setPage(page - 1)}>
-                <ChevronLeft size={14} />
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => (
-                <button key={pNum} className={`btn-page-number ${page === pNum ? 'active' : ''}`} onClick={() => setPage(pNum)}>
-                  {pNum}
+            {totalPages > 1 && (
+              <div className="pagination-buttons">
+                <button className="btn-page-nav" disabled={page === 1} onClick={() => setPage(page - 1)}>
+                  <ChevronLeft size={14} />
                 </button>
-              ))}
-              <button className="btn-page-nav" disabled={page === totalPages} onClick={() => setPage(page + 1)}>
-                <ChevronRight size={14} />
-              </button>
-            </div>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => (
+                  <button key={pNum} className={`btn-page-number ${page === pNum ? 'active' : ''}`} onClick={() => setPage(pNum)}>
+                    {pNum}
+                  </button>
+                ))}
+                <button className="btn-page-nav" disabled={page === totalPages} onClick={() => setPage(page + 1)}>
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -270,7 +270,7 @@
 
 .account-attributes-page .attributes-table-header {
   display: grid;
-  grid-template-columns: 1.4fr 1.4fr 0.9fr 0.8fr 0.8fr 1.1fr 0.7fr 0.6fr 0.8fr;
+  grid-template-columns: 0.5fr 1.4fr 1.4fr 0.9fr 0.8fr 0.8fr 1.1fr 0.7fr 0.6fr 0.8fr;
   column-gap: 16px;
   align-items: center;
   padding: 12px 20px;
@@ -291,7 +291,7 @@
 
 .account-attributes-page .attributes-table-row {
   display: grid;
-  grid-template-columns: 1.4fr 1.4fr 0.9fr 0.8fr 0.8fr 1.1fr 0.7fr 0.6fr 0.8fr;
+  grid-template-columns: 0.5fr 1.4fr 1.4fr 0.9fr 0.8fr 0.8fr 1.1fr 0.7fr 0.6fr 0.8fr;
   column-gap: 16px;
   align-items: center;
   padding: 14px 20px;

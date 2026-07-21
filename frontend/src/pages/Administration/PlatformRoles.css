@@ -210,7 +210,7 @@
 
 .roles-list-header {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr auto;
+  grid-template-columns: 40px 2fr 1fr 1fr 1fr auto;
   padding: 14px 24px;
   background-color: var(--bg-hover);
   border-bottom: 1px solid var(--border-color);
@@ -224,7 +224,7 @@
 
 .roles-list-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr auto;
+  grid-template-columns: 40px 2fr 1fr 1fr 1fr auto;
   padding: 18px 24px;
   border-bottom: 1px solid var(--border-color);
   align-items: center;

@@ -156,7 +156,7 @@
 
 .identity-attributes-page .attributes-table-header {
   display: grid;
-  grid-template-columns: 180px 180px 110px 130px 170px 100px 60px 1fr;
+  grid-template-columns: 40px 180px 180px 110px 130px 170px 100px 60px 1fr;
   align-items: center;
   padding: 12px 20px;
   background-color: var(--bg-header, #f8fafc);
@@ -171,7 +171,7 @@
 
 .identity-attributes-page .attributes-table-row {
   display: grid;
-  grid-template-columns: 180px 180px 110px 130px 170px 100px 60px 1fr;
+  grid-template-columns: 40px 180px 180px 110px 130px 170px 100px 60px 1fr;
   align-items: center;
   padding: 14px 20px;
   border-bottom: 1px solid var(--border-color);

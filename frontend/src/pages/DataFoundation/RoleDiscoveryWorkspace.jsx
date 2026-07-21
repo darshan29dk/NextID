@@ -394,6 +394,7 @@ const RoleDiscoveryWorkspace = () => {
               <table className="detail-inner-table">
                 <thead>
                   <tr>
+                    <th style={{ width: '40px', textAlign: 'center' }}>#</th>
                     <th></th>
                     <th style={{ textAlign: 'left' }}>Role Name</th>
                     <th style={{ textAlign: 'left' }}>Job Function</th>
@@ -403,13 +404,14 @@ const RoleDiscoveryWorkspace = () => {
                 </thead>
                 <tbody>
                   {rolesLoading ? (
-                    <tr><td colSpan={5} style={{ textAlign: 'center', padding: '24px' }}>Loading...</td></tr>
+                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '24px' }}>Loading...</td></tr>
                   ) : candidateRoles.length === 0 ? (
-                    <tr><td colSpan={5} style={{ textAlign: 'center', padding: '24px' }} className="text-muted">
+                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '24px' }} className="text-muted">
                       No candidate roles yet. Click "Run Mining" above to analyze this campaign's scope.
                     </td></tr>
-                  ) : candidateRoles.map((role) => (
+                  ) : candidateRoles.map((role, idx) => (
                     <tr key={role.id} onClick={() => handleOpenRoleDetail(role.id)} style={{ cursor: 'pointer' }}>
+                      <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>{idx + 1}</td>
                       <td onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
@@ -429,6 +431,13 @@ const RoleDiscoveryWorkspace = () => {
                   ))}
                 </tbody>
               </table>
+              {candidateRoles.length > 0 && (
+                <div className="table-pagination-footer" style={{ borderTop: '1px solid var(--border-color)', padding: '12px 24px' }}>
+                  <div className="pagination-info">
+                    Showing <b>1</b> to <b>{candidateRoles.length}</b> of <b>{candidateRoles.length}</b> candidate roles
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
@@ -438,6 +447,7 @@ const RoleDiscoveryWorkspace = () => {
             <table className="detail-inner-table">
               <thead>
                 <tr>
+                  <th style={{ width: '40px', textAlign: 'center' }}>#</th>
                   <th style={{ textAlign: 'left' }}>Account</th>
                   <th style={{ textAlign: 'left' }}>Application</th>
                   <th style={{ textAlign: 'left' }}>Job Function</th>
@@ -445,13 +455,14 @@ const RoleDiscoveryWorkspace = () => {
               </thead>
               <tbody>
                 {outliersLoading ? (
-                  <tr><td colSpan={3} style={{ textAlign: 'center', padding: '24px' }}>Loading...</td></tr>
+                  <tr><td colSpan={4} style={{ textAlign: 'center', padding: '24px' }}>Loading...</td></tr>
                 ) : outliers.length === 0 ? (
-                  <tr><td colSpan={3} style={{ textAlign: 'center', padding: '24px' }} className="text-muted">
+                  <tr><td colSpan={4} style={{ textAlign: 'center', padding: '24px' }} className="text-muted">
                     No outliers — every scoped account either fit a candidate role or hasn't been analyzed yet.
                   </td></tr>
                 ) : outliers.map((o, i) => (
                   <tr key={i}>
+                    <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>{i + 1}</td>
                     <td style={{ fontWeight: '600' }}>{o.account_name || o.account_id}</td>
                     <td>{o.application_name}</td>
                     <td>{o.job_function || '—'}</td>
@@ -459,6 +470,13 @@ const RoleDiscoveryWorkspace = () => {
                 ))}
               </tbody>
             </table>
+            {outliers.length > 0 && (
+              <div className="table-pagination-footer" style={{ borderTop: '1px solid var(--border-color)', padding: '12px 24px' }}>
+                <div className="pagination-info">
+                  Showing <b>1</b> to <b>{outliers.length}</b> of <b>{outliers.length}</b> outliers
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -665,6 +683,7 @@ const RoleDiscoveryWorkspace = () => {
           <table className="users-table">
             <thead>
               <tr>
+                <th style={{ width: '40px', textAlign: 'center' }}>#</th>
                 <th style={{ textAlign: 'left' }}>Campaign</th>
                 <th style={{ textAlign: 'left' }}>Scope</th>
                 <th style={{ textAlign: 'center' }}>Status</th>
@@ -676,7 +695,7 @@ const RoleDiscoveryWorkspace = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="6">
+                  <td colSpan="7">
                     <div className="table-loading-container">
                       <div className="spinner-element"></div>
                       <p>Loading mining campaigns...</p>
@@ -685,7 +704,7 @@ const RoleDiscoveryWorkspace = () => {
                 </tr>
               ) : campaigns.length === 0 ? (
                 <tr>
-                  <td colSpan="6">
+                  <td colSpan="7">
                     <div className="table-empty-container">
                       <Target size={36} className="text-muted" />
                       <div className="empty-state-text">
@@ -696,8 +715,9 @@ const RoleDiscoveryWorkspace = () => {
                   </td>
                 </tr>
               ) : (
-                campaigns.map((c) => (
+                campaigns.map((c, idx) => (
                   <tr key={c.id} className="row-clickable" onClick={() => handleOpenDetail(c)}>
+                    <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>{idx + 1}</td>
                     <td className="connector-name-cell">
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Target size={16} className="type-icon" />
@@ -733,6 +753,13 @@ const RoleDiscoveryWorkspace = () => {
             </tbody>
           </table>
         </div>
+        {campaigns.length > 0 && (
+          <div className="table-pagination-footer" style={{ borderTop: '1px solid var(--border-color)', padding: '12px 24px' }}>
+            <div className="pagination-info">
+              Showing <b>1</b> to <b>{campaigns.length}</b> of <b>{campaigns.length}</b> campaigns
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Add Campaign Modal */}

@@ -768,6 +768,7 @@ const EntitlementAttributes = () => {
       {/* Main Table Grid */}
       <div className="attributes-table-container">
         <div className="attributes-table-header entitlement-columns">
+          <div style={{ width: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>#</div>
           <div className="checkbox-cell">
             <input
               type="checkbox"
@@ -810,13 +811,16 @@ const EntitlementAttributes = () => {
           </div>
         ) : (
           <div className="attributes-table-body">
-            {attributes.map(attr => (
+            {attributes.map((attr, idx) => (
               <div
                 key={attr.id}
                 className="attributes-table-row entitlement-columns"
                 onClick={() => handleOpenDrawer(attr)}
                 title="Click to view details and usage mappings"
               >
+                <div style={{ color: 'var(--text-muted)', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {(page - 1) * limit + idx + 1}
+                </div>
                 {/* Checkbox */}
                 <div className="checkbox-cell" onClick={e => e.stopPropagation()}>
                   <input
@@ -890,7 +894,7 @@ const EntitlementAttributes = () => {
         {!loading && total > 0 && (
           <div className="table-pagination-bar">
             <span className="pagination-count">
-              Showing <b>{(page - 1) * limit + 1}</b> to <b>{Math.min(page * limit, total)}</b> of <b>{total}</b> schemas
+              Showing <b>{total === 0 ? 0 : (page - 1) * limit + 1}</b> to <b>{Math.min(page * limit, total)}</b> of <b>{total}</b> entitlement attributes
             </span>
             <div className="pagination-buttons">
               <button className="btn-page-arrow" disabled={page === 1} onClick={() => setPage(page - 1)}>

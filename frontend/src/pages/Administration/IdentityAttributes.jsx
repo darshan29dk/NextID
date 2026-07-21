@@ -606,6 +606,7 @@ const IdentityAttributes = () => {
       {/* Main Grid View */}
       <div className="attributes-grid-container">
         <div className="attributes-table-header">
+          <div style={{ width: '40px' }}>#</div>
           <div onClick={() => handleSort('attribute_name')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
             Attribute Name <ArrowUpDown size={11} />
           </div>
@@ -641,13 +642,15 @@ const IdentityAttributes = () => {
           </div>
         ) : (
           <div className="attributes-table-body">
-            {attributes.map(attr => (
+            {attributes.map((attr, idx) => (
               <div
                 key={attr.id}
                 className="attributes-table-row"
                 onClick={() => handleOpenDrawer(attr)}
                 title="Click to view change log and metadata"
               >
+                <div style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{(page - 1) * limit + idx + 1}</div>
+
                 {/* Name */}
                 <div className="attr-name-cell">
                   <span className="attr-name-lbl">{attr.attribute_name}</span>
@@ -708,7 +711,7 @@ const IdentityAttributes = () => {
         {!loading && total > 0 && (
           <div className="table-pagination-bar">
             <span className="pagination-count">
-              Showing <b>{(page - 1) * limit + 1}</b> to <b>{Math.min(page * limit, total)}</b> of <b>{total}</b> schemas
+              Showing <b>{total === 0 ? 0 : (page - 1) * limit + 1}</b> to <b>{Math.min(page * limit, total)}</b> of <b>{total}</b> identity attributes
             </span>
             <div className="pagination-buttons">
               <button className="btn-page-arrow" disabled={page === 1} onClick={() => setPage(page - 1)}>

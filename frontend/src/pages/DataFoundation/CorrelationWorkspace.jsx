@@ -369,6 +369,7 @@ const CorrelationWorkspace = ({ hideHeader }) => {
               <table className="users-table">
                 <thead>
                   <tr>
+                    <th style={{ width: '40px', textAlign: 'center' }}>#</th>
                     <th style={{ width: '40px', paddingLeft: '24px' }}>
                       <input type="checkbox" onChange={handleSelectAll} checked={queueItems.length > 0 && selectedAccountIds.length === queueItems.length} />
                     </th>
@@ -382,7 +383,7 @@ const CorrelationWorkspace = ({ hideHeader }) => {
                 <tbody>
                   {loadingQueue ? (
                     <tr>
-                      <td colSpan="6">
+                      <td colSpan="7">
                         <div className="table-loading-container">
                           <div className="spinner-element"></div>
                           <p>Loading review queue...</p>
@@ -391,7 +392,7 @@ const CorrelationWorkspace = ({ hideHeader }) => {
                     </tr>
                   ) : queueItems.length === 0 ? (
                     <tr>
-                      <td colSpan="6">
+                      <td colSpan="7">
                         <div className="table-empty-container">
                           <CheckCircle2 size={36} className="text-muted" style={{ color: 'var(--success)' }} />
                           <div className="empty-state-text">
@@ -402,8 +403,11 @@ const CorrelationWorkspace = ({ hideHeader }) => {
                       </td>
                     </tr>
                   ) : (
-                    queueItems.map((item) => (
+                    queueItems.map((item, idx) => (
                       <tr key={item.id}>
+                        <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                          {(page - 1) * limit + idx + 1}
+                        </td>
                         <td style={{ paddingLeft: '24px' }}>
                           <input type="checkbox" checked={selectedAccountIds.includes(item.id)} onChange={(e) => handleSelectItem(e, item.id)} />
                         </td>
@@ -474,15 +478,17 @@ const CorrelationWorkspace = ({ hideHeader }) => {
               </table>
             </div>
 
-            {totalPages > 1 && (
+            {totalCount > 0 && (
               <div className="table-pagination-footer">
                 <div className="pagination-info">
-                  Showing page <b>{page}</b> of <b>{totalPages}</b> (Total {totalCount} records)
+                  Showing <b>{totalCount === 0 ? 0 : (page - 1) * limit + 1}</b> to <b>{Math.min(totalCount, page * limit)}</b> of <b>{totalCount}</b> accounts
                 </div>
-                <div className="pagination-buttons">
-                  <button className="btn-page-nav" disabled={page === 1} onClick={() => setPage(page - 1)}>Prev</button>
-                  <button className="btn-page-nav" disabled={page === totalPages} onClick={() => setPage(page + 1)}>Next</button>
-                </div>
+                {totalPages > 1 && (
+                  <div className="pagination-buttons">
+                    <button className="btn-page-nav" disabled={page === 1} onClick={() => setPage(page - 1)}>Prev</button>
+                    <button className="btn-page-nav" disabled={page === totalPages} onClick={() => setPage(page + 1)}>Next</button>
+                  </div>
+                )}
               </div>
             )}
           </div>

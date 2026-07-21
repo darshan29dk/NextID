@@ -1107,6 +1107,7 @@ const PlatformRoles = () => {
       <div className="roles-list-grid">
         {/* Header Row */}
         <div className="roles-list-header">
+          <div style={{ width: '40px' }}>#</div>
           <div onClick={() => handleSort('role_name')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
             Name <ArrowUpDown size={11} />
           </div>
@@ -1138,13 +1139,16 @@ const PlatformRoles = () => {
             </div>
           </div>
         ) : (
-          roles.map((role) => (
+          roles.map((role, idx) => (
             <div
               key={role.id}
               className="roles-list-row"
               onClick={() => handleOpenDetail(role.id)}
               title="Click to view role details"
             >
+              <div style={{ color: 'var(--text-muted)', fontSize: '12px', display: 'flex', alignItems: 'center' }}>
+                {(page - 1) * limit + idx + 1}
+              </div>
               {/* Name + Code */}
               <div className="role-name-cell">
                 <div className={`role-icon-circle ${getRiskClass(role.risk_level)}`}>
@@ -1195,6 +1199,29 @@ const PlatformRoles = () => {
 
 
       </div>
+
+      {total > 0 && (
+        <div className="table-pagination-footer" style={{ marginTop: '16px', display: 'flex', justifyBehavior: 'space-between', alignItems: 'center', padding: '12px 20px', borderTop: '1px solid var(--border-color)', backgroundColor: 'var(--bg-card)', borderRadius: '8px' }}>
+          <div className="pagination-info" style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
+            Showing <b>{total === 0 ? 0 : (page - 1) * limit + 1}</b> to <b>{Math.min(total, page * limit)}</b> of <b>{total}</b> platform roles
+          </div>
+          {totalPages > 1 && (
+            <div className="pagination-buttons" style={{ display: 'flex', gap: '8px' }}>
+              <button className="btn-page-nav" disabled={page === 1} onClick={() => setPage(page - 1)} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer' }}>
+                <ChevronLeft size={14} />
+              </button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => (
+                <button key={pNum} className={`btn-page-number ${page === pNum ? 'active' : ''}`} onClick={() => setPage(pNum)} style={{ padding: '4px 8px', borderRadius: '4px', border: page === pNum ? '1px solid var(--primary)' : '1px solid var(--border-color)', backgroundColor: page === pNum ? 'var(--primary)' : 'transparent', color: page === pNum ? '#fff' : 'inherit', cursor: 'pointer' }}>
+                  {pNum}
+                </button>
+              ))}
+              <button className="btn-page-nav" disabled={page === totalPages} onClick={() => setPage(page + 1)} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer' }}>
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Modals */}
       {renderModals()}

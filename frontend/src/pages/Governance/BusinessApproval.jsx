@@ -176,6 +176,7 @@ const BusinessApproval = ({ hideHeader }) => {
         <table className="table-premium">
           <thead>
             <tr>
+              <th style={{ width: '40px', textAlign: 'center' }}>#</th>
               {!(isRoleEngineer || isViewer) && (
                 <th style={{ width: '40px' }}>
                   <input
@@ -198,24 +199,27 @@ const BusinessApproval = ({ hideHeader }) => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', padding: '40px' }}>
+                <td colSpan={10} style={{ textAlign: 'center', padding: '40px' }}>
                   <RotateCw className="animate-spin text-muted" size={24} style={{ margin: '0 auto' }} />
                 </td>
               </tr>
             ) : requests.length === 0 ? (
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                   No pending business approval requests found in queue.
                 </td>
               </tr>
             ) : (
-              requests.map((r) => {
+              requests.map((r, idx) => {
                 const isSelected = selectedIds.includes(r.id);
                 const isOverdue = r.is_escalated;
                 const canAction = canUserAction(r);
 
                 return (
                   <tr key={r.id} className={isSelected ? 'selected' : ''}>
+                    <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                      {idx + 1}
+                    </td>
                     {!(isRoleEngineer || isViewer) && (
                       <td>
                         <input
@@ -298,6 +302,13 @@ const BusinessApproval = ({ hideHeader }) => {
             )}
           </tbody>
         </table>
+        {requests.length > 0 && (
+          <div style={{ display: 'flex', justifyBehavior: 'space-between', alignItems: 'center', padding: '12px 20px', borderTop: '1px solid var(--border-color)' }}>
+            <span className="text-muted" style={{ fontSize: '13px' }}>
+              Showing <b>1</b> to <b>{requests.length}</b> of <b>{requests.length}</b> business approvals
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Action Modal */}

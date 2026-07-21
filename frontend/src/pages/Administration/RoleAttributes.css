@@ -257,7 +257,7 @@
 
 .role-columns {
   display: grid;
-  grid-template-columns: 32px 180px 180px 120px 100px 110px 120px 90px 60px 100px;
+  grid-template-columns: 40px 32px 180px 180px 120px 100px 110px 120px 90px 60px 100px;
   align-items: center;
   gap: 12px;
   padding: 10px 16px;

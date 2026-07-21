@@ -199,7 +199,8 @@ const SecurityApproval = ({ hideHeader }) => {
         <table className="table-premium">
           <thead>
             <tr>
-              <th>#</th>
+              <th style={{ width: '40px', textAlign: 'center' }}>#</th>
+              <th>Req ID</th>
               <th>Role Name</th>
               <th>Classification</th>
               <th>Business Owner</th>
@@ -214,19 +215,22 @@ const SecurityApproval = ({ hideHeader }) => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={10} style={{ textAlign: "center", padding: "40px" }}>
+                <td colSpan={11} style={{ textAlign: "center", padding: "40px" }}>
                   <RotateCw className="animate-spin text-muted" size={24} style={{ margin: "0 auto" }} />
                 </td>
               </tr>
             ) : requests.length === 0 ? (
               <tr>
-                <td colSpan={10} style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)", fontStyle: "italic" }}>
+                <td colSpan={11} style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)", fontStyle: "italic" }}>
                   No Security Review requests found.
                 </td>
               </tr>
             ) : (
-              requests.map((r) => (
+              requests.map((r, idx) => (
                 <tr key={r.id}>
+                  <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                    {idx + 1}
+                  </td>
                   <td style={{ fontSize: "11px", color: "var(--text-muted)" }}>#{r.id}</td>
                   <td style={{ fontWeight: 600 }}>{r.role_name}</td>
                   <td>
@@ -298,6 +302,13 @@ const SecurityApproval = ({ hideHeader }) => {
             )}
           </tbody>
         </table>
+        {requests.length > 0 && (
+          <div style={{ display: 'flex', justifyBehavior: 'space-between', alignItems: 'center', padding: '12px 20px', borderTop: '1px solid var(--border-color)' }}>
+            <span className="text-muted" style={{ fontSize: '13px' }}>
+              Showing <b>1</b> to <b>{requests.length}</b> of <b>{requests.length}</b> security reviews
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Security Action Modal */}

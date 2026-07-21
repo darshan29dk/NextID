@@ -210,6 +210,7 @@ const SoDScanHistory = () => {
             <table className="sod-table">
               <thead>
                 <tr>
+                  <th style={{ width: '40px', textAlign: 'center' }}>#</th>
                   <th>Scan Name</th>
                   <th>Scan Type</th>
                   <th>Started By</th>
@@ -222,8 +223,9 @@ const SoDScanHistory = () => {
                 </tr>
               </thead>
               <tbody>
-                {history.map(s => (
+                {history.map((s, idx) => (
                   <tr key={s.id}>
+                    <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>{idx + 1}</td>
                     <td><b>{s.scan_name}</b></td>
                     <td>
                       <span className={`type-badge ${s.scan_type.toLowerCase()}`}>{s.scan_type}</span>
@@ -250,6 +252,13 @@ const SoDScanHistory = () => {
                 ))}
               </tbody>
             </table>
+            {history.length > 0 && (
+              <div className="table-pagination-footer" style={{ borderTop: '1px solid var(--border-color)', padding: '12px 20px' }}>
+                <div className="pagination-info">
+                  Showing <b>1</b> to <b>{history.length}</b> of <b>{history.length}</b> scans
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -106,6 +106,7 @@ const CoverageReports = ({ hideHeader }) => {
         <table className="table-premium">
           <thead>
             <tr>
+              <th style={{ width: '40px', textAlign: 'center' }}>#</th>
               <th>Name</th>
               <th>Email</th>
               <th>Department</th>
@@ -114,13 +115,14 @@ const CoverageReports = ({ hideHeader }) => {
           <tbody>
             {uncovered.length === 0 ? (
               <tr>
-                <td colSpan={3} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                <td colSpan={4} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                   All identities are covered by an active role.
                 </td>
               </tr>
             ) : (
-              uncovered.map((u) => (
+              uncovered.map((u, idx) => (
                 <tr key={u.id}>
+                  <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>{idx + 1}</td>
                   <td style={{ fontWeight: 600 }}>{u.name}</td>
                   <td>{u.email || '-'}</td>
                   <td>{u.department}</td>
@@ -129,6 +131,13 @@ const CoverageReports = ({ hideHeader }) => {
             )}
           </tbody>
         </table>
+        {uncovered.length > 0 && (
+          <div style={{ display: 'flex', justifyBehavior: 'space-between', alignItems: 'center', padding: '12px 20px', borderTop: '1px solid var(--border-color)' }}>
+            <span className="text-muted" style={{ fontSize: '13px' }}>
+              Showing <b>1</b> to <b>{uncovered.length}</b> of <b>{uncovered.length}</b> uncovered identities
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

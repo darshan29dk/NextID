@@ -254,6 +254,7 @@ const ApprovalRequests = () => {
         <table className="table-premium">
           <thead>
             <tr>
+              <th style={{ width: '40px', textAlign: 'center' }}>#</th>
               <th style={{ width: '80px' }}>Req ID</th>
               <th>Role Name</th>
               <th>Classification</th>
@@ -269,24 +270,27 @@ const ApprovalRequests = () => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={10} style={{ textAlign: 'center', padding: '40px' }}>
+                <td colSpan={11} style={{ textAlign: 'center', padding: '40px' }}>
                   <RotateCw className="animate-spin text-muted" size={24} style={{ margin: '0 auto' }} />
                 </td>
               </tr>
             ) : requests.length === 0 ? (
               <tr>
-                <td colSpan={10} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                <td colSpan={11} style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
                   No approval requests found matching criteria.
                 </td>
               </tr>
             ) : (
-              requests.map((r) => {
+              requests.map((r, idx) => {
                 const isOverdue = r.is_escalated;
                 const canCancel = (r.status === 'Submitted' || r.status === 'Business Review') &&
                   (currentUser?.role === 'Platform Administrator' || r.submitted_by === currentUser?.name);
 
                 return (
                   <tr key={r.id}>
+                    <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                      {(page - 1) * limit + idx + 1}
+                    </td>
                     <td>#{r.id}</td>
                     <td style={{ fontWeight: 600 }}>{r.role_name}</td>
                     <td>{r.classification || '-'}</td>
@@ -346,10 +350,10 @@ const ApprovalRequests = () => {
         </table>
 
         {/* Pagination footer */}
-        {totalPages > 1 && (
+        {total > 0 && (
           <div style={{ display: 'flex', justifyBehavior: 'space-between', alignItems: 'center', padding: '12px 20px', borderTop: '1px solid var(--border-color)' }}>
             <span className="text-muted" style={{ fontSize: '13px' }}>
-              Showing Page {page} of {totalPages}
+              Showing <b>{total === 0 ? 0 : (page - 1) * limit + 1}</b> to <b>{Math.min(total, page * limit)}</b> of <b>{total}</b> approval requests
             </span>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
