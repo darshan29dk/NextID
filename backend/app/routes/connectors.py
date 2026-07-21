@@ -322,6 +322,8 @@ def delete_connector(
 
     # Soft delete
     connector.is_deleted = True
+    if not "_deleted_" in connector.connector_name:
+        connector.connector_name = f"{connector.connector_name}_deleted_{connector.id}"
     connector.modified_by = x_user_name
     connector.updated_at = datetime.utcnow()
 
