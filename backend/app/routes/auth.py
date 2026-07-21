@@ -1,6 +1,12 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
+import bcrypt
+if not hasattr(bcrypt, "__about__"):
+    class _BcryptAbout:
+        __version__ = getattr(bcrypt, "__version__", "4.0.0")
+    bcrypt.__about__ = _BcryptAbout()
+
 # pyrefly: ignore [missing-import]
 from passlib.context import CryptContext
 import random

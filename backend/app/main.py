@@ -1,6 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, SessionLocal
+import bcrypt
+if not hasattr(bcrypt, "__about__"):
+    class _BcryptAbout:
+        __version__ = getattr(bcrypt, "__version__", "4.0.0")
+    bcrypt.__about__ = _BcryptAbout()
+
 # pyrefly: ignore [missing-import]
 from passlib.context import CryptContext
 from app.routes import dashboard, notification, profile, theme, platform_user, platform_role, auth, audit_log, platform_settings, menu_permission, identity_attribute, account_attribute, entitlement_attribute, role_attribute, connectors as connectors_routes
