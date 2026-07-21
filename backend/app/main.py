@@ -259,8 +259,9 @@ db = SessionLocal()
 try:
     # 1. Seed default administrator users if they don't exist
     admin_users = [
-        ("Darshan Kumar", "darshanreddy5822@gmail.com", "darshankumar"),
-        ("Sania Gupta", "saniagupta2280@gmail.com", "saniagupta")
+        ("Darshan Kumar", "darshanreddy5822@gmail.com", "Admin@123"),
+        ("Sania Gupta", "saniagupta2280@gmail.com", "Admin@123"),
+        ("Admin", "admin@gmail.com", "Admin@123")
     ]
     for name, email, plain_pwd in admin_users:
         if db.query(User).filter(User.email == email).count() == 0:
