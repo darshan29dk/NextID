@@ -921,7 +921,9 @@ const IdentityWorkspace = () => {
             Reset Filters
           </button>
         )}
-<div className="table-card">
+      </div>
+
+      <div className="table-card">
         {errorMsg && <div className="error-banner" style={{ margin: '16px 24px' }}>{errorMsg}</div>}
 
         <div className="table-wrapper">

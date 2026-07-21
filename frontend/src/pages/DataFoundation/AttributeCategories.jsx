@@ -219,6 +219,7 @@ const AttributeCategories = () => {
             <table className="users-table">
               <thead>
                 <tr>
+                  <th style={{ width: '40px', textAlign: 'center' }}>#</th>
                   <th>Category Name</th>
                   <th>Description</th>
                   <th>Created By</th>
@@ -226,8 +227,9 @@ const AttributeCategories = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredCategories.map((cat) => (
+                {filteredCategories.map((cat, idx) => (
                   <tr key={cat.id}>
+                    <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>{idx + 1}</td>
                     <td style={{ fontWeight: 600 }}>{cat.category_name}</td>
                     <td className="text-muted">{cat.description || '—'}</td>
                     <td>{cat.created_by || 'System'}</td>
@@ -245,6 +247,13 @@ const AttributeCategories = () => {
                 ))}
               </tbody>
             </table>
+            {filteredCategories.length > 0 && (
+              <div className="table-pagination-footer" style={{ borderTop: '1px solid var(--border-color)', padding: '12px 20px' }}>
+                <div className="pagination-info">
+                  Showing <b>1</b> to <b>{filteredCategories.length}</b> of <b>{filteredCategories.length}</b> categories
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
