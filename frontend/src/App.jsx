@@ -98,7 +98,7 @@ function App() {
                   <Route path="/data-foundation/sources/workspace" element={<ConnectorWorkspace />} />
                   <Route path="/data-foundation/applications" element={<ApplicationWorkspace />} />
                   <Route path="/data-foundation/identities" element={<IdentityWorkspace />} />
-                  <Route path="/data-foundation/correlation" element={<CorrelationWorkspace />} />
+                  <Route path="/data-foundation/correlation" element={<IdentityWorkspace />} />
                   <Route path="/data-foundation/sources/cloud" element={<UnderConstruction title="Cloud Directories" />} />
                   <Route path="/data-foundation/sources/api-gateways" element={<Navigate to="/data-foundation/sources/workspace" replace />} />
                   <Route path="/data-foundation/validation" element={<UnderConstruction title="Attribute Validation" />} />
@@ -119,12 +119,12 @@ function App() {
                   <Route path="/role-engineering/workbench" element={<CandidateRoleWorkbench />} />
                   <Route path="/approval-workflow/requests" element={<ApprovalRequests />} />
                   <Route path="/approval-workflow/requests/:id" element={<ApprovalRequestDetail />} />
-                  <Route path="/approval-workflow/business" element={<BusinessApproval />} />
-                  <Route path="/approval-workflow/security" element={<SecurityApproval />} />
+                  <Route path="/approval-workflow/business" element={<ApprovalRequests />} />
+                  <Route path="/approval-workflow/security" element={<ApprovalRequests />} />
                   <Route path="/role-catalog" element={<Navigate to="/role-catalog/published" replace />} />
                   <Route path="/role-catalog/published" element={<PublishedRoles />} />
-                  <Route path="/role-catalog/business" element={<BusinessRoles />} />
-                  <Route path="/role-catalog/technical" element={<TechnicalRoles />} />
+                  <Route path="/role-catalog/business" element={<PublishedRoles />} />
+                  <Route path="/role-catalog/technical" element={<PublishedRoles />} />
                   <Route path="/role-catalog/:id" element={<RoleCatalogDetail />} />
                   <Route path="/governance" element={<Navigate to="/governance/dashboard" replace />} />
                   <Route path="/governance/dashboard" element={<GovernanceDashboard />} />
@@ -136,8 +136,8 @@ function App() {
                   <Route path="/governance/scan-history" element={<SoDScanHistory />} />
                   <Route path="/analytics" element={<Navigate to="/analytics/executive" replace />} />
                   <Route path="/analytics/executive" element={<ExecutiveDashboard />} />
-                  <Route path="/analytics/role-analytics" element={<RoleAnalytics />} />
-                  <Route path="/analytics/coverage-reports" element={<CoverageReports />} />
+                  <Route path="/analytics/role-analytics" element={<ExecutiveDashboard />} />
+                  <Route path="/analytics/coverage-reports" element={<ExecutiveDashboard />} />
 
                   {/* ── Administration ── */}
                   <Route path="/administration" element={<Navigate to="/administration/users" replace />} />

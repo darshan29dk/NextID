@@ -1,14 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import './ApprovalInbox.css';
-import { Search, RotateCw, Filter, ShieldAlert, CheckCircle, XCircle, RefreshCw, AlertTriangle, Eye, Ban, Calendar, Clock } from 'lucide-react';
+import { Search, RotateCw, Filter, ShieldAlert, CheckCircle, XCircle, RefreshCw, AlertTriangle, Eye, Ban, Calendar, Clock, FileText, BadgeCheck, KeyRound } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getApprovalRequests, cancelApprovalRequest } from '../../services/candidateRoleWorkbenchService';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
+import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
+import BusinessApproval from './BusinessApproval';
+import SecurityApproval from './SecurityApproval';
 
 const ApprovalRequests = () => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const getActiveTabFromPath = (path) => {
+    if (path.includes('business')) return 'business';
+    if (path.includes('security')) return 'security';
+    return 'requests';
+  };
+
+  const [mainTab, setMainTab] = useState(getActiveTabFromPath(location.pathname));
+
+  useEffect(() => {
+    setMainTab(getActiveTabFromPath(location.pathname));
+  }, [location.pathname]);
+
   const [requests, setRequests] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -115,14 +132,62 @@ const ApprovalRequests = () => {
 
   return (
     <div className="workbench-container" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', justifyBehavior: 'space-between', alignItems: 'center' }}>
+      <Breadcrumb
+        items={[
+          { label: 'Approval Workflow', active: false },
+          { label: 'Approval Inbox', active: true }
+        ]}
+      />
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>Approval Requests</h2>
+          <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>Approval Workflow</h2>
           <p className="text-muted" style={{ fontSize: '13px', margin: '4px 0 0 0' }}>
-            Business and security review of roles refined in Role Engineering, prior to publication to the Role Catalog.
+            {mainTab === 'requests' 
+              ? 'Business and security review of roles refined in Role Engineering, prior to publication to the Role Catalog.'
+              : mainTab === 'business'
+              ? 'Review, approve, reject, or return submitted roles assigned to you.'
+              : 'Review, approve, reject, or return roles that have passed Business Approval.'
+            }
           </p>
         </div>
       </div>
+
+      <div className="controls-card" style={{ display: 'flex', gap: '8px', padding: '4px', marginBottom: '16px' }}>
+        <button
+          className={`drawer-tab-btn ${mainTab === 'requests' ? 'active' : ''}`}
+          onClick={() => {
+            setMainTab('requests');
+            navigate('/approval-workflow/requests');
+          }}
+          style={{ padding: '10px 18px' }}
+        >
+          <FileText size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} /> Approval Requests
+        </button>
+        <button
+          className={`drawer-tab-btn ${mainTab === 'business' ? 'active' : ''}`}
+          onClick={() => {
+            setMainTab('business');
+            navigate('/approval-workflow/business');
+          }}
+          style={{ padding: '10px 18px' }}
+        >
+          <BadgeCheck size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} /> Business Approval
+        </button>
+        <button
+          className={`drawer-tab-btn ${mainTab === 'security' ? 'active' : ''}`}
+          onClick={() => {
+            setMainTab('security');
+            navigate('/approval-workflow/security');
+          }}
+          style={{ padding: '10px 18px' }}
+        >
+          <KeyRound size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} /> Security Approval
+        </button>
+      </div>
+
+      {mainTab === 'requests' ? (
+        <>
 
       {/* KPI Cards Panel */}
       <div className="workbench-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '16px' }}>
@@ -305,6 +370,12 @@ const ApprovalRequests = () => {
           </div>
         )}
       </div>
+        </>
+      ) : mainTab === 'business' ? (
+        <BusinessApproval hideHeader={true} />
+      ) : (
+        <SecurityApproval hideHeader={true} />
+      )}
     </div>
   );
 };

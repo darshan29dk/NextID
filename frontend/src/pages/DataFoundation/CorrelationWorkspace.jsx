@@ -8,7 +8,7 @@ import { apiClient } from '../../services/dashboardService';
 import { canEdit } from '../../utils/permissions';
 import '../DataFoundation/IdentityWorkspace.css';
 
-const CorrelationWorkspace = () => {
+const CorrelationWorkspace = ({ hideHeader }) => {
   const [activeTab, setActiveTab] = useState('queue');
 
   // Review Queue State
@@ -300,20 +300,24 @@ const CorrelationWorkspace = () => {
   };
 
   return (
-    <div className="connector-workspace-page">
-      <Breadcrumb
-        items={[
-          { label: 'Data Foundation', active: false },
-          { label: 'Correlation Workspace', active: true }
-        ]}
-      />
+    <div className={hideHeader ? "" : "connector-workspace-page"}>
+      {!hideHeader && (
+        <>
+          <Breadcrumb
+            items={[
+              { label: 'Data Foundation', active: false },
+              { label: 'Correlation Workspace', active: true }
+            ]}
+          />
 
-      <div className="page-header-actions">
-        <div className="header-title-section">
-          <h2>Correlation Workspace</h2>
-          <p>Configure dynamic matching rules, evaluate credentials automatically, and review unmatched account recommendations.</p>
-        </div>
-      </div>
+          <div className="page-header-actions">
+            <div className="header-title-section">
+              <h2>Correlation Workspace</h2>
+              <p>Configure dynamic matching rules, evaluate credentials automatically, and review unmatched account recommendations.</p>
+            </div>
+          </div>
+        </>
+      )}
 
       <div className="drawer-tabs-navigation" style={{ marginBottom: '16px', display: 'flex', gap: '4px' }}>
         <button className={`drawer-tab-btn ${activeTab === 'queue' ? 'active' : ''}`} onClick={() => setActiveTab('queue')}>

@@ -10,7 +10,7 @@ import './RoleCatalog.css';
 // roleTypeFilter="Technical"). All three are the same catalog query with a
 // different default role_type filter, so they share this one component
 // instead of three near-duplicate page files.
-const RoleCatalogList = ({ title, subtitle, roleTypeFilter, headerIcon: HeaderIcon }) => {
+const RoleCatalogList = ({ title, subtitle, roleTypeFilter, headerIcon: HeaderIcon, hideHeader }) => {
   const navigate = useNavigate();
 
   const [roles, setRoles] = useState([]);
@@ -91,14 +91,16 @@ const RoleCatalogList = ({ title, subtitle, roleTypeFilter, headerIcon: HeaderIc
   };
 
   return (
-    <div className="workbench-container" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-        {HeaderIcon && <HeaderIcon size={20} style={{ color: '#2563eb' }} />}
-        <div>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>{title}</h2>
-          <p className="text-muted" style={{ fontSize: '13px', margin: '4px 0 0 0' }}>{subtitle}</p>
+    <div className={hideHeader ? "" : "workbench-container"} style={hideHeader ? { display: 'flex', flexDirection: 'column', gap: '20px' } : { padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {!hideHeader && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {HeaderIcon && <HeaderIcon size={20} style={{ color: '#2563eb' }} />}
+          <div>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>{title}</h2>
+            <p className="text-muted" style={{ fontSize: '13px', margin: '4px 0 0 0' }}>{subtitle}</p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* KPI Cards */}
       <div className="workbench-kpi-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>

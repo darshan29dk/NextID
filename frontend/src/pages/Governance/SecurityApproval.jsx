@@ -40,7 +40,7 @@ const KpiCard = ({ label, value, icon: Icon, color }) => (
   </div>
 );
 
-const SecurityApproval = () => {
+const SecurityApproval = ({ hideHeader }) => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
 
@@ -109,20 +109,22 @@ const SecurityApproval = () => {
 
   return (
     <div
-      className="workbench-container"
-      style={{ padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}
+      className={hideHeader ? "" : "workbench-container"}
+      style={hideHeader ? { display: "flex", flexDirection: "column", gap: "20px" } : { padding: "24px", display: "flex", flexDirection: "column", gap: "20px" }}
     >
       {/* Header */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px" }}>
-        <div>
-          <h2 style={{ fontSize: "20px", fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
-            <ShieldAlert size={20} style={{ color: "#7c3aed" }} />
-            Security Approval Queue
-          </h2>
-          <p className="text-muted" style={{ fontSize: "13px", margin: "4px 0 0 0" }}>
-            Review, approve, reject, or return roles that have passed Business Approval.
-          </p>
-        </div>
+        {!hideHeader ? (
+          <div>
+            <h2 style={{ fontSize: "20px", fontWeight: 700, margin: 0, display: "flex", alignItems: "center", gap: "8px" }}>
+              <ShieldAlert size={20} style={{ color: "#7c3aed" }} />
+              Security Approval Queue
+            </h2>
+            <p className="text-muted" style={{ fontSize: "13px", margin: "4px 0 0 0" }}>
+              Review, approve, reject, or return roles that have passed Business Approval.
+            </p>
+          </div>
+        ) : <div />}
         <button onClick={fetchData} className="btn-action-premium" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
           <RotateCw size={14} /> Refresh
         </button>

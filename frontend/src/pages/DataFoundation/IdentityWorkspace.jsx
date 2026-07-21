@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Search, Users, UserCheck, UserX, Building2, ChevronLeft, ChevronRight,
   ArrowLeft, Clock, Link2, History, Eye, RotateCcw,
@@ -7,6 +8,7 @@ import {
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
+import CorrelationWorkspace from './CorrelationWorkspace';
 import {
   getIdentities,
   getIdentityStats,
@@ -30,6 +32,16 @@ import { canCreate, canEdit, canDelete } from '../../utils/permissions';
 import './IdentityWorkspace.css';
 
 const IdentityWorkspace = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [mainTab, setMainTab] = useState(
+    location.pathname.includes('correlation') ? 'correlation' : 'identity'
+  );
+
+  useEffect(() => {
+    setMainTab(location.pathname.includes('correlation') ? 'correlation' : 'identity');
+  }, [location.pathname]);
+
   const [view, setView] = useState('list');
 
   // List state
@@ -793,61 +805,93 @@ const IdentityWorkspace = () => {
       <div className="page-header-actions">
         <div className="header-title-section">
           <h2>Identity Repository</h2>
-          <p>Every identity imported through connectors, created manually, or bulk uploaded, correlated against Application accounts by email.</p>
+          <p>
+            {mainTab === 'identity' 
+              ? 'Every identity imported through connectors, created manually, or bulk uploaded, correlated against Application accounts by email.' 
+              : 'Configure dynamic matching rules, evaluate credentials automatically, and review unmatched account recommendations.'
+            }
+          </p>
         </div>
-        <div className="header-buttons-section">
-          {canDelete('Identity Repository') && selectedIds.length > 0 && (
-            <button
-              className="btn-browse-file"
-              onClick={() => setShowBulkDeleteConfirm(true)}
-              style={{ padding: '10px 16px', fontSize: '12.5px', border: '1px solid var(--failed, #ef4444)', borderRadius: 'var(--border-radius)', backgroundColor: 'var(--bg-card)', color: 'var(--failed, #ef4444)', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}
-            >
-              <Trash2 size={14} />
-              <span>Delete Selected ({selectedIds.length})</span>
-            </button>
-          )}
-          {canDelete('Identity Repository') && (
-            <button
-              className="btn-browse-file"
-              onClick={() => setShowResetConfirm(true)}
-              title="Remove identities added via Bulk Upload, leaving connector-imported and manually created identities untouched"
-              style={{ padding: '10px 16px', fontSize: '12.5px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}
-            >
-              <RotateCcw size={14} />
-              <span>Reset Bulk Upload</span>
-            </button>
-          )}
-          {canEdit('Identity Repository') && (
-            <button
-              className="btn-browse-file"
-              onClick={handleRunAutoCorrelation}
-              disabled={runningAutoCorrelation || loading}
-              style={{ padding: '10px 16px', fontSize: '12.5px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}
-            >
-              <RotateCcw size={14} className={runningAutoCorrelation ? 'spinner-icon' : ''} />
-              <span>{runningAutoCorrelation ? 'Correlating...' : 'Auto-Correlate'}</span>
-            </button>
-          )}
-          {canCreate('Identity Repository') && (
-            <>
+        {mainTab === 'identity' && (
+          <div className="header-buttons-section">
+            {canDelete('Identity Repository') && selectedIds.length > 0 && (
               <button
                 className="btn-browse-file"
-                onClick={handleOpenBulkModal}
+                onClick={() => setShowBulkDeleteConfirm(true)}
+                style={{ padding: '10px 16px', fontSize: '12.5px', border: '1px solid var(--failed, #ef4444)', borderRadius: 'var(--border-radius)', backgroundColor: 'var(--bg-card)', color: 'var(--failed, #ef4444)', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <Trash2 size={14} />
+                <span>Delete Selected ({selectedIds.length})</span>
+              </button>
+            )}
+            {canDelete('Identity Repository') && (
+              <button
+                className="btn-browse-file"
+                onClick={() => setShowResetConfirm(true)}
+                title="Remove identities added via Bulk Upload, leaving connector-imported and manually created identities untouched"
                 style={{ padding: '10px 16px', fontSize: '12.5px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}
               >
-                <UploadCloud size={14} />
-                <span>Bulk Upload</span>
+                <RotateCcw size={14} />
+                <span>Reset Bulk Upload</span>
               </button>
-              <button className="btn-add-connector" onClick={handleOpenAddModal}>
-                <Plus size={14} />
-                <span>Add Identity</span>
+            )}
+            {canEdit('Identity Repository') && (
+              <button
+                className="btn-browse-file"
+                onClick={handleRunAutoCorrelation}
+                disabled={runningAutoCorrelation || loading}
+                style={{ padding: '10px 16px', fontSize: '12.5px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <RotateCcw size={14} className={runningAutoCorrelation ? 'spinner-icon' : ''} />
+                <span>{runningAutoCorrelation ? 'Correlating...' : 'Auto-Correlate'}</span>
               </button>
-            </>
-          )}
-        </div>
+            )}
+            {canCreate('Identity Repository') && (
+              <>
+                <button
+                  className="btn-browse-file"
+                  onClick={handleOpenBulkModal}
+                  style={{ padding: '10px 16px', fontSize: '12.5px', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}
+                >
+                  <UploadCloud size={14} />
+                  <span>Bulk Upload</span>
+                </button>
+                <button className="btn-add-connector" onClick={handleOpenAddModal}>
+                  <Plus size={14} />
+                  <span>Add Identity</span>
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
-      <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+      <div className="controls-card" style={{ display: 'flex', gap: '8px', padding: '4px', marginBottom: '16px' }}>
+        <button
+          className={`drawer-tab-btn ${mainTab === 'identity' ? 'active' : ''}`}
+          onClick={() => {
+            setMainTab('identity');
+            navigate('/data-foundation/identities');
+          }}
+          style={{ padding: '10px 18px' }}
+        >
+          <Users size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} /> Identity Workspace
+        </button>
+        <button
+          className={`drawer-tab-btn ${mainTab === 'correlation' ? 'active' : ''}`}
+          onClick={() => {
+            setMainTab('correlation');
+            navigate('/data-foundation/correlation');
+          }}
+          style={{ padding: '10px 18px' }}
+        >
+          <Link2 size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} /> Correlation Workspace
+        </button>
+      </div>
+
+      {mainTab === 'identity' ? (
+        <>
+          <div className="stats-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
         <DashboardCard title="Total Identities" value={kpiStats.total} icon={Users} color="blue" loading={loading} />
         <DashboardCard title="Active" value={kpiStats.active} icon={UserCheck} color="green" loading={loading} />
         <DashboardCard title="Inactive / Other" value={kpiStats.inactive} icon={UserX} color="yellow" loading={loading} />
@@ -1274,6 +1318,10 @@ const IdentityWorkspace = () => {
             </div>
           </div>
         </div>
+      )}
+        </>
+      ) : (
+        <CorrelationWorkspace hideHeader={true} />
       )}
     </div>
   );

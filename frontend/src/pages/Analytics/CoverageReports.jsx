@@ -9,7 +9,7 @@ import './Analytics.css';
 // has actually been captured into an active role, broken down by
 // department, plus the specific identities still uncovered (actionable
 // follow-up list, not just a summary percentage).
-const CoverageReports = () => {
+const CoverageReports = ({ hideHeader }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -37,14 +37,16 @@ const CoverageReports = () => {
   const deptEntries = Object.entries(deptCoverage).sort((a, b) => b[1].total - a[1].total);
 
   return (
-    <div className="analytics-page" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className={hideHeader ? "" : "analytics-page"} style={hideHeader ? { display: 'flex', flexDirection: 'column', gap: '20px' } : { padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>Coverage Reports</h2>
-          <p className="text-muted" style={{ fontSize: '13px', margin: '4px 0 0 0' }}>
-            How much of your uploaded identity and entitlement data has been captured into active roles.
-          </p>
-        </div>
+        {!hideHeader ? (
+          <div>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>Coverage Reports</h2>
+            <p className="text-muted" style={{ fontSize: '13px', margin: '4px 0 0 0' }}>
+              How much of your uploaded identity and entitlement data has been captured into active roles.
+            </p>
+          </div>
+        ) : <div />}
         <div style={{ display: 'flex', gap: '8px' }}>
           <button className="btn-action-premium" onClick={() => window.open(`${apiClient.defaults.baseURL}/analytics/coverage-reports/export/csv`, '_blank')} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Download size={14} /> CSV

@@ -6,7 +6,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getApprovalRequests } from '../../services/candidateRoleWorkbenchService';
 import BusinessActionModal from '../../components/BusinessActionModal/BusinessActionModal';
 
-const BusinessApproval = () => {
+const BusinessApproval = ({ hideHeader }) => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [requests, setRequests] = useState([]);
@@ -112,14 +112,16 @@ const BusinessApproval = () => {
   };
 
   return (
-    <div className="workbench-container" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div style={{ display: 'flex', justifyBehavior: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>Business Approval Inbox</h2>
-          <p className="text-muted" style={{ fontSize: '13px', margin: '4px 0 0 0' }}>
-            Review, approve, reject, or return submitted roles assigned to you.
-          </p>
-        </div>
+    <div className={hideHeader ? "" : "workbench-container"} style={hideHeader ? { display: 'flex', flexDirection: 'column', gap: '20px' } : { padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {!hideHeader ? (
+          <div>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>Business Approval Inbox</h2>
+            <p className="text-muted" style={{ fontSize: '13px', margin: '4px 0 0 0' }}>
+              Review, approve, reject, or return submitted roles assigned to you.
+            </p>
+          </div>
+        ) : <div />}
         <button onClick={fetchData} className="btn-action-premium" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <RotateCw size={14} /> Refresh Queue
         </button>

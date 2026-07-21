@@ -9,7 +9,7 @@ import './Analytics.css';
 // AN-002: Role Analytics — role-focused metrics (type, risk, source,
 // department breakdown, confidence/owner coverage), built from real
 // CandidateRole data.
-const RoleAnalytics = () => {
+const RoleAnalytics = ({ hideHeader }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -34,14 +34,16 @@ const RoleAnalytics = () => {
   const charts = data?.charts || {};
 
   return (
-    <div className="analytics-page" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className={hideHeader ? "" : "analytics-page"} style={hideHeader ? { display: 'flex', flexDirection: 'column', gap: '20px' } : { padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>Role Analytics</h2>
-          <p className="text-muted" style={{ fontSize: '13px', margin: '4px 0 0 0' }}>
-            Role-level metrics — type, risk, source, and ownership coverage.
-          </p>
-        </div>
+        {!hideHeader ? (
+          <div>
+            <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>Role Analytics</h2>
+            <p className="text-muted" style={{ fontSize: '13px', margin: '4px 0 0 0' }}>
+              Role-level metrics — type, risk, source, and ownership coverage.
+            </p>
+          </div>
+        ) : <div />}
         <div style={{ display: 'flex', gap: '8px' }}>
           <button className="btn-action-premium" onClick={() => window.open(`${apiClient.defaults.baseURL}/analytics/role-analytics/export/csv`, '_blank')} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Download size={14} /> CSV
