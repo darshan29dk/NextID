@@ -21,6 +21,9 @@ import {
   Check, 
   Layers, 
   Shield, 
+  Briefcase,
+  Cpu,
+  Boxes,
   Info,
   BadgeCheck,
   UserCheck,
@@ -939,6 +942,38 @@ const CandidateRoleWorkbench = () => {
         />
       </div>
 
+      {/* Sub-Navigation Tabs by Role Type */}
+      <div className="controls-card">
+        <button
+          className={`drawer-tab-btn ${typeFilter === 'Business' ? 'active' : ''}`}
+          onClick={() => { setTypeFilter('Business'); setPage(1); }}
+        >
+          <Briefcase size={14} />
+          <span>Business Roles ({kpiStats.business})</span>
+        </button>
+        <button
+          className={`drawer-tab-btn ${typeFilter === 'Technical' ? 'active' : ''}`}
+          onClick={() => { setTypeFilter('Technical'); setPage(1); }}
+        >
+          <Cpu size={14} />
+          <span>Technical Roles ({kpiStats.technical})</span>
+        </button>
+        <button
+          className={`drawer-tab-btn ${typeFilter === 'Composite' ? 'active' : ''}`}
+          onClick={() => { setTypeFilter('Composite'); setPage(1); }}
+        >
+          <Boxes size={14} />
+          <span>Composite Roles ({kpiStats.composite})</span>
+        </button>
+        <button
+          className={`drawer-tab-btn ${typeFilter === '' ? 'active' : ''}`}
+          onClick={() => { setTypeFilter(''); setPage(1); }}
+        >
+          <Shield size={14} />
+          <span>All Roles ({kpiStats.total})</span>
+        </button>
+      </div>
+
       {/* Filters & Actions Toolbar */}
       <div className="toolbar-section">
         <div className="toolbar-row">
@@ -1031,16 +1066,6 @@ const CandidateRoleWorkbench = () => {
                 <option value="Birthright">Birthright</option>
                 <option value="Request-Based">Request-Based</option>
                 <option value="None">None / Unassigned</option>
-              </select>
-            </div>
-
-            <div className="filter-select-group">
-              <label>Role Type</label>
-              <select value={typeFilter} onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}>
-                <option value="">All Types</option>
-                <option value="Business">Business</option>
-                <option value="Technical">Technical</option>
-                <option value="Composite">Composite</option>
               </select>
             </div>
 
