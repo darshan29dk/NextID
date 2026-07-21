@@ -267,6 +267,16 @@ async def upload_application_file(
     if not application:
         raise HTTPException(status_code=404, detail="Application not found")
 
+    # If there is an existing file_path, delete the old file from disk
+    if application.file_path:
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        old_file_path = os.path.join(base_dir, application.file_path)
+        if os.path.exists(old_file_path):
+            try:
+                os.remove(old_file_path)
+            except Exception as e:
+                print(f"Warning: Failed to delete old file {old_file_path}: {e}")
+
     content = await file.read()
     file_size = len(content)
 
@@ -281,7 +291,7 @@ async def upload_application_file(
         f.write(content)
 
     application.file_path = f"uploads/{safe_filename}"
-    application.file_content = content
+    application.file_content = None  # Do not store raw file binary content in DB
     application.status = "Configured"
     application.modified_by = x_user_name
     application.updated_at = datetime.utcnow()

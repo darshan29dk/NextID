@@ -328,7 +328,17 @@ async def upload_connector_file(
     if not connector:
         raise HTTPException(status_code=404, detail="Connector not found")
 
-    # Read and save file content
+    # If there is an existing file_path, delete the old file from disk
+    if connector.file_path:
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        old_file_path = os.path.join(base_dir, connector.file_path)
+        if os.path.exists(old_file_path):
+            try:
+                os.remove(old_file_path)
+            except Exception as e:
+                print(f"Warning: Failed to delete old file {old_file_path}: {e}")
+
+    # Read and save new file content
     content = await file.read()
     file_size = len(content)
 
@@ -343,7 +353,13 @@ async def upload_connector_file(
     with open(file_path, "wb") as f:
         f.write(content)
 
-    # Create file record
+    # Delete old ConnectorFile records for this connector from DB
+    try:
+        db.query(ConnectorFile).filter(ConnectorFile.connector_id == id).delete(synchronize_session=False)
+    except Exception as e:
+        print(f"Warning: Failed to delete old ConnectorFile records: {e}")
+
+    # Create file record (do not store raw file binary content in DB)
     conn_file = ConnectorFile(
         connector_id=id,
         file_name=file.filename,
@@ -351,7 +367,7 @@ async def upload_connector_file(
         file_size=file_size,
         uploaded_by=x_user_name,
         upload_date=datetime.utcnow(),
-        file_content=content
+        file_content=None
     )
 
     db.add(conn_file)
