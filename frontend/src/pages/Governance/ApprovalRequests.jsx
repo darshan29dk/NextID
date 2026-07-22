@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import './ApprovalInbox.css';
-import { Search, RotateCw, Filter, ShieldAlert, CheckCircle, XCircle, RefreshCw, AlertTriangle, Eye, Ban, Calendar, Clock, FileText, BadgeCheck, KeyRound } from 'lucide-react';
+import { Search, RotateCw, Filter, ShieldAlert, CheckCircle, XCircle, RefreshCw, AlertTriangle, Eye, Ban, Calendar, Clock, FileText, BadgeCheck, KeyRound, SlidersHorizontal } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getApprovalRequests, cancelApprovalRequest } from '../../services/candidateRoleWorkbenchService';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import BusinessApproval from './BusinessApproval';
 import SecurityApproval from './SecurityApproval';
+import ApprovalWorkflows from './ApprovalWorkflows';
 
 const ApprovalRequests = () => {
   const { currentUser } = useAuth();
@@ -15,9 +16,10 @@ const ApprovalRequests = () => {
   const location = useLocation();
 
   const getActiveTabFromPath = (path) => {
+    if (path.includes('requests')) return 'requests';
     if (path.includes('business')) return 'business';
     if (path.includes('security')) return 'security';
-    return 'requests';
+    return 'workflows';
   };
 
   const [mainTab, setMainTab] = useState(getActiveTabFromPath(location.pathname));
@@ -155,6 +157,16 @@ const ApprovalRequests = () => {
 
       <div className="controls-card" style={{ display: 'flex', gap: '8px', padding: '4px', marginBottom: '16px' }}>
         <button
+          className={`drawer-tab-btn ${mainTab === 'workflows' ? 'active' : ''}`}
+          onClick={() => {
+            setMainTab('workflows');
+            navigate('/approval-workflow/workflows');
+          }}
+          style={{ padding: '10px 18px' }}
+        >
+          <SlidersHorizontal size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} /> Approval Workflows
+        </button>
+        <button
           className={`drawer-tab-btn ${mainTab === 'requests' ? 'active' : ''}`}
           onClick={() => {
             setMainTab('requests');
@@ -186,7 +198,9 @@ const ApprovalRequests = () => {
         </button>
       </div>
 
-      {mainTab === 'requests' ? (
+      {mainTab === 'workflows' ? (
+        <ApprovalWorkflows hideHeader={true} />
+      ) : mainTab === 'requests' ? (
         <>
 
       {/* KPI Cards Panel */}

@@ -23,6 +23,7 @@ import IdentityWorkspace from './pages/DataFoundation/IdentityWorkspace';
 import CorrelationWorkspace from './pages/DataFoundation/CorrelationWorkspace';
 import RoleDiscoveryWorkspace from './pages/DataFoundation/RoleDiscoveryWorkspace';
 import CandidateRoleWorkbench from './pages/RoleEngineering/CandidateRoleWorkbench';
+import ApprovalWorkflows from './pages/Governance/ApprovalWorkflows';
 import ApprovalRequests from './pages/Governance/ApprovalRequests';
 import BusinessApproval from './pages/Governance/BusinessApproval';
 import SecurityApproval from './pages/Governance/SecurityApproval';
@@ -117,10 +118,13 @@ function App() {
                   <Route path="/role-discovery" element={<RoleDiscoveryWorkspace />} />
                   <Route path="/role-engineering" element={<Navigate to="/role-engineering/workbench" replace />} />
                   <Route path="/role-engineering/workbench" element={<CandidateRoleWorkbench />} />
-                  <Route path="/approval-workflow/requests" element={<ApprovalRequests />} />
+                  <Route path="/governance/approval-workflows" element={<ApprovalWorkflows />} />
+                  <Route path="/approval-workflow" element={<Navigate to="/governance/approval-workflows" replace />} />
+                  <Route path="/approval-workflow/workflows" element={<Navigate to="/governance/approval-workflows" replace />} />
+                  <Route path="/approval-workflow/requests" element={<Navigate to="/governance/approval-workflows" replace />} />
                   <Route path="/approval-workflow/requests/:id" element={<ApprovalRequestDetail />} />
-                  <Route path="/approval-workflow/business" element={<ApprovalRequests />} />
-                  <Route path="/approval-workflow/security" element={<ApprovalRequests />} />
+                  <Route path="/approval-workflow/business" element={<Navigate to="/governance/approval-workflows" replace />} />
+                  <Route path="/approval-workflow/security" element={<Navigate to="/governance/approval-workflows" replace />} />
                   <Route path="/role-catalog" element={<Navigate to="/role-catalog/published" replace />} />
                   <Route path="/role-catalog/published" element={<PublishedRoles />} />
                   <Route path="/role-catalog/business" element={<PublishedRoles />} />

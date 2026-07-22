@@ -49,9 +49,7 @@ const ATTRIBUTE_GROUP_CHILDREN = [
 
 
 const APPROVAL_WORKFLOW_GROUP_CHILDREN = [
-  { label: 'Approval Requests', icon: FileText, path: 'approval-workflow/requests' },
-  { label: 'Business Approval', icon: BadgeCheck, path: 'approval-workflow/business' },
-  { label: 'Security Approval', icon: KeyRound, path: 'approval-workflow/security' },
+  { label: 'Approval Workflows', icon: SlidersHorizontal, path: 'governance/approval-workflows' },
 ];
 
 
@@ -250,13 +248,13 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
 
         {renderNavItems(navItemsBefore)}
 
-        {/* Direct link for "Approval Workflow" */}
+        {/* Direct link for "Approval Workflows" */}
         <div 
-          className={`nav-item ${activePath.startsWith('approval-workflow') ? 'active' : ''}`}
-          onClick={() => navigate('/approval-workflow/requests')}
+          className={`nav-item ${activePath.startsWith('approval-workflow') || activePath.startsWith('governance/approval-workflows') ? 'active' : ''}`}
+          onClick={() => navigate('/governance/approval-workflows')}
         >
           <ShieldAlert className="nav-icon" size={18} />
-          {!isCollapsed && <span className="nav-label">Approval Workflow</span>}
+          {!isCollapsed && <span className="nav-label">Approval Workflows</span>}
         </div>
 
         {/* Direct link for "Role Catalog" */}

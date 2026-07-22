@@ -77,6 +77,8 @@ from app.models.sod_policy import SodPolicy, SodPolicyRule, SodPolicyAudit
 from app.models.sod_violation import SodViolation, SodViolationComment, SodViolationAttachment, SodScanHistory, SodViolationAudit
 from app.models.sod_exception import SodException, SodExceptionApproval, SodExceptionComment, SodExceptionAttachment, SodExceptionAudit
 from app.models.sod_dashboard import GovernanceDashboardPreferences
+from app.models.approval_workflow_config import ApprovalWorkflowConfig, ApprovalWorkflowLevel
+from app.routes import approval_workflow_config as approval_workflow_config_routes
 
 # Create database tables if they do not exist
 Base.metadata.create_all(bind=engine)
@@ -1352,6 +1354,7 @@ app.include_router(sod_violation_routes.router, prefix="/api")
 app.include_router(sod_exception_routes.router, prefix="/api")
 app.include_router(sod_dashboard_routes.router, prefix="/api")
 app.include_router(analytics_routes.router, prefix="/api")
+app.include_router(approval_workflow_config_routes.router, prefix="/api")
 
 @app.get("/")
 def read_root():

@@ -6,6 +6,7 @@ from typing import Optional, List, Dict, Any
 from app.models.candidate_role import CandidateRole
 from app.models.approval_request import ApprovalRequest
 from app.models.approval_step import ApprovalStep
+from app.models.approval_workflow_config import ApprovalWorkflowConfig, ApprovalWorkflowLevel
 from app.models.audit_log import AuditLog
 from app.models.dashboard import RecentActivity
 from app.models.notification import Notification
@@ -23,7 +24,7 @@ class ApprovalWorkflowService:
     ) -> Dict:
         """
         Validates submission requirements and creates an approval request for a candidate role.
-        Updates candidate role status to 'Under Review'.
+        Evaluates dynamic Approval Workflow policies (ApprovalWorkflowConfig) and triggers auto-approvals.
         """
         role = db.query(CandidateRole).filter(
             CandidateRole.id == role_id,
@@ -60,13 +61,20 @@ class ApprovalWorkflowService:
         if existing_active:
             raise ValueError("An active approval request already exists for this candidate role")
 
+        # --- Resolve Approval Workflow Policy ---
+        wf_config = db.query(ApprovalWorkflowConfig).filter(
+            ApprovalWorkflowConfig.is_active == True
+        ).order_by(ApprovalWorkflowConfig.is_default.desc()).first()
+
+        workflow_title = wf_config.name if wf_config else "Role Approval Workflow"
+
         # --- Create Approval Request ---
         now = datetime.utcnow()
         due = now + timedelta(days=7)  # SLA: 7 days
         
         request = ApprovalRequest(
             candidate_role_id=role_id,
-            workflow_name="Role Approval Workflow",
+            workflow_name=workflow_title,
             current_stage="Business Review",
             status="Business Review",
             submitted_by=user,
@@ -80,22 +88,50 @@ class ApprovalWorkflowService:
         db.add(request)
         db.flush()
 
-        # --- Create Approval Step for Business Owner ---
-        step = ApprovalStep(
-            approval_request_id=request.id,
-            step_order=1,
-            step_name="Business Review",
-            approver_type="Role Owner",
-            approver_id=role.primary_owner_id,
-            approver_name=role.primary_owner_name,
-            status="Pending",
-            assigned_at=now,
-            remarks=None
-        )
-        db.add(step)
+        # --- Evaluate Workflow Levels & Auto-Approval ---
+        all_auto_approved = True
+        if wf_config and wf_config.levels and len(wf_config.levels) > 0:
+            for idx, lvl in enumerate(sorted(wf_config.levels, key=lambda x: x.level_number)):
+                is_auto = (lvl.fallback_action == "Auto-approve" or lvl.approver_type == "Auto-approve")
+                step_status = "Approved" if is_auto else ("Pending" if idx == 0 else "Pending")
+                if not is_auto:
+                    all_auto_approved = False
 
-        # --- Update Candidate Role Status ---
-        role.status = "Under Review"
+                step = ApprovalStep(
+                    approval_request_id=request.id,
+                    step_order=lvl.level_number,
+                    step_name=f"L{lvl.level_number}: {lvl.approver_type}",
+                    approver_type=lvl.approver_type,
+                    approver_id=lvl.specific_approver_id or role.primary_owner_id,
+                    approver_name=lvl.specific_approver_name or role.primary_owner_name,
+                    status=step_status,
+                    assigned_at=now,
+                    action_taken_at=now if is_auto else None,
+                    remarks="Auto-approved by policy rule" if is_auto else None
+                )
+                db.add(step)
+        else:
+            all_auto_approved = False
+            step = ApprovalStep(
+                approval_request_id=request.id,
+                step_order=1,
+                step_name="Business Review",
+                approver_type="Role Owner",
+                approver_id=role.primary_owner_id,
+                approver_name=role.primary_owner_name,
+                status="Pending",
+                assigned_at=now,
+                remarks=None
+            )
+            db.add(step)
+
+        # --- Update Candidate Role Status & Auto-approve Handling ---
+        if all_auto_approved:
+            request.status = "Security Approved"
+            request.current_stage = "Completed"
+            role.status = "Approved"
+        else:
+            role.status = "Under Review"
         role.modified_by = user
         role.updated_at = now
 
