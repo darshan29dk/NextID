@@ -1,6 +1,7 @@
 import json
 import csv
 import io
+import re
 from fastapi import APIRouter, HTTPException, Depends, Header, status, UploadFile, File
 from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.orm import Session
@@ -18,7 +19,7 @@ from app.models.identity import Identity
 from app.models.application_account import ApplicationAccount
 from app.models.application_account_entitlement import ApplicationAccountEntitlement
 from app.models.audit_log import AuditLog
-from app.models.sod_violation import SodViolation, SodViolationAudit, SodViolationComment, SodViolationAttachment
+from app.models.sod_violation import SodViolation, SodScanHistory, SodViolationAudit, SodViolationComment, SodViolationAttachment
 from app.schemas.sod_policy import (
     SodPolicyCreate,
     SodPolicyUpdate,
@@ -572,19 +573,202 @@ def simulate_existing_policy(id: str, db: Session = Depends(get_db)):
     }
 
 # ── Bulk Imports (JSON, CSV, Excel) ──
+def parse_rule_expression_string(rule_str: str, default_app: str = "Global"):
+    """
+    Parses strings like:
+    - 'Salesforce: Create Invoices AND Approve Invoices'
+    - 'Create Invoices AND Approve Invoices'
+    - 'Create Invoices vs Approve Invoices'
+    - 'Create Invoices & Approve Invoices'
+    - 'Create Invoices, Approve Invoices'
+    """
+    if not isinstance(rule_str, str):
+        return default_app, "Entitlement A", "Entitlement B", "AND"
+
+    rule_str = rule_str.strip()
+    app_name = default_app
+
+    if ":" in rule_str and not rule_str.startswith("http"):
+        parts = rule_str.split(":", 1)
+        if len(parts[0].strip()) > 0 and len(parts[1].strip()) > 0:
+            app_name = parts[0].strip()
+            rule_str = parts[1].strip()
+
+    op = "AND"
+    ent1 = ""
+    ent2 = ""
+
+    if " AND " in rule_str.upper():
+        parts = re.split(r'\s+AND\s+', rule_str, flags=re.IGNORECASE)
+        ent1, ent2 = parts[0].strip(), parts[1].strip()
+        op = "AND"
+    elif " OR " in rule_str.upper():
+        parts = re.split(r'\s+OR\s+', rule_str, flags=re.IGNORECASE)
+        ent1, ent2 = parts[0].strip(), parts[1].strip()
+        op = "OR"
+    elif " NOT " in rule_str.upper():
+        parts = re.split(r'\s+NOT\s+', rule_str, flags=re.IGNORECASE)
+        ent1, ent2 = parts[0].strip(), parts[1].strip()
+        op = "NOT"
+    elif " VS " in rule_str.upper() or " VS. " in rule_str.upper():
+        parts = re.split(r'\s+VS\.?\s+', rule_str, flags=re.IGNORECASE)
+        ent1, ent2 = parts[0].strip(), parts[1].strip()
+        op = "AND"
+    elif " & " in rule_str:
+        parts = rule_str.split(" & ")
+        ent1, ent2 = parts[0].strip(), parts[1].strip()
+        op = "AND"
+    elif "," in rule_str:
+        parts = rule_str.split(",")
+        ent1, ent2 = parts[0].strip(), parts[1].strip()
+        op = "AND"
+    else:
+        ent1 = rule_str
+        ent2 = rule_str
+        op = "AND"
+
+    return app_name, ent1 or "Permission 1", ent2 or "Permission 2", op
+
+
+def normalize_imported_policy_item(item: dict) -> dict:
+    """Normalizes any record dictionary (JSON or CSV/Excel row) into a standard SodPolicy format."""
+    clean = {}
+    for k, v in item.items():
+        if k:
+            clean_key = str(k).strip().lower().replace("_", " ").replace("-", " ")
+            clean[clean_key] = v
+
+    name = (
+        clean.get("rule name") or
+        clean.get("rulename") or
+        clean.get("policy name") or
+        clean.get("policyname") or
+        clean.get("sod rule id") or
+        clean.get("sodruleid") or
+        clean.get("rule id") or
+        clean.get("ruleid") or
+        clean.get("sod id") or
+        clean.get("name") or
+        clean.get("title")
+    )
+
+    if not name:
+        return None
+
+    desc = clean.get("description") or clean.get("desc") or clean.get("details") or clean.get("summary") or f"SoD Policy {name}"
+    
+    risk_raw = str(clean.get("risk level") or clean.get("risklevel") or clean.get("risk") or clean.get("severity") or "HIGH").strip().upper()
+    if "CRIT" in risk_raw:
+        risk = "CRITICAL"
+    elif "HIGH" in risk_raw:
+        risk = "HIGH"
+    elif "MED" in risk_raw:
+        risk = "MEDIUM"
+    elif "LOW" in risk_raw:
+        risk = "LOW"
+    else:
+        risk = "HIGH"
+
+    policy_type = str(clean.get("policy type") or clean.get("type") or "STATIC").strip().upper()
+    status = str(clean.get("status") or "ACTIVE").strip().upper()
+    business_owner = str(clean.get("business owner") or clean.get("owner") or "System").strip()
+    approver = str(clean.get("approver") or "System").strip()
+
+    # Extract rules
+    rules_raw = (
+        clean.get("rules") or
+        clean.get("rule") or
+        clean.get("conflicting entitlements") or
+        clean.get("conflicting roles") or
+        clean.get("entitlements") or
+        clean.get("conflict")
+    )
+
+    parsed_rules = []
+
+    if isinstance(rules_raw, list):
+        for r in rules_raw:
+            if isinstance(r, dict):
+                r_clean = {str(rk).strip().lower().replace("_", " ").replace("-", " "): rv for rk, rv in r.items() if rk}
+                app = r_clean.get("application name") or r_clean.get("application") or r_clean.get("app name") or r_clean.get("app") or "Global"
+                e1 = r_clean.get("entitlement one") or r_clean.get("entitlement 1") or r_clean.get("entitlement1") or r_clean.get("role 1") or r_clean.get("permission 1") or ""
+                e2 = r_clean.get("entitlement two") or r_clean.get("entitlement 2") or r_clean.get("entitlement2") or r_clean.get("role 2") or r_clean.get("permission 2") or ""
+                cond = str(r_clean.get("condition type") or r_clean.get("condition") or r_clean.get("operator") or "AND").strip().upper()
+                if e1 and e2:
+                    parsed_rules.append({
+                        "application_name": str(app),
+                        "entitlement_one": str(e1),
+                        "entitlement_two": str(e2),
+                        "condition_type": cond if cond in ["AND", "OR", "NOT"] else "AND"
+                    })
+            elif isinstance(r, str) and r.strip():
+                app, e1, e2, cond = parse_rule_expression_string(r)
+                if e1 and e2:
+                    parsed_rules.append({"application_name": app, "entitlement_one": e1, "entitlement_two": e2, "condition_type": cond})
+
+    elif isinstance(rules_raw, str) and rules_raw.strip():
+        app, e1, e2, cond = parse_rule_expression_string(rules_raw)
+        if e1 and e2:
+            parsed_rules.append({"application_name": app, "entitlement_one": e1, "entitlement_two": e2, "condition_type": cond})
+
+    # Direct column check (e.g., Entitlement 1 & Entitlement 2 columns in the CSV/Excel row)
+    if not parsed_rules:
+        app = clean.get("application name") or clean.get("application") or clean.get("app name") or clean.get("app") or "Global"
+        e1 = (
+            clean.get("entitlement one") or clean.get("entitlement 1") or clean.get("entitlement1") or
+            clean.get("first entitlement") or clean.get("role 1") or clean.get("role1") or
+            clean.get("permission 1") or clean.get("function 1")
+        )
+        e2 = (
+            clean.get("entitlement two") or clean.get("entitlement 2") or clean.get("entitlement2") or
+            clean.get("second entitlement") or clean.get("role 2") or clean.get("role2") or
+            clean.get("permission 2") or clean.get("function 2")
+        )
+        cond = str(clean.get("condition type") or clean.get("condition") or clean.get("operator") or "AND").strip().upper()
+        if e1 and e2:
+            parsed_rules.append({
+                "application_name": str(app),
+                "entitlement_one": str(e1),
+                "entitlement_two": str(e2),
+                "condition_type": cond if cond in ["AND", "OR", "NOT"] else "AND"
+            })
+
+    # Guaranteed fallback rule if entitlements could not be split
+    if not parsed_rules:
+        parsed_rules.append({
+            "application_name": "Global",
+            "entitlement_one": f"{name} Role A",
+            "entitlement_two": f"{name} Role B",
+            "condition_type": "AND"
+        })
+
+    return {
+        "policy_name": str(name),
+        "description": str(desc),
+        "risk_level": risk,
+        "policy_type": policy_type,
+        "status": status,
+        "business_owner": business_owner,
+        "approver": approver,
+        "rules": parsed_rules
+    }
+
+
 def parse_imported_policies_file(file: UploadFile) -> list:
     filename = file.filename.lower()
     content = file.file.read()
     
+    raw_items = []
+
     if filename.endswith(".json"):
         raw = json.loads(content.decode("utf-8-sig", errors="ignore"))
-        return raw if isinstance(raw, list) else [raw]
+        raw_items = raw if isinstance(raw, list) else [raw]
         
-    rows = []
-    if filename.endswith(".csv"):
+    elif filename.endswith(".csv"):
         text = content.decode("utf-8-sig", errors="ignore")
         reader = csv.DictReader(io.StringIO(text))
-        rows = list(reader)
+        raw_items = list(reader)
+
     elif filename.endswith(".xlsx") or filename.endswith(".xls"):
         workbook = openpyxl.load_workbook(filename=io.BytesIO(content), data_only=True)
         sheet = workbook.active
@@ -592,85 +776,26 @@ def parse_imported_policies_file(file: UploadFile) -> list:
         for row_cells in sheet.iter_rows(min_row=2, values_only=True):
             if any(row_cells):
                 r_dict = {headers[i]: (row_cells[i] if i < len(headers) else None) for i in range(len(headers))}
-                rows.append(r_dict)
+                raw_items.append(r_dict)
     else:
         raise HTTPException(
             status_code=400,
             detail="Unsupported file format. Please upload a .json, .csv, .xlsx, or .xls file."
         )
 
-    # Group CSV / Excel rows into policy dictionary by Policy Name
-    grouped = {}
-    current_key = None
+    # Group or normalize policies
+    policies_map = {}
+    for item in raw_items:
+        normalized = normalize_imported_policy_item(item)
+        if normalized:
+            p_name = normalized["policy_name"]
+            if p_name in policies_map:
+                # Merge additional rules if same policy name appears on multiple rows
+                policies_map[p_name]["rules"].extend(normalized["rules"])
+            else:
+                policies_map[p_name] = normalized
 
-    for row in rows:
-        clean = {}
-        for k, v in row.items():
-            if k:
-                clean_key = str(k).strip().lower().replace("_", " ").replace("-", " ")
-                clean[clean_key] = str(v).strip() if v is not None else ""
-
-        name = (
-            clean.get("policy name") or
-            clean.get("policyname") or
-            clean.get("name") or
-            clean.get("policy code") or
-            clean.get("policycode")
-        )
-
-        if name:
-            current_key = name
-
-        if not current_key:
-            continue
-
-        if current_key not in grouped:
-            grouped[current_key] = {
-                "policy_name": current_key,
-                "description": clean.get("description", f"Imported policy {current_key}"),
-                "risk_level": (clean.get("risk level") or clean.get("risk") or "HIGH").upper(),
-                "policy_type": (clean.get("policy type") or clean.get("type") or "STATIC").upper(),
-                "status": (clean.get("status") or "ACTIVE").upper(),
-                "business_owner": clean.get("business owner") or clean.get("owner") or "System",
-                "approver": clean.get("approver") or "System",
-                "rules": []
-            }
-
-        app_name = (
-            clean.get("application name") or
-            clean.get("application") or
-            clean.get("app name") or
-            clean.get("app")
-        )
-        ent1 = (
-            clean.get("entitlement one") or
-            clean.get("entitlement 1") or
-            clean.get("entitlement1") or
-            clean.get("first entitlement")
-        )
-        ent2 = (
-            clean.get("entitlement two") or
-            clean.get("entitlement 2") or
-            clean.get("entitlement2") or
-            clean.get("second entitlement")
-        )
-        cond = (
-            clean.get("condition type") or
-            clean.get("condition") or
-            clean.get("operator") or
-            clean.get("condition_type") or
-            "AND"
-        ).upper()
-
-        if app_name and ent1 and ent2:
-            grouped[current_key]["rules"].append({
-                "application_name": app_name,
-                "entitlement_one": ent1,
-                "entitlement_two": ent2,
-                "condition_type": cond if cond in ["AND", "OR", "NOT"] else "AND"
-            })
-
-    return list(grouped.values())
+    return list(policies_map.values())
 
 
 @router.post("/governance/sod-policies/import", dependencies=[Depends(require_permission("SoD Policies", "create"))])
