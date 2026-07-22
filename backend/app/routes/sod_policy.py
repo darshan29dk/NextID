@@ -5,7 +5,7 @@ import re
 from fastapi import APIRouter, HTTPException, Depends, Header, status, UploadFile, File, BackgroundTasks
 from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, func
 from typing import List, Optional
 from datetime import datetime
 import openpyxl
@@ -809,7 +809,8 @@ def import_sod_policies(
     try:
         policies_list = parse_imported_policies_file(file)
         
-        imported_count = 0
+        created_count = 0
+        updated_count = 0
         skipped_count = 0
         
         for item in policies_list:
@@ -820,38 +821,79 @@ def import_sod_policies(
                 skipped_count += 1
                 continue
                 
-            code = get_next_policy_code(db)
-            policy = SodPolicy(
-                policy_code=code,
-                policy_name=name,
-                description=item.get("description", ""),
-                risk_level=item.get("risk_level", "HIGH"),
-                policy_type=item.get("policy_type", "STATIC"),
-                status=item.get("status", "ACTIVE"),
-                business_owner=item.get("business_owner", "System"),
-                approver=item.get("approver", "System"),
-                created_by=x_user_name,
-                version=1
-            )
-            db.add(policy)
-            db.flush()
-            
-            for r in rules_data:
-                rule = SodPolicyRule(
-                    policy_id=policy.id,
-                    application_name=r.get("application_name"),
-                    entitlement_one=r.get("entitlement_one"),
-                    entitlement_two=r.get("entitlement_two"),
-                    condition_type=r.get("condition_type", "AND")
+            name_stripped = name.strip()
+
+            # Check if policy with same name (case-insensitive) already exists in DB
+            existing_policy = db.query(SodPolicy).filter(
+                func.lower(SodPolicy.policy_name) == name_stripped.lower()
+            ).first()
+
+            if existing_policy:
+                # REPLACE / UPDATE existing policy & rules instead of creating duplicate
+                existing_policy.policy_name = name_stripped
+                if item.get("description"):
+                    existing_policy.description = item.get("description")
+                existing_policy.risk_level = item.get("risk_level", "HIGH")
+                existing_policy.policy_type = item.get("policy_type", "STATIC")
+                existing_policy.status = item.get("status", "ACTIVE")
+                existing_policy.business_owner = item.get("business_owner", "System")
+                existing_policy.approver = item.get("approver", "System")
+                existing_policy.updated_by = x_user_name
+                existing_policy.updated_date = datetime.utcnow()
+                existing_policy.version += 1
+
+                # Delete existing rules and replace with new rules
+                db.query(SodPolicyRule).filter(SodPolicyRule.policy_id == existing_policy.id).delete()
+                for r in rules_data:
+                    rule = SodPolicyRule(
+                        policy_id=existing_policy.id,
+                        application_name=r.get("application_name"),
+                        entitlement_one=r.get("entitlement_one"),
+                        entitlement_two=r.get("entitlement_two"),
+                        condition_type=r.get("condition_type", "AND")
+                    )
+                    db.add(rule)
+
+                db.commit()
+                updated_count += 1
+                write_sod_audit(db, existing_policy.id, "Replace (Import)", x_user_name, new_val={"policy_code": existing_policy.policy_code, "policy_name": name_stripped})
+
+            else:
+                # CREATE brand new policy record
+                code = get_next_policy_code(db)
+                policy = SodPolicy(
+                    policy_code=code,
+                    policy_name=name_stripped,
+                    description=item.get("description", ""),
+                    risk_level=item.get("risk_level", "HIGH"),
+                    policy_type=item.get("policy_type", "STATIC"),
+                    status=item.get("status", "ACTIVE"),
+                    business_owner=item.get("business_owner", "System"),
+                    approver=item.get("approver", "System"),
+                    created_by=x_user_name,
+                    version=1
                 )
-                db.add(rule)
-            
-            db.commit()
-            imported_count += 1
-            write_sod_audit(db, policy.id, "Import", x_user_name, new_val={"policy_code": code, "policy_name": name})
+                db.add(policy)
+                db.flush()
+
+                for r in rules_data:
+                    rule = SodPolicyRule(
+                        policy_id=policy.id,
+                        application_name=r.get("application_name"),
+                        entitlement_one=r.get("entitlement_one"),
+                        entitlement_two=r.get("entitlement_two"),
+                        condition_type=r.get("condition_type", "AND")
+                    )
+                    db.add(rule)
+
+                db.commit()
+                created_count += 1
+                write_sod_audit(db, policy.id, "Create (Import)", x_user_name, new_val={"policy_code": code, "policy_name": name_stripped})
+
+        total_processed = created_count + updated_count
 
         # --- Automatically queue SoD violation scan in background after policy import ---
-        if imported_count > 0:
+        if total_processed > 0:
             try:
                 from app.services.sod_violation_service import run_violation_scan_job
                 scan = SodScanHistory(
@@ -868,11 +910,21 @@ def import_sod_policies(
             except Exception as scan_err:
                 print("Auto violation scan background queue warning:", scan_err)
 
+        msg_details = []
+        if created_count > 0:
+            msg_details.append(f"{created_count} created")
+        if updated_count > 0:
+            msg_details.append(f"{updated_count} replaced")
+
+        details_str = ", ".join(msg_details) if msg_details else "0 policies"
+
         return {
-            "imported": imported_count,
+            "imported": total_processed,
+            "created": created_count,
+            "updated": updated_count,
             "skipped": skipped_count,
             "auto_scanned": True,
-            "message": f"Successfully imported {imported_count} policies from '{file.filename}'."
+            "message": f"Successfully processed policies from '{file.filename}' ({details_str})."
         }
     except HTTPException:
         raise
