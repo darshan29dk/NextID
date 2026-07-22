@@ -396,9 +396,11 @@ const SoDPolicies = () => {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
       const msg = res.data.message || `Successfully imported ${res.data.imported} policies. (Skipped: ${res.data.skipped})`;
-      setImportStatus({ success: true, message: msg });
       showToast(msg, "success");
       fetchPolicies();
+      setShowImportModal(false);
+      setImportFile(null);
+      setImportStatus(null);
     } catch (err) {
       setImportStatus({ success: false, message: err.response?.data?.detail || "Import failed" });
     } finally {
