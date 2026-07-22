@@ -209,9 +209,12 @@ const ApplicationWorkspace = () => {
   const [quickOwnerLoading, setQuickOwnerLoading] = useState(false);
   const [showQuickOwnerDropdown, setShowQuickOwnerDropdown] = useState(false);
   const [quickOwnerSubmitting, setQuickOwnerSubmitting] = useState(false);
+  const latestOwnerQueryRef = React.useRef('');
+  const latestOwnerSearchRef = React.useRef('');
 
   const handleOwnerSearch = async (q) => {
     setOwnerSearchQuery(q);
+    latestOwnerSearchRef.current = q;
     if (!q || q.trim().length < 1) {
       setOwnerCandidates([]);
       setShowOwnerDropdown(false);
@@ -220,12 +223,13 @@ const ApplicationWorkspace = () => {
     try {
       setOwnerLoading(true);
       const res = await searchOwnerCandidates(q.trim());
+      if (latestOwnerSearchRef.current !== q) return; // a newer search superseded this one
       setOwnerCandidates(res || []);
       setShowOwnerDropdown(true);
     } catch (err) {
       console.error('Failed to search owner candidates:', err);
     } finally {
-      setOwnerLoading(false);
+      if (latestOwnerSearchRef.current === q) setOwnerLoading(false);
     }
   };
 
@@ -267,6 +271,11 @@ const ApplicationWorkspace = () => {
 
   const handleQuickOwnerSearch = async (q) => {
     setQuickOwnerSearchQuery(q);
+    // Guard against out-of-order responses: if the user types quickly, an
+    // earlier keystroke's request can resolve AFTER a later one and
+    // overwrite the correct results with stale ones. Track the latest
+    // query issued and drop any response that isn't for it anymore.
+    latestOwnerQueryRef.current = q;
     if (!q || q.trim().length < 1) {
       setQuickOwnerCandidates([]);
       setShowQuickOwnerDropdown(false);
@@ -275,12 +284,13 @@ const ApplicationWorkspace = () => {
     try {
       setQuickOwnerLoading(true);
       const res = await searchOwnerCandidates(q.trim());
+      if (latestOwnerQueryRef.current !== q) return; // a newer search superseded this one
       setQuickOwnerCandidates(res || []);
       setShowQuickOwnerDropdown(true);
     } catch (err) {
       console.error('Failed to search owner candidates:', err);
     } finally {
-      setQuickOwnerLoading(false);
+      if (latestOwnerQueryRef.current === q) setQuickOwnerLoading(false);
     }
   };
 
@@ -1331,21 +1341,21 @@ const ApplicationWorkspace = () => {
                     <span style={{ position: 'absolute', right: '12px', top: '35px', fontSize: '12px', color: 'var(--text-muted)' }}>Searching...</span>
                   )}
                   {showQuickOwnerDropdown && quickOwnerCandidates.length > 0 && (
-                    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100, backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '8px', boxShadow: 'var(--shadow-lg)', maxHeight: '180px', overflowY: 'auto', marginTop: '4px' }}>
+                    <div className="owner-search-dropdown">
                       {quickOwnerCandidates.map((cand) => (
                         <div
                           key={`${cand.source}-${cand.id}-${cand.email}`}
+                          className="owner-search-result-row"
                           onClick={() => handleSelectQuickOwner(cand)}
-                          style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
                           onMouseDown={(e) => e.preventDefault()}
                         >
-                          <div>
-                            <div style={{ fontWeight: '600', fontSize: '13px', color: 'var(--text-main)' }}>
-                              {cand.name} {cand.employee_id ? <span style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 'normal' }}>({cand.employee_id})</span> : ''}
+                          <div style={{ minWidth: 0 }}>
+                            <div className="owner-search-result-name">
+                              {cand.name} {cand.employee_id ? <span style={{ fontWeight: 'normal', color: 'var(--text-muted)' }}>({cand.employee_id})</span> : ''}
                             </div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{cand.email} {cand.department ? `• ${cand.department}` : ''}</div>
+                            <div className="owner-search-result-sub">{cand.email} {cand.department ? `• ${cand.department}` : ''}</div>
                           </div>
-                          <span style={{ fontSize: '10px', padding: '2px 6px', borderRadius: '4px', backgroundColor: 'var(--primary-light, #3b82f620)', color: 'var(--primary, #3b82f6)', fontWeight: '600' }}>{cand.source}</span>
+                          <span className="owner-search-result-badge">{cand.source}</span>
                         </div>
                       ))}
                     </div>

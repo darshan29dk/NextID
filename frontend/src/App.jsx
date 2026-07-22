@@ -118,13 +118,18 @@ function App() {
                   <Route path="/role-discovery" element={<RoleDiscoveryWorkspace />} />
                   <Route path="/role-engineering" element={<Navigate to="/role-engineering/workbench" replace />} />
                   <Route path="/role-engineering/workbench" element={<CandidateRoleWorkbench />} />
-                  <Route path="/governance/approval-workflows" element={<ApprovalWorkflows />} />
-                  <Route path="/approval-workflow" element={<Navigate to="/governance/approval-workflows" replace />} />
-                  <Route path="/approval-workflow/workflows" element={<Navigate to="/governance/approval-workflows" replace />} />
-                  <Route path="/approval-workflow/requests" element={<Navigate to="/governance/approval-workflows" replace />} />
+                  {/* ApprovalRequests is the unified inbox (Workflows / Requests / Business /
+                      Security tabs, all in one component - it renders <ApprovalWorkflows> itself
+                      for the "workflows" tab). These routes previously all redirected to the bare
+                      config page instead of this hub, so the Requests/Business/Security tabs -
+                      the actual "act on a submitted approval" screens - were unreachable. */}
+                  <Route path="/governance/approval-workflows" element={<ApprovalRequests />} />
+                  <Route path="/approval-workflow" element={<Navigate to="/approval-workflow/workflows" replace />} />
+                  <Route path="/approval-workflow/workflows" element={<ApprovalRequests />} />
+                  <Route path="/approval-workflow/requests" element={<ApprovalRequests />} />
                   <Route path="/approval-workflow/requests/:id" element={<ApprovalRequestDetail />} />
-                  <Route path="/approval-workflow/business" element={<Navigate to="/governance/approval-workflows" replace />} />
-                  <Route path="/approval-workflow/security" element={<Navigate to="/governance/approval-workflows" replace />} />
+                  <Route path="/approval-workflow/business" element={<ApprovalRequests />} />
+                  <Route path="/approval-workflow/security" element={<ApprovalRequests />} />
                   <Route path="/role-catalog" element={<Navigate to="/role-catalog/published" replace />} />
                   <Route path="/role-catalog/published" element={<PublishedRoles />} />
                   <Route path="/role-catalog/business" element={<PublishedRoles />} />

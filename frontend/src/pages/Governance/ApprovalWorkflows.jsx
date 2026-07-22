@@ -27,6 +27,7 @@ import {
   getWorkflowMetaOptions 
 } from '../../services/approvalWorkflowService';
 import { searchOwnerCandidates } from '../../services/applicationService';
+import { ToastContainer, showToast } from '../../components/Toast/Toast';
 
 const INITIAL_LEVEL = {
   level_number: 1,
@@ -125,7 +126,7 @@ const ApprovalWorkflows = () => {
     } catch (err) {
       console.error('Failed to fetch approval workflows:', err);
       setError(err.response?.data?.detail || 'Failed to load approval workflows.');
-    } fontinally: {
+    } finally {
       setLoading(false);
     }
   }, [search, scopeFilter, riskFilter]);
@@ -268,7 +269,7 @@ const ApprovalWorkflows = () => {
       fetchWorkflows();
     } catch (err) {
       console.error('Failed to save approval workflow:', err);
-      alert(err.response?.data?.detail || 'Failed to save approval workflow.');
+      showToast(err.response?.data?.detail || 'Failed to save approval workflow.', 'error');
     } finally {
       setSubmitting(false);
     }
@@ -290,7 +291,7 @@ const ApprovalWorkflows = () => {
       fetchWorkflows();
     } catch (err) {
       console.error('Failed to delete workflow:', err);
-      alert(err.response?.data?.detail || 'Failed to delete approval workflow.');
+      showToast(err.response?.data?.detail || 'Failed to delete approval workflow.', 'error');
     } finally {
       setDeleteSubmitting(false);
     }
@@ -704,6 +705,7 @@ const ApprovalWorkflows = () => {
           </div>
         </div>
       )}
+      <ToastContainer />
     </div>
   );
 };

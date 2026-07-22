@@ -18,6 +18,7 @@ from app.models.identity import Identity
 from app.models.application_account import ApplicationAccount
 from app.models.application_account_entitlement import ApplicationAccountEntitlement
 from app.models.audit_log import AuditLog
+from app.models.sod_violation import SodViolation, SodViolationAudit, SodViolationComment, SodViolationAttachment
 from app.schemas.sod_policy import (
     SodPolicyCreate,
     SodPolicyUpdate,
@@ -309,7 +310,21 @@ def delete_sod_policy(id: str, x_user_name: str = Header(default="System"), db: 
         
     # Capture old state for audit logging
     old_val = {"policy_code": policy.policy_code, "policy_name": policy.policy_name}
-    
+
+    # SodViolation.policy_id is a NOT NULL FK with no ON DELETE CASCADE, so
+    # deleting a policy that already has violations against it fails with an
+    # IntegrityError (surfaced to the UI as a generic "Failed to delete
+    # policy"). Clean up violations - and their comments/attachments/audit
+    # rows - before deleting the policy itself.
+    violation_ids = [
+        v_id for (v_id,) in db.query(SodViolation.id).filter(SodViolation.policy_id == id).all()
+    ]
+    if violation_ids:
+        db.query(SodViolationAudit).filter(SodViolationAudit.violation_id.in_(violation_ids)).delete(synchronize_session=False)
+        db.query(SodViolationComment).filter(SodViolationComment.violation_id.in_(violation_ids)).delete(synchronize_session=False)
+        db.query(SodViolationAttachment).filter(SodViolationAttachment.violation_id.in_(violation_ids)).delete(synchronize_session=False)
+        db.query(SodViolation).filter(SodViolation.policy_id == id).delete(synchronize_session=False)
+
     db.delete(policy)
     db.commit()
     

@@ -106,7 +106,7 @@ class ApprovalWorkflowService:
                     approver_name=lvl.specific_approver_name or role.primary_owner_name,
                     status=step_status,
                     assigned_at=now,
-                    action_taken_at=now if is_auto else None,
+                    action_at=now if is_auto else None,
                     remarks="Auto-approved by policy rule" if is_auto else None
                 )
                 db.add(step)

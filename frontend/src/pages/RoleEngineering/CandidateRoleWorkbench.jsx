@@ -170,6 +170,7 @@ const CandidateRoleWorkbench = () => {
   
   // Delete Confirmation state
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [deleteRoleId, setDeleteRoleId] = useState(null);
   const [deleteRoleName, setDeleteRoleName] = useState('');
 
@@ -565,18 +566,24 @@ const CandidateRoleWorkbench = () => {
 
   // RC-001: Publish a role that's finished Security Approval ("Ready For Publish")
   // to the Role Catalog.
-  const handlePublishToCatalog = async () => {
+  const handlePublishToCatalog = () => {
     if (!selectedRole) return;
-    if (!window.confirm(`Publish '${selectedRole.role_name}' to the Role Catalog? It will become visible in Published/Business/Technical Role views.`)) return;
+    setShowPublishConfirm(true);
+  };
+
+  const handleConfirmPublish = async () => {
+    if (!selectedRole) return;
     try {
       setPublishing(true);
       await publishRole(selectedRole.id);
       await handleOpenDrawer(selectedRole.id);
       fetchRolesData();
       fetchKPIStats();
+      setShowPublishConfirm(false);
     } catch (err) {
       console.error("Failed to publish role to catalog:", err);
-      alert(err.response?.data?.detail || "Failed to publish this role. Please try again.");
+      setErrorMsg(err.response?.data?.detail || "Failed to publish this role. Please try again.");
+      setShowPublishConfirm(false);
     } finally {
       setPublishing(false);
     }
@@ -2266,6 +2273,40 @@ const CandidateRoleWorkbench = () => {
                 disabled={submitting}
               >
                 {submitting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showPublishConfirm && selectedRole && (
+        <div className="modal-overlay-custom">
+          <div className="modal-dialog-panel">
+            <div className="confirm-dialog-content">
+              <div className="confirm-icon-box">
+                <BookOpen size={20} />
+              </div>
+              <div className="confirm-text-desc">
+                <h4>Publish to Role Catalog</h4>
+                <p>
+                  Publish <b>{selectedRole.role_name}</b> to the Role Catalog? It will become
+                  visible in the Published/Business/Technical Role views.
+                </p>
+              </div>
+            </div>
+            <div className="modal-dialog-footer">
+              <button
+                className="btn-action-premium"
+                onClick={() => setShowPublishConfirm(false)}
+                disabled={publishing}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-action-premium primary"
+                onClick={handleConfirmPublish}
+                disabled={publishing}
+              >
+                {publishing ? 'Publishing...' : 'Publish'}
               </button>
             </div>
           </div>
