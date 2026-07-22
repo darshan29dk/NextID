@@ -395,7 +395,9 @@ const SoDPolicies = () => {
       const res = await apiClient.post('/governance/sod-policies/import', body, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      setImportStatus({ success: true, message: `Successfully imported ${res.data.imported} policies (Skipped: ${res.data.skipped})` });
+      const msg = res.data.message || `Successfully imported ${res.data.imported} policies. (Skipped: ${res.data.skipped})`;
+      setImportStatus({ success: true, message: msg });
+      showToast(msg, "success");
       fetchPolicies();
     } catch (err) {
       setImportStatus({ success: false, message: err.response?.data?.detail || "Import failed" });
@@ -1026,14 +1028,32 @@ const SoDPolicies = () => {
             <form onSubmit={handleImportSubmit}>
               <div className="form-scroll-body">
                 <div className="form-group">
-                  <label>Select JSON File <span className="text-danger">*</span></label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <label style={{ margin: 0 }}>Select JSON, CSV, or Excel File <span className="text-danger">*</span></label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const sampleHeaders = "Policy Name,Description,Risk Level,Policy Type,Status,Business Owner,Application Name,Entitlement One,Entitlement Two,Condition Type\n";
+                        const sampleRow1 = "Financial Admin & Approver SoD,User cannot have both Financial Admin and Approver entitlements,HIGH,STATIC,ACTIVE,Finance Owner,Salesforce,Create Invoices,Approve Invoices,AND\n";
+                        const sampleRow2 = "User Admin & Superuser Control,User cannot hold User Admin and Superuser privileges simultaneously,CRITICAL,STATIC,ACTIVE,IT Security,Active Directory,Domain Admins,Enterprise Admins,AND\n";
+                        const blob = new Blob([sampleHeaders + sampleRow1 + sampleRow2], { type: 'text/csv;charset=utf-8;' });
+                        const link = document.createElement("a");
+                        link.href = URL.createObjectURL(blob);
+                        link.download = "sod_policies_sample_template.csv";
+                        link.click();
+                      }}
+                      style={{ fontSize: '11px', color: 'var(--primary, #2563eb)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', fontWeight: 600 }}
+                    >
+                      Download Sample Template
+                    </button>
+                  </div>
                   <input 
                     type="file" 
-                    accept=".json"
+                    accept=".json,.csv,.xlsx,.xls"
                     onChange={e => setImportFile(e.target.files[0])}
                   />
                   <p className="text-muted" style={{ fontSize: '11px', marginTop: '6px' }}>
-                    Upload a JSON file containing an array of policies with rules mapping logic.
+                    Supports JSON, CSV, and Excel (.xlsx / .xls) files. Imported policies automatically trigger immediate violation scans across user identities.
                   </p>
                 </div>
 
@@ -1048,7 +1068,7 @@ const SoDPolicies = () => {
               <div className="modal-footer">
                 <button type="button" className="btn-secondary" onClick={() => setShowImportModal(false)}>Cancel</button>
                 <button type="submit" className="btn-primary" disabled={submitting || !importFile}>
-                  {submitting ? "Importing..." : "Upload & Import"}
+                  {submitting ? "Importing & Scanning..." : "Upload & Import"}
                 </button>
               </div>
             </form>

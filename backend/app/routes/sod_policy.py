@@ -571,22 +571,118 @@ def simulate_existing_policy(id: str, db: Session = Depends(get_db)):
         "violators": violators
     }
 
-# ── Bulk Imports ──
+# ── Bulk Imports (JSON, CSV, Excel) ──
+def parse_imported_policies_file(file: UploadFile) -> list:
+    filename = file.filename.lower()
+    content = file.file.read()
+    
+    if filename.endswith(".json"):
+        raw = json.loads(content.decode("utf-8-sig", errors="ignore"))
+        return raw if isinstance(raw, list) else [raw]
+        
+    rows = []
+    if filename.endswith(".csv"):
+        text = content.decode("utf-8-sig", errors="ignore")
+        reader = csv.DictReader(io.StringIO(text))
+        rows = list(reader)
+    elif filename.endswith(".xlsx") or filename.endswith(".xls"):
+        workbook = openpyxl.load_workbook(filename=io.BytesIO(content), data_only=True)
+        sheet = workbook.active
+        headers = [str(cell.value or '').strip() for cell in sheet[1]]
+        for row_cells in sheet.iter_rows(min_row=2, values_only=True):
+            if any(row_cells):
+                r_dict = {headers[i]: (row_cells[i] if i < len(headers) else None) for i in range(len(headers))}
+                rows.append(r_dict)
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported file format. Please upload a .json, .csv, .xlsx, or .xls file."
+        )
+
+    # Group CSV / Excel rows into policy dictionary by Policy Name
+    grouped = {}
+    current_key = None
+
+    for row in rows:
+        clean = {}
+        for k, v in row.items():
+            if k:
+                clean_key = str(k).strip().lower().replace("_", " ").replace("-", " ")
+                clean[clean_key] = str(v).strip() if v is not None else ""
+
+        name = (
+            clean.get("policy name") or
+            clean.get("policyname") or
+            clean.get("name") or
+            clean.get("policy code") or
+            clean.get("policycode")
+        )
+
+        if name:
+            current_key = name
+
+        if not current_key:
+            continue
+
+        if current_key not in grouped:
+            grouped[current_key] = {
+                "policy_name": current_key,
+                "description": clean.get("description", f"Imported policy {current_key}"),
+                "risk_level": (clean.get("risk level") or clean.get("risk") or "HIGH").upper(),
+                "policy_type": (clean.get("policy type") or clean.get("type") or "STATIC").upper(),
+                "status": (clean.get("status") or "ACTIVE").upper(),
+                "business_owner": clean.get("business owner") or clean.get("owner") or "System",
+                "approver": clean.get("approver") or "System",
+                "rules": []
+            }
+
+        app_name = (
+            clean.get("application name") or
+            clean.get("application") or
+            clean.get("app name") or
+            clean.get("app")
+        )
+        ent1 = (
+            clean.get("entitlement one") or
+            clean.get("entitlement 1") or
+            clean.get("entitlement1") or
+            clean.get("first entitlement")
+        )
+        ent2 = (
+            clean.get("entitlement two") or
+            clean.get("entitlement 2") or
+            clean.get("entitlement2") or
+            clean.get("second entitlement")
+        )
+        cond = (
+            clean.get("condition type") or
+            clean.get("condition") or
+            clean.get("operator") or
+            clean.get("condition_type") or
+            "AND"
+        ).upper()
+
+        if app_name and ent1 and ent2:
+            grouped[current_key]["rules"].append({
+                "application_name": app_name,
+                "entitlement_one": ent1,
+                "entitlement_two": ent2,
+                "condition_type": cond if cond in ["AND", "OR", "NOT"] else "AND"
+            })
+
+    return list(grouped.values())
+
+
 @router.post("/governance/sod-policies/import", dependencies=[Depends(require_permission("SoD Policies", "create"))])
 def import_sod_policies(file: UploadFile = File(...), x_user_name: str = Header(default="System"), db: Session = Depends(get_db)):
-    """Imports policies from an uploaded JSON file."""
-    if not file.filename.endswith(".json"):
-        raise HTTPException(status_code=400, detail="Only JSON file uploads are supported for policy imports.")
-        
+    """Imports policies from an uploaded JSON, CSV, or Excel (.xlsx/.xls) file and automatically triggers violation scans."""
     try:
-        content = file.file.read()
-        policies_list = json.loads(content)
+        policies_list = parse_imported_policies_file(file)
         
         imported_count = 0
         skipped_count = 0
         
         for item in policies_list:
-            # Check unique code or name
             name = item.get("policy_name")
             rules_data = item.get("rules", [])
             
@@ -594,15 +690,14 @@ def import_sod_policies(file: UploadFile = File(...), x_user_name: str = Header(
                 skipped_count += 1
                 continue
                 
-            # Create policy
             code = get_next_policy_code(db)
             policy = SodPolicy(
                 policy_code=code,
                 policy_name=name,
                 description=item.get("description", ""),
-                risk_level=item.get("risk_level", "LOW"),
+                risk_level=item.get("risk_level", "HIGH"),
                 policy_type=item.get("policy_type", "STATIC"),
-                status=item.get("status", "DRAFT"),
+                status=item.get("status", "ACTIVE"),
                 business_owner=item.get("business_owner", "System"),
                 approver=item.get("approver", "System"),
                 created_by=x_user_name,
@@ -611,7 +706,6 @@ def import_sod_policies(file: UploadFile = File(...), x_user_name: str = Header(
             db.add(policy)
             db.flush()
             
-            # Create rules
             for r in rules_data:
                 rule = SodPolicyRule(
                     policy_id=policy.id,
@@ -624,11 +718,34 @@ def import_sod_policies(file: UploadFile = File(...), x_user_name: str = Header(
             
             db.commit()
             imported_count += 1
-            
-            # Audit log
             write_sod_audit(db, policy.id, "Import", x_user_name, new_val={"policy_code": code, "policy_name": name})
-            
-        return {"imported": imported_count, "skipped": skipped_count}
+
+        # --- Automatically execute SoD violation scan after policy import ---
+        if imported_count > 0:
+            try:
+                from app.services.sod_violation_service import run_violation_scan_job
+                scan = SodScanHistory(
+                    scan_name=f"Auto Import Scan - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
+                    scan_type="FULL",
+                    started_by=x_user_name,
+                    status="RUNNING",
+                    start_time=datetime.utcnow()
+                )
+                db.add(scan)
+                db.commit()
+                db.refresh(scan)
+                run_violation_scan_job(db, scan.id, "FULL", x_user_name)
+            except Exception as scan_err:
+                print("Auto violation scan after import warning:", scan_err)
+
+        return {
+            "imported": imported_count,
+            "skipped": skipped_count,
+            "auto_scanned": True,
+            "message": f"Successfully imported {imported_count} policies from '{file.filename}'. Automatic violation scan executed."
+        }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to parse or save imported file: {e}")
 
