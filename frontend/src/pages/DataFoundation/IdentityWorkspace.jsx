@@ -119,6 +119,10 @@ const IdentityWorkspace = () => {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [resetSubmitting, setResetSubmitting] = useState(false);
 
+  // Auto-Correlation result popup modal state
+  const [showCorrelationModal, setShowCorrelationModal] = useState(false);
+  const [correlationResult, setCorrelationResult] = useState(null);
+
   // Bulk multi-select delete state
   const [selectedIds, setSelectedIds] = useState([]);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
@@ -247,7 +251,8 @@ const IdentityWorkspace = () => {
     try {
       setRunningAutoCorrelation(true);
       const res = await runAutoCorrelation();
-      showToast(res.message || 'Auto-correlation complete!', 'success');
+      setCorrelationResult(res);
+      setShowCorrelationModal(true);
       if (view === 'detail') {
         fetchAccounts();
       } else {
@@ -1396,6 +1401,60 @@ const IdentityWorkspace = () => {
               <button className="btn-modal-delete" type="button" disabled={unlinkSubmitting} onClick={handleUnlinkAccount}>
                 {unlinkSubmitting ? 'Unlinking...' : 'Confirm Unlink'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Auto-Correlation Result Modal Popup */}
+      {showCorrelationModal && (
+        <div className="modal-overlay-custom">
+          <div className="modal-content-custom" style={{ maxWidth: '520px', width: '92%', borderRadius: '12px' }}>
+            <div className="modal-header-custom" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '17px', fontWeight: 700 }}>
+                <CheckCircle2 size={20} style={{ color: 'var(--success, #10b981)' }} />
+                Auto-Correlation Results
+              </h3>
+              <button className="modal-close-btn-custom" type="button" onClick={() => setShowCorrelationModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ padding: '20px' }}>
+              <p style={{ margin: '0 0 16px 0', fontSize: '13.5px', color: 'var(--text-main)', lineHeight: '1.5' }}>
+                The automated correlation engine finished processing imported application accounts against the Identity Repository.
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
+                <div style={{ padding: '12px', background: 'var(--bg-muted, rgba(0,0,0,0.03))', borderRadius: '8px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>Processed</div>
+                  <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--text-main)' }}>{correlationResult?.total_processed || 0}</div>
+                </div>
+
+                <div style={{ padding: '12px', background: 'rgba(16, 185, 129, 0.08)', borderRadius: '8px', border: '1px solid rgba(16, 185, 129, 0.2)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: '#10b981', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>Correlated</div>
+                  <div style={{ fontSize: '20px', fontWeight: 700, color: '#10b981' }}>{correlationResult?.correlated || 0}</div>
+                </div>
+
+                <div style={{ padding: '12px', background: 'rgba(245, 158, 11, 0.08)', borderRadius: '8px', border: '1px solid rgba(245, 158, 11, 0.2)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '11px', color: '#f59e0b', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>Needs Review</div>
+                  <div style={{ fontSize: '20px', fontWeight: 700, color: '#f59e0b' }}>{correlationResult?.needs_review || 0}</div>
+                </div>
+              </div>
+
+              <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', background: 'var(--bg-card)', padding: '12px', borderRadius: '6px', border: '1px solid var(--border-color)', marginBottom: '20px' }}>
+                {correlationResult?.message || 'Accounts have been successfully evaluated and matched.'}
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  className="btn-primary-action"
+                  type="button"
+                  onClick={() => setShowCorrelationModal(false)}
+                >
+                  Done
+                </button>
+              </div>
             </div>
           </div>
         </div>
