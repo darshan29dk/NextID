@@ -2,7 +2,7 @@ import json
 import csv
 import io
 import re
-from fastapi import APIRouter, HTTPException, Depends, Header, status, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, Header, status, UploadFile, File, BackgroundTasks
 from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
@@ -799,8 +799,13 @@ def parse_imported_policies_file(file: UploadFile) -> list:
 
 
 @router.post("/governance/sod-policies/import", dependencies=[Depends(require_permission("SoD Policies", "create"))])
-def import_sod_policies(file: UploadFile = File(...), x_user_name: str = Header(default="System"), db: Session = Depends(get_db)):
-    """Imports policies from an uploaded JSON, CSV, or Excel (.xlsx/.xls) file and automatically triggers violation scans."""
+def import_sod_policies(
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    x_user_name: str = Header(default="System"),
+    db: Session = Depends(get_db)
+):
+    """Imports policies from an uploaded JSON, CSV, or Excel (.xlsx/.xls) file and automatically triggers violation scans in background."""
     try:
         policies_list = parse_imported_policies_file(file)
         
@@ -845,7 +850,7 @@ def import_sod_policies(file: UploadFile = File(...), x_user_name: str = Header(
             imported_count += 1
             write_sod_audit(db, policy.id, "Import", x_user_name, new_val={"policy_code": code, "policy_name": name})
 
-        # --- Automatically execute SoD violation scan after policy import ---
+        # --- Automatically queue SoD violation scan in background after policy import ---
         if imported_count > 0:
             try:
                 from app.services.sod_violation_service import run_violation_scan_job
@@ -859,15 +864,15 @@ def import_sod_policies(file: UploadFile = File(...), x_user_name: str = Header(
                 db.add(scan)
                 db.commit()
                 db.refresh(scan)
-                run_violation_scan_job(db, scan.id, "FULL", x_user_name)
+                background_tasks.add_task(run_violation_scan_job, db, scan.id, "FULL", x_user_name)
             except Exception as scan_err:
-                print("Auto violation scan after import warning:", scan_err)
+                print("Auto violation scan background queue warning:", scan_err)
 
         return {
             "imported": imported_count,
             "skipped": skipped_count,
             "auto_scanned": True,
-            "message": f"Successfully imported {imported_count} policies from '{file.filename}'. Automatic violation scan executed."
+            "message": f"Successfully imported {imported_count} policies from '{file.filename}'."
         }
     except HTTPException:
         raise
