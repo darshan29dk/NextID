@@ -272,18 +272,18 @@ class RoleMiningEngine:
             # clustered — they're automatic outliers for this run.
             for acc in unclusterable:
                 total_outliers += 1
-                account_result_rows.append(CampaignAccountResult(
-                    campaign_id=campaign.id, account_id=acc.id, identity_id=acc.identity_id,
-                    job_function=job_function, candidate_role_id=None, similarity_score=0.0
-                ))
+                account_result_rows.append({
+                    "campaign_id": campaign.id, "account_id": acc.id, "identity_id": acc.identity_id,
+                    "job_function": job_function, "candidate_role_id": None, "similarity_score": 0.0
+                })
 
             if len(clusterable) < max(2, campaign.min_samples):
                 for acc in clusterable:
                     total_outliers += 1
-                    account_result_rows.append(CampaignAccountResult(
-                        campaign_id=campaign.id, account_id=acc.id, identity_id=acc.identity_id,
-                        job_function=job_function, candidate_role_id=None, similarity_score=0.0
-                    ))
+                    account_result_rows.append({
+                        "campaign_id": campaign.id, "account_id": acc.id, "identity_id": acc.identity_id,
+                        "job_function": job_function, "candidate_role_id": None, "similarity_score": 0.0
+                    })
                 continue
 
             all_keys = sorted({key for acc in clusterable for key in account_entitlements[acc.id]})
@@ -310,10 +310,10 @@ class RoleMiningEngine:
                 if label == -1:
                     for acc in members:
                         total_outliers += 1
-                        account_result_rows.append(CampaignAccountResult(
-                            campaign_id=campaign.id, account_id=acc.id, identity_id=acc.identity_id,
-                            job_function=job_function, candidate_role_id=None, similarity_score=0.0
-                        ))
+                        account_result_rows.append({
+                            "campaign_id": campaign.id, "account_id": acc.id, "identity_id": acc.identity_id,
+                            "job_function": job_function, "candidate_role_id": None, "similarity_score": 0.0
+                        })
                     continue
 
                 # Coverage of each entitlement across this cluster's members
@@ -409,10 +409,10 @@ class RoleMiningEngine:
                 for acc in members:
                     sim = _jaccard_similarity(account_entitlements[acc.id], core_set)
                     similarities.append(sim)
-                    account_result_rows.append(CampaignAccountResult(
-                        campaign_id=campaign.id, account_id=acc.id, identity_id=acc.identity_id,
-                        job_function=job_function, candidate_role_id=role.id, similarity_score=round(sim, 1)
-                    ))
+                    account_result_rows.append({
+                        "campaign_id": campaign.id, "account_id": acc.id, "identity_id": acc.identity_id,
+                        "job_function": job_function, "candidate_role_id": role.id, "similarity_score": round(sim, 1)
+                    })
                     
                     # Seed members into candidate_role_members
                     ident = acc_id_to_identity[acc.id]
@@ -447,7 +447,16 @@ class RoleMiningEngine:
 
                 total_candidate_roles += 1
 
-        db.add_all(account_result_rows)
+        # Bulk-insert via Core executemany instead of one ORM object per
+        # account (up to one per every scoped account, e.g. 4675) - the ORM
+        # add_all()/commit() path here was issuing an individual INSERT
+        # round-trip per row against the remote DB, same class of slowdown
+        # fixed earlier in Import Accounts and the correlation engine.
+        from sqlalchemy import insert
+        if account_result_rows:
+            for i in range(0, len(account_result_rows), 1000):
+                chunk = account_result_rows[i:i + 1000]
+                db.execute(insert(CampaignAccountResult.__table__), chunk)
 
         total_accounts_analyzed = len(scoped)
         campaign.total_accounts_analyzed = total_accounts_analyzed

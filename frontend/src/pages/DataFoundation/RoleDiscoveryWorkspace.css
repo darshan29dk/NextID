@@ -338,6 +338,16 @@
   gap: 4px;
 }
 
+.pagination-ellipsis {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12.5px;
+  color: var(--text-muted);
+}
+
 .btn-page-nav,
 .btn-page-number {
   width: 32px;

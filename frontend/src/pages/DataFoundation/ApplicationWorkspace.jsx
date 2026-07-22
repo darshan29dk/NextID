@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
+import { getPageNumbers } from '../../utils/pagination';
 import {
   getApplications,
   getApplication,
@@ -47,6 +48,7 @@ import {
   getApplicationSchema,
   importApplicationAccounts,
   getApplicationAccounts,
+  bulkDeleteApplicationAccounts,
   importApplicationEntitlements,
   getApplicationEntitlements,
   importApplicationRoles,
@@ -167,6 +169,8 @@ const ApplicationWorkspace = () => {
   const [accountsSearch, setAccountsSearch] = useState('');
   const [importingAccounts, setImportingAccounts] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [bulkDeletingAccounts, setBulkDeletingAccounts] = useState(false);
+  const [showBulkDeleteAccountsConfirm, setShowBulkDeleteAccountsConfirm] = useState(false);
 
   const [entitlements, setEntitlements] = useState([]);
   const [entitlementsLoading, setEntitlementsLoading] = useState(false);
@@ -526,14 +530,20 @@ const ApplicationWorkspace = () => {
     setSchemaFields([]);
     setSchemaError(null);
     setAccounts([]);
+    setAccountsTotal(0);
+    setAccountsTotalPages(0);
     setAccountsPage(1);
     setAccountsSearch('');
     setImportResult(null);
     setEntitlements([]);
+    setEntitlementsTotal(0);
+    setEntitlementsTotalPages(0);
     setEntitlementsPage(1);
     setEntitlementsSearch('');
     setEntitlementImportResult(null);
     setRoles([]);
+    setRolesTotal(0);
+    setRolesTotalPages(0);
     setRolesPage(1);
     setRolesSearch('');
     setRoleImportResult(null);
@@ -585,6 +595,33 @@ const ApplicationWorkspace = () => {
       });
     } finally {
       setImportingAccounts(false);
+    }
+  };
+
+  const handleBulkDeleteAccounts = () => {
+    if (!selectedApplication || !accountsSearch.trim()) return;
+    setShowBulkDeleteAccountsConfirm(true);
+  };
+
+  const handleConfirmBulkDeleteAccounts = async () => {
+    if (!selectedApplication || !accountsSearch.trim()) return;
+    const term = accountsSearch.trim();
+    try {
+      setBulkDeletingAccounts(true);
+      const result = await bulkDeleteApplicationAccounts(selectedApplication.id, term);
+      setImportResult({ success: true, message: `Deleted ${result.deleted_count} account(s) matching "${term}".` });
+      setAccountsPage(1);
+      fetchAccounts();
+      setShowBulkDeleteAccountsConfirm(false);
+    } catch (err) {
+      console.error('Bulk delete accounts failed:', err);
+      setImportResult({
+        success: false,
+        message: err.response?.data?.detail || 'Bulk delete failed unexpectedly.'
+      });
+      setShowBulkDeleteAccountsConfirm(false);
+    } finally {
+      setBulkDeletingAccounts(false);
     }
   };
   const fetchEntitlements = useCallback(async () => {
@@ -689,6 +726,26 @@ const ApplicationWorkspace = () => {
       console.error('Failed to load detail history data:', err);
     } finally {
       setDetailLoading(false);
+    }
+
+    // Fetch real Accounts/Entitlements/Roles counts for the tab badges
+    // right away, regardless of which tab happens to be active. Without
+    // this, the badges kept showing whatever was left over from the
+    // previously-viewed application until the user actually clicked into
+    // that specific tab (each tab only fetches its own data on click) -
+    // e.g. opening a brand-new application could show a stale non-zero
+    // "Accounts" count carried over from a different application.
+    try {
+      const [accountsRes, entitlementsRes, rolesRes] = await Promise.all([
+        getApplicationAccounts(applicationId, { page: 1, limit: 1 }),
+        getApplicationEntitlements(applicationId, { page: 1, limit: 1 }),
+        getApplicationRoles(applicationId, { page: 1, limit: 1 })
+      ]);
+      setAccountsTotal(accountsRes.total || 0);
+      setEntitlementsTotal(entitlementsRes.total || 0);
+      setRolesTotal(rolesRes.total || 0);
+    } catch (err) {
+      console.error('Failed to load tab counts:', err);
     }
   };
 
@@ -1221,6 +1278,29 @@ const ApplicationWorkspace = () => {
           </div>
         )}
 
+        {showBulkDeleteAccountsConfirm && (
+          <div className="modal-overlay-custom">
+            <div className="modal-content-custom delete-dialog-content">
+              <div className="delete-dialog-body">
+                <div className="delete-dialog-icon"><AlertTriangle size={24} /></div>
+                <div className="delete-dialog-text">
+                  <h4>Delete Matching Accounts?</h4>
+                  <p>
+                    Delete every account for <b>{selectedApplication?.application_name}</b> whose ID, name, or
+                    email matches "<b>{accountsSearch.trim()}</b>"? This cannot be undone.
+                  </p>
+                </div>
+              </div>
+              <div className="modal-footer-custom">
+                <button className="btn-modal-cancel" type="button" disabled={bulkDeletingAccounts} onClick={() => setShowBulkDeleteAccountsConfirm(false)}>Cancel</button>
+                <button className="btn-modal-delete" type="button" disabled={bulkDeletingAccounts} onClick={handleConfirmBulkDeleteAccounts}>
+                  {bulkDeletingAccounts ? 'Deleting...' : 'Confirm Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {showAssignOwnerModal && (
           <div className="modal-overlay-custom">
             <div className="modal-content-custom" style={{ maxWidth: '520px', width: '90%' }}>
@@ -1620,7 +1700,7 @@ const ApplicationWorkspace = () => {
                           </div>
                         )}
 
-                        <div style={{ marginBottom: '12px' }}>
+                        <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <input
                             type="text"
                             placeholder="Search by account ID, name, or email..."
@@ -1628,6 +1708,17 @@ const ApplicationWorkspace = () => {
                             onChange={(e) => { setAccountsSearch(e.target.value); setAccountsPage(1); }}
                             style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--border-color)', borderRadius: '6px', width: '260px', backgroundColor: 'var(--bg-card)', color: 'var(--text-main)' }}
                           />
+                          {accountsSearch.trim() && (
+                            <button
+                              onClick={handleBulkDeleteAccounts}
+                              disabled={bulkDeletingAccounts}
+                              title="Delete every account matching the current search"
+                              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: '600', border: '1px solid var(--danger)', borderRadius: '6px', backgroundColor: 'transparent', color: 'var(--danger)', cursor: bulkDeletingAccounts ? 'default' : 'pointer' }}
+                            >
+                              <Trash2 size={13} />
+                              {bulkDeletingAccounts ? 'Deleting...' : 'Delete Matching'}
+                            </button>
+                          )}
                         </div>
 
                         {accountsLoading ? (
@@ -2219,10 +2310,14 @@ const ApplicationWorkspace = () => {
                 <button className="btn-page-nav" disabled={page === 1} onClick={() => setPage(page - 1)}>
                   <ChevronLeft size={14} />
                 </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => (
-                  <button key={pNum} className={`btn-page-number ${page === pNum ? 'active' : ''}`} onClick={() => setPage(pNum)}>
-                    {pNum}
-                  </button>
+                {getPageNumbers(page, totalPages).map((pNum, idx) => (
+                  pNum === '...' ? (
+                    <span key={`dots-${idx}`} className="pagination-ellipsis">...</span>
+                  ) : (
+                    <button key={pNum} className={`btn-page-number ${page === pNum ? 'active' : ''}`} onClick={() => setPage(pNum)}>
+                      {pNum}
+                    </button>
+                  )
                 ))}
                 <button className="btn-page-nav" disabled={page === totalPages} onClick={() => setPage(page + 1)}>
                   <ChevronRight size={14} />

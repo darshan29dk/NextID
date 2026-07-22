@@ -28,7 +28,7 @@ class CorrelationEngine:
             query = query.filter(ApplicationAccount.application_id == application_id)
         
         accounts = query.all()
-        
+
         # Fetch active correlation rules
         rules = db.query(CorrelationRule).filter(CorrelationRule.is_active == True).all()
         if not rules:
@@ -37,40 +37,70 @@ class CorrelationEngine:
 
         # Fetch all active identities to build lookup map in memory for speed
         identities = db.query(Identity).filter(Identity.is_deleted == False).all()
-        
+
+        # For "Exact" rules, pre-build a value -> identity map once per rule so each
+        # account does an O(1) dict lookup instead of scanning every identity.
+        # "Partial" rules can't be hashed (substring match), so they keep a flat list
+        # of (normalized_value, identity) pairs, but that list is still only built once.
+        exact_rules = []
+        partial_rules = []
+        for rule in rules:
+            if rule.match_type == "Partial":
+                pairs = []
+                for identity in identities:
+                    id_val = getattr(identity, rule.identity_attribute, None)
+                    if id_val is None:
+                        continue
+                    id_val_str = str(id_val).strip().lower()
+                    if id_val_str:
+                        pairs.append((id_val_str, identity))
+                partial_rules.append((rule, pairs))
+            else:
+                value_map = {}
+                for identity in identities:
+                    id_val = getattr(identity, rule.identity_attribute, None)
+                    if id_val is None:
+                        continue
+                    id_val_str = str(id_val).strip().lower()
+                    if id_val_str and id_val_str not in value_map:
+                        value_map[id_val_str] = identity
+                exact_rules.append((rule, value_map))
+
         updated_accounts = []
-        
+
         for account in accounts:
             matched_identity = None
             best_confidence = 0
-            
-            for rule in rules:
+
+            for rule, value_map in exact_rules:
                 acc_val = getattr(account, rule.account_attribute, None)
                 if acc_val is None:
                     continue
                 acc_val_str = str(acc_val).strip().lower()
                 if not acc_val_str:
                     continue
-                
-                for identity in identities:
-                    id_val = getattr(identity, rule.identity_attribute, None)
-                    if id_val is None:
-                        continue
-                    id_val_str = str(id_val).strip().lower()
-                    if not id_val_str:
-                        continue
-                    
-                    is_match = False
-                    if rule.match_type == "Exact":
-                        is_match = (acc_val_str == id_val_str)
-                    elif rule.match_type == "Partial":
-                        is_match = (acc_val_str in id_val_str or id_val_str in acc_val_str)
-                        
-                    if is_match:
+                identity = value_map.get(acc_val_str)
+                if identity is not None and rule.confidence_score > best_confidence:
+                    best_confidence = rule.confidence_score
+                    matched_identity = identity
+
+            for rule, pairs in partial_rules:
+                acc_val = getattr(account, rule.account_attribute, None)
+                if acc_val is None:
+                    continue
+                acc_val_str = str(acc_val).strip().lower()
+                if not acc_val_str:
+                    continue
+                if rule.confidence_score <= best_confidence:
+                    # Can't possibly beat the current best, skip the scan entirely.
+                    continue
+                for id_val_str, identity in pairs:
+                    if acc_val_str in id_val_str or id_val_str in acc_val_str:
                         if rule.confidence_score > best_confidence:
                             best_confidence = rule.confidence_score
                             matched_identity = identity
-            
+                        break
+
             # Apply Threshold Logic
             if matched_identity and best_confidence >= REVIEW_THRESHOLD:
                 account.identity_id = matched_identity.id

@@ -450,16 +450,22 @@ def get_identity_correlated_accounts(
     if not identity:
         raise HTTPException(status_code=404, detail="Identity not found")
 
-    if not identity.email:
-        return {"accounts": [], "correlation_note": "This identity has no email on file, so account correlation cannot run."}
-
+    # Use the actual correlation link (identity_id), set by the correlation
+    # engine's matching rules or a manual link/unlink in the Correlation
+    # Workspace. This used to re-match by raw email string equality instead,
+    # which ignored rule-based/manual correlation entirely and showed 0
+    # accounts for anyone whose account email didn't byte-for-byte match
+    # their identity email, even if they were correctly correlated.
     matches = db.query(ApplicationAccount, Application).join(
         Application, ApplicationAccount.application_id == Application.id
     ).filter(
-        ApplicationAccount.email == identity.email,
+        ApplicationAccount.identity_id == identity.id,
         ApplicationAccount.is_deleted == False,
         Application.is_deleted == False
     ).all()
+
+    if not matches:
+        return {"accounts": [], "correlation_note": "No application accounts are currently correlated to this identity."}
 
     return {
         "accounts": [
@@ -490,13 +496,13 @@ def get_identity_entitlements(
     if not identity:
         raise HTTPException(status_code=404, detail="Identity not found")
 
-    if not identity.email:
-        return {"entitlements": [], "correlation_note": "This identity has no email on file, so entitlement correlation cannot run."}
-
+    # Same fix as get_identity_correlated_accounts above: use the real
+    # identity_id correlation link instead of re-matching by raw email
+    # equality, so this reflects rule-based/manual correlation results.
     matched_accounts = db.query(ApplicationAccount, Application).join(
         Application, ApplicationAccount.application_id == Application.id
     ).filter(
-        ApplicationAccount.email == identity.email,
+        ApplicationAccount.identity_id == identity.id,
         ApplicationAccount.is_deleted == False,
         Application.is_deleted == False
     ).all()
@@ -562,13 +568,16 @@ def get_identity_timeline(
             "timestamp": identity.updated_at.isoformat()
         })
 
-    if identity.email:
-        matches = db.query(ApplicationAccount, Application).join(
-            Application, ApplicationAccount.application_id == Application.id
-        ).filter(
-            ApplicationAccount.email == identity.email,
-            ApplicationAccount.is_deleted == False
-        ).all()
+    # Same fix as the accounts/entitlements endpoints above: use the real
+    # identity_id correlation link instead of re-matching by raw email
+    # equality.
+    matches = db.query(ApplicationAccount, Application).join(
+        Application, ApplicationAccount.application_id == Application.id
+    ).filter(
+        ApplicationAccount.identity_id == identity.id,
+        ApplicationAccount.is_deleted == False
+    ).all()
+    if matches:
         for acc, app in matches:
             events.append({
                 "event": "Account Correlated",

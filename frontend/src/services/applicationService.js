@@ -72,6 +72,11 @@ export const getApplicationAccounts = async (id, params) => {
   return response.data;
 };
 
+export const bulkDeleteApplicationAccounts = async (id, search) => {
+  const response = await apiClient.delete(`/applications/${id}/accounts`, { params: { search } });
+  return response.data;
+};
+
 export const importApplicationEntitlements = async (id) => {
   const response = await apiClient.post(`/applications/${id}/import-entitlements`);
   return response.data;

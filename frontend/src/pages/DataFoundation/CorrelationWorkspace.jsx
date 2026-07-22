@@ -88,6 +88,14 @@ const CorrelationWorkspace = ({ hideHeader }) => {
     }
   }, [activeTab, fetchReviewQueue, fetchRules]);
 
+  // The "Matching Rules (n)" tab badge reads `rules`, but `rules` was only ever
+  // fetched when that tab was actively clicked. Fetch it once on mount too, so the
+  // count is accurate immediately instead of showing a stale "(0)" on page load.
+  useEffect(() => {
+    fetchRules();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleSearchChange = (e) => {
     setSearchQuery(e.target.value);
     setPage(1);

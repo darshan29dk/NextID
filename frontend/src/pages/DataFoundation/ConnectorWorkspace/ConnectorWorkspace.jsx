@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import Breadcrumb from '../../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../../components/DashboardCard/DashboardCard';
+import { getPageNumbers } from '../../../utils/pagination';
 import { 
   getConnectors, createConnector, updateConnector, deleteConnector, 
   cloneConnector, testConnectorConnection, bulkDeleteConnectors, 
@@ -842,14 +843,18 @@ const ConnectorWorkspace = () => {
               >
                 <ChevronLeft size={16} /> Prev
               </button>
-              {Array.from({ length: totalPages }, (_, i) => (
-                <button 
-                  key={i + 1} 
-                  className={`btn-page-number ${page === i + 1 ? 'active' : ''}`}
-                  onClick={() => setPage(i + 1)}
-                >
-                  {i + 1}
-                </button>
+              {getPageNumbers(page, totalPages).map((pNum, idx) => (
+                pNum === '...' ? (
+                  <span key={`dots-${idx}`} className="pagination-ellipsis">...</span>
+                ) : (
+                  <button
+                    key={pNum}
+                    className={`btn-page-number ${page === pNum ? 'active' : ''}`}
+                    onClick={() => setPage(pNum)}
+                  >
+                    {pNum}
+                  </button>
+                )
               ))}
               <button 
                 className="btn-page" 

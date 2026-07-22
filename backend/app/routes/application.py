@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Header, UploadFile, File
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, asc, desc
+from sqlalchemy import or_, asc, desc, insert
 from typing import List, Optional
 import json
 import os
@@ -732,6 +732,19 @@ def import_accounts(
     ).all()
     account_lookup = {acc.account_id: acc for acc in existing_accounts}
 
+    # Real bottleneck fix: the ORM issues one INSERT (and, previously, one
+    # flush) per row no matter what, and each one is a full network round
+    # trip to the (remote) database - for a 950-account CSV that was 950+
+    # round trips just to create the accounts, before even touching
+    # entitlement links. Everything below is batched instead: new accounts
+    # are collected into plain dicts and sent as a single multi-row INSERT
+    # (SQLAlchemy Core executemany), and entitlement links are batched the
+    # same way once every account (new or existing) has a real ID.
+    new_account_rows = []          # plain dicts for the new-account bulk insert
+    new_account_entitlements = []  # (account_id_val, entitlements_val) - resolved to a real PK after insert
+    existing_account_ids = []      # ids whose old entitlement links need clearing
+    pending_links = []             # (account_pk, entitlements_val) ready to turn into link rows
+
     for idx, row in enumerate(rows):
         try:
             account_id_val = _resolve_field(row, mapping_dict, "account_id", ["account_id", "id", "employee_id", "user_id", "emp_id"]) or f"row_{idx + 1}"
@@ -751,46 +764,85 @@ def import_accounts(
                 existing_account.modified_by = x_user_name
                 existing_account.updated_at = datetime.utcnow()
 
-                # Delete old links for this account
-                db.query(ApplicationAccountEntitlement).filter(
-                    ApplicationAccountEntitlement.application_id == id,
-                    ApplicationAccountEntitlement.account_id == existing_account.id
-                ).delete()
-
-                record = existing_account
+                existing_account_ids.append(existing_account.id)
+                if entitlements_val:
+                    pending_links.append((existing_account.id, entitlements_val))
             else:
-                # Insert new account
-                record = ApplicationAccount(
-                    application_id=id,
-                    account_id=account_id_val,
-                    account_name=account_name_val,
-                    email=email_val,
-                    status=status_val,
-                    raw_data=_clean_row_for_json(row),
-                    created_by=x_user_name,
-                    modified_by=x_user_name
-                )
-                db.add(record)
+                new_account_rows.append({
+                    "application_id": id,
+                    "account_id": account_id_val,
+                    "account_name": account_name_val,
+                    "email": email_val,
+                    "status": status_val,
+                    "raw_data": _clean_row_for_json(row),
+                    "created_by": x_user_name,
+                    "modified_by": x_user_name
+                })
                 imported_count += 1
-
-            if entitlements_val:
-                db.flush()  # assign record.id so the link rows can reference it
-                names = [n.strip() for n in re.split(r"[;,]", entitlements_val) if n.strip()]
-                for name in names:
-                    matched_entitlement = entitlement_lookup.get(name.lower())
-                    link = ApplicationAccountEntitlement(
-                        application_id=id,
-                        account_id=record.id,
-                        entitlement_id=matched_entitlement.id if matched_entitlement else None,
-                        entitlement_name_raw=name,
-                        matched=matched_entitlement is not None
-                    )
-                    db.add(link)
-                    entitlement_links_created += 1
-                    if not matched_entitlement:
-                        unmatched_entitlement_names.add(name)
+                if entitlements_val:
+                    new_account_entitlements.append((account_id_val, entitlements_val))
         except Exception:
             error_count += 1
+
+    # One bulk DELETE for every existing account being re-imported, instead
+    # of one DELETE per row.
+    if existing_account_ids:
+        db.query(ApplicationAccountEntitlement).filter(
+            ApplicationAccountEntitlement.application_id == id,
+            ApplicationAccountEntitlement.account_id.in_(existing_account_ids)
+        ).delete(synchronize_session=False)
+
+    if new_account_rows:
+        # Multi-row INSERTs for every new account, chunked so a very large
+        # CSV can't build one INSERT statement bigger than MySQL's
+        # max_allowed_packet.
+        CHUNK_SIZE = 1000
+        for i in range(0, len(new_account_rows), CHUNK_SIZE):
+            db.execute(insert(ApplicationAccount.__table__), new_account_rows[i:i + CHUNK_SIZE])
+        db.flush()
+
+        # Resolve the just-inserted rows' real IDs by their natural key
+        # (account_id) so entitlement links can reference them - one query
+        # instead of one flush per row.
+        new_account_id_vals = [r["account_id"] for r in new_account_rows]
+        newly_inserted = db.query(ApplicationAccount.id, ApplicationAccount.account_id).filter(
+            ApplicationAccount.application_id == id,
+            ApplicationAccount.account_id.in_(new_account_id_vals)
+        ).all()
+        new_account_pk_by_key = {acc_id_val: pk for pk, acc_id_val in newly_inserted}
+
+        for account_id_val, entitlements_val in new_account_entitlements:
+            pk = new_account_pk_by_key.get(account_id_val)
+            if pk is not None:
+                pending_links.append((pk, entitlements_val))
+
+    link_rows = []
+    for account_pk, entitlements_val in pending_links:
+        try:
+            names = [n.strip() for n in re.split(r"[;,]", entitlements_val) if n.strip()]
+            for name in names:
+                matched_entitlement = entitlement_lookup.get(name.lower())
+                link_rows.append({
+                    "application_id": id,
+                    "account_id": account_pk,
+                    "entitlement_id": matched_entitlement.id if matched_entitlement else None,
+                    "entitlement_name_raw": name,
+                    "matched": matched_entitlement is not None
+                })
+                entitlement_links_created += 1
+                if not matched_entitlement:
+                    unmatched_entitlement_names.add(name)
+        except Exception:
+            error_count += 1
+
+    if link_rows:
+        # Chunked multi-row INSERTs for entitlement links - a single
+        # import can produce thousands of these (each account can carry
+        # several entitlements), so this is the other half of the slowdown
+        # fixed alongside the account insert above.
+        CHUNK_SIZE = 1000
+        for i in range(0, len(link_rows), CHUNK_SIZE):
+            db.execute(insert(ApplicationAccountEntitlement.__table__), link_rows[i:i + CHUNK_SIZE])
 
     db.commit()
     duration_ms = int((time.time() - start_time) * 1000)
@@ -808,9 +860,12 @@ def import_accounts(
     )
     db.add(history)
 
+    # Note: success_count/failure_count are reserved for Test Connection
+    # results (they back the "Test Stats" KPI card, shown next to "Last
+    # Tested" and "Health") - imports have their own history via
+    # ImportRunHistory above, so they don't touch these counters.
     application.last_sync = datetime.utcnow()
     application.last_sync_duration = duration_ms
-    application.success_count = (application.success_count or 0) + 1
     db.commit()
 
     write_application_audit(
@@ -883,6 +938,60 @@ def get_application_accounts(
             } for a in accounts
         ]
     }
+
+
+@router.delete("/applications/{id}/accounts")
+def bulk_delete_accounts_by_search(
+    id: int,
+    search: str,
+    db: Session = Depends(get_db),
+    x_user_name: str = Header(default="System")
+):
+    """
+    Bulk-removes accounts matching a search term (same match fields as the
+    accounts list: account_id/account_name/email). Exists for cleaning up
+    bad imports - e.g. a run where the CSV delimiter or file was wrong and
+    produced junk "row_N" fallback accounts - without having to delete
+    hundreds of rows one at a time. A non-empty search term is required so
+    this can't accidentally wipe every account for the application.
+    """
+    application = db.query(Application).filter(Application.id == id, Application.is_deleted == False).first()
+    if not application:
+        raise HTTPException(status_code=404, detail="Application not found")
+
+    if not search or not search.strip():
+        raise HTTPException(status_code=400, detail="A search term is required to bulk delete accounts.")
+
+    search_term = f"%{search.strip()}%"
+    matching_accounts = db.query(ApplicationAccount).filter(
+        ApplicationAccount.application_id == id,
+        ApplicationAccount.is_deleted == False,
+        or_(
+            ApplicationAccount.account_id.like(search_term),
+            ApplicationAccount.account_name.like(search_term),
+            ApplicationAccount.email.like(search_term)
+        )
+    ).all()
+
+    account_ids = [a.id for a in matching_accounts]
+    if account_ids:
+        db.query(ApplicationAccountEntitlement).filter(
+            ApplicationAccountEntitlement.account_id.in_(account_ids)
+        ).delete(synchronize_session=False)
+        db.query(ApplicationAccount).filter(
+            ApplicationAccount.id.in_(account_ids)
+        ).update({ApplicationAccount.is_deleted: True, ApplicationAccount.modified_by: x_user_name}, synchronize_session=False)
+        db.commit()
+
+    write_application_audit(
+        db=db, user=x_user_name, action="Bulk Delete Accounts",
+        old_val=None,
+        new_val={"id": application.id, "application_name": application.application_name, "search": search, "deleted_count": len(account_ids)}
+    )
+
+    return {"deleted_count": len(account_ids)}
+
+
 @router.post("/applications/{id}/import-entitlements")
 def import_entitlements(
     id: int,
@@ -964,9 +1073,12 @@ def import_entitlements(
     )
     db.add(history)
 
+    # Note: success_count/failure_count are reserved for Test Connection
+    # results (they back the "Test Stats" KPI card, shown next to "Last
+    # Tested" and "Health") - imports have their own history via
+    # ImportRunHistory above, so they don't touch these counters.
     application.last_sync = datetime.utcnow()
     application.last_sync_duration = duration_ms
-    application.success_count = (application.success_count or 0) + 1
     db.commit()
 
     write_application_audit(
@@ -1115,9 +1227,12 @@ def import_roles(
     )
     db.add(history)
 
+    # Note: success_count/failure_count are reserved for Test Connection
+    # results (they back the "Test Stats" KPI card, shown next to "Last
+    # Tested" and "Health") - imports have their own history via
+    # ImportRunHistory above, so they don't touch these counters.
     application.last_sync = datetime.utcnow()
     application.last_sync_duration = duration_ms
-    application.success_count = (application.success_count or 0) + 1
     db.commit()
 
     write_application_audit(

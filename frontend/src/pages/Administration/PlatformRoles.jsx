@@ -25,6 +25,7 @@ import {
   Save
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
+import { getPageNumbers } from '../../utils/pagination';
 import {
   getPlatformRoles,
   getPlatformRole,
@@ -1210,10 +1211,14 @@ const PlatformRoles = () => {
               <button className="btn-page-nav" disabled={page === 1} onClick={() => setPage(page - 1)} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer' }}>
                 <ChevronLeft size={14} />
               </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => (
-                <button key={pNum} className={`btn-page-number ${page === pNum ? 'active' : ''}`} onClick={() => setPage(pNum)} style={{ padding: '4px 8px', borderRadius: '4px', border: page === pNum ? '1px solid var(--primary)' : '1px solid var(--border-color)', backgroundColor: page === pNum ? 'var(--primary)' : 'transparent', color: page === pNum ? '#fff' : 'inherit', cursor: 'pointer' }}>
-                  {pNum}
-                </button>
+              {getPageNumbers(page, totalPages).map((pNum, idx) => (
+                pNum === '...' ? (
+                  <span key={`dots-${idx}`} style={{ padding: '4px 6px', color: 'var(--text-muted)' }}>...</span>
+                ) : (
+                  <button key={pNum} className={`btn-page-number ${page === pNum ? 'active' : ''}`} onClick={() => setPage(pNum)} style={{ padding: '4px 8px', borderRadius: '4px', border: page === pNum ? '1px solid var(--primary)' : '1px solid var(--border-color)', backgroundColor: page === pNum ? 'var(--primary)' : 'transparent', color: page === pNum ? '#fff' : 'inherit', cursor: 'pointer' }}>
+                    {pNum}
+                  </button>
+                )
               ))}
               <button className="btn-page-nav" disabled={page === totalPages} onClick={() => setPage(page + 1)} style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid var(--border-color)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-card)', color: 'var(--text-main)', cursor: 'pointer' }}>
                 <ChevronRight size={14} />

@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
+import { getPageNumbers } from '../../utils/pagination';
 import RoleMiningMatrix from '../../components/RoleMiningMatrix/RoleMiningMatrix';
 import RoleAnalyticalCharts, { VIEW_MODES } from '../../components/RoleMiningMatrix/RoleAnalyticalCharts';
 import { ToastContainer, showToast } from '../../components/Toast/Toast';
@@ -805,10 +806,14 @@ const RoleDiscoveryWorkspace = () => {
                   <button className="btn-page-nav" disabled={campaignPage === 1} onClick={() => setCampaignPage(campaignPage - 1)}>
                     <ChevronLeft size={14} />
                   </button>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pNum) => (
-                    <button key={pNum} className={`btn-page-number ${campaignPage === pNum ? 'active' : ''}`} onClick={() => setCampaignPage(pNum)}>
-                      {pNum}
-                    </button>
+                  {getPageNumbers(campaignPage, totalPages).map((pNum, idx) => (
+                    pNum === '...' ? (
+                      <span key={`dots-${idx}`} className="pagination-ellipsis">...</span>
+                    ) : (
+                      <button key={pNum} className={`btn-page-number ${campaignPage === pNum ? 'active' : ''}`} onClick={() => setCampaignPage(pNum)}>
+                        {pNum}
+                      </button>
+                    )
                   ))}
                   <button className="btn-page-nav" disabled={campaignPage === totalPages} onClick={() => setCampaignPage(campaignPage + 1)}>
                     <ChevronRight size={14} />
