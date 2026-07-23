@@ -20,6 +20,7 @@ from app.models.application_account import ApplicationAccount
 from app.models.application_account_entitlement import ApplicationAccountEntitlement
 from app.models.audit_log import AuditLog
 from app.models.sod_violation import SodViolation, SodScanHistory, SodViolationAudit, SodViolationComment, SodViolationAttachment
+from app.services.sod_violation_service import is_scan_running
 from app.schemas.sod_policy import (
     SodPolicyCreate,
     SodPolicyUpdate,
@@ -893,22 +894,33 @@ def import_sod_policies(
         total_processed = created_count + updated_count
 
         # --- Automatically queue SoD violation scan in background after policy import ---
+        # Guarded the same way the manual "Run Full Scan" button already is
+        # (app/routes/sod_violation.py: start_scan_job) - without this check,
+        # importing a file more than once in quick succession queues multiple
+        # concurrent scans that lock each other out over the same identity
+        # rows. That's exactly what produced the pile of stuck "RUNNING"/
+        # "FAILED" entries in Scan History from repeated import testing.
+        scan_queued = False
         if total_processed > 0:
-            try:
-                from app.services.sod_violation_service import run_violation_scan_job
-                scan = SodScanHistory(
-                    scan_name=f"Auto Import Scan - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
-                    scan_type="FULL",
-                    started_by=x_user_name,
-                    status="RUNNING",
-                    start_time=datetime.utcnow()
-                )
-                db.add(scan)
-                db.commit()
-                db.refresh(scan)
-                background_tasks.add_task(run_violation_scan_job, db, scan.id, "FULL", x_user_name)
-            except Exception as scan_err:
-                print("Auto violation scan background queue warning:", scan_err)
+            if is_scan_running():
+                print("Auto violation scan skipped: another scan is already running.")
+            else:
+                try:
+                    from app.services.sod_violation_service import run_violation_scan_job
+                    scan = SodScanHistory(
+                        scan_name=f"Auto Import Scan - {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
+                        scan_type="FULL",
+                        started_by=x_user_name,
+                        status="RUNNING",
+                        start_time=datetime.utcnow()
+                    )
+                    db.add(scan)
+                    db.commit()
+                    db.refresh(scan)
+                    background_tasks.add_task(run_violation_scan_job, db, scan.id, "FULL", x_user_name)
+                    scan_queued = True
+                except Exception as scan_err:
+                    print("Auto violation scan background queue warning:", scan_err)
 
         msg_details = []
         if created_count > 0:
@@ -917,14 +929,17 @@ def import_sod_policies(
             msg_details.append(f"{updated_count} replaced")
 
         details_str = ", ".join(msg_details) if msg_details else "0 policies"
+        scan_note = " A violation scan has been queued in the background." if scan_queued else (
+            " A scan is already running - violations will reflect these policies once it completes." if total_processed > 0 else ""
+        )
 
         return {
             "imported": total_processed,
             "created": created_count,
             "updated": updated_count,
             "skipped": skipped_count,
-            "auto_scanned": True,
-            "message": f"Successfully processed policies from '{file.filename}' ({details_str})."
+            "auto_scanned": scan_queued,
+            "message": f"Successfully processed policies from '{file.filename}' ({details_str}).{scan_note}"
         }
     except HTTPException:
         raise
