@@ -133,3 +133,102 @@ class ClassificationService:
             db.add(activity)
             db.commit()
         return count
+
+    # In-memory range configurations fallback
+    _classification_ranges = {
+        "birthright_min": 80.0,
+        "birthright_max": 100.0,
+        "request_based_min": 50.0,
+        "request_based_max": 79.9,
+        "unclassified_max": 49.9
+    }
+
+    @classmethod
+    def get_classification_ranges(cls) -> dict:
+        return cls._classification_ranges.copy()
+
+    @classmethod
+    def save_classification_ranges(cls, birthright_min: float, request_based_min: float) -> dict:
+        cls._classification_ranges["birthright_min"] = float(birthright_min)
+        cls._classification_ranges["birthright_max"] = 100.0
+        cls._classification_ranges["request_based_min"] = float(request_based_min)
+        cls._classification_ranges["request_based_max"] = round(float(birthright_min) - 0.1, 1)
+        cls._classification_ranges["unclassified_max"] = round(float(request_based_min) - 0.1, 1)
+        return cls._classification_ranges.copy()
+
+    @classmethod
+    def auto_classify_by_confidence(
+        cls,
+        db: Session,
+        birthright_min: float = 80.0,
+        request_based_min: float = 50.0,
+        overwrite_existing: bool = True,
+        user: str = "System"
+    ) -> dict:
+        """
+        Evaluates candidate roles' confidence_score against configured ranges and updates classification.
+        - confidence_score >= birthright_min -> 'Birthright'
+        - confidence_score >= request_based_min and < birthright_min -> 'Request-Based'
+        - confidence_score < request_based_min -> None / Unclassified
+        """
+        cls.save_classification_ranges(birthright_min, request_based_min)
+
+        roles = db.query(CandidateRole).filter(CandidateRole.is_deleted == False).all()
+
+        birthright_count = 0
+        request_based_count = 0
+        unclassified_count = 0
+        total_processed = 0
+
+        for role in roles:
+            # If overwrite_existing is False and role already has a classification, skip
+            if not overwrite_existing and role.classification:
+                continue
+
+            score = role.confidence_score or 0.0
+            old_classification = role.classification
+
+            if score >= birthright_min:
+                new_class = "Birthright"
+                birthright_count += 1
+            elif score >= request_based_min:
+                new_class = "Request-Based"
+                request_based_count += 1
+            else:
+                new_class = None
+                unclassified_count += 1
+
+            if old_classification != new_class:
+                role.classification = new_class
+                role.modified_by = user
+                role.updated_at = datetime.utcnow()
+                total_processed += 1
+
+        if total_processed > 0:
+            audit = AuditLog(
+                module="Role Engineering",
+                action="Auto-Classification Execution",
+                performed_by=user,
+                new_value=json.dumps({
+                    "birthright_min": birthright_min,
+                    "request_based_min": request_based_min,
+                    "processed": total_processed,
+                    "birthright_count": birthright_count,
+                    "request_based_count": request_based_count,
+                    "unclassified_count": unclassified_count
+                }),
+                timestamp=datetime.utcnow()
+            )
+            db.add(audit)
+            db.commit()
+
+        return {
+            "total_roles": len(roles),
+            "total_updated": total_processed,
+            "birthright_count": birthright_count,
+            "request_based_count": request_based_count,
+            "unclassified_count": unclassified_count,
+            "ranges": cls._classification_ranges.copy(),
+            "message": f"Auto-classification completed. Classified {birthright_count} Birthright roles, {request_based_count} Request-Based roles, and {unclassified_count} Unclassified roles."
+        }
+

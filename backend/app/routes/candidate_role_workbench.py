@@ -70,14 +70,47 @@ class CandidateRoleCreate(BaseModel):
     business_unit: Optional[str] = None
 
 
-class CandidateRoleUpdate(BaseModel):
-    role_name: Optional[str] = None
-    role_description: Optional[str] = None
-    role_type: Optional[str] = None
-    risk_level: Optional[str] = None
-    status: Optional[str] = None
-    department: Optional[str] = None
-    business_unit: Optional[str] = None
+class ClassificationRangesPayload(BaseModel):
+    birthright_min: float = 80.0
+    request_based_min: float = 50.0
+
+
+class AutoClassifyRequest(BaseModel):
+    birthright_min: Optional[float] = 80.0
+    request_based_min: Optional[float] = 50.0
+    overwrite_existing: Optional[bool] = True
+
+
+@router.get("/candidate-roles/classification-ranges")
+def get_classification_ranges(_perm: bool = Depends(require_permission("Role Engineering", "view"))):
+    return ClassificationService.get_classification_ranges()
+
+
+@router.post("/candidate-roles/classification-ranges")
+def save_classification_ranges(
+    payload: ClassificationRangesPayload,
+    _perm: bool = Depends(require_permission("Role Engineering", "edit"))
+):
+    return ClassificationService.save_classification_ranges(
+        birthright_min=payload.birthright_min,
+        request_based_min=payload.request_based_min
+    )
+
+
+@router.post("/candidate-roles/auto-classify")
+def execute_auto_classification(
+    payload: AutoClassifyRequest,
+    db: Session = Depends(get_db),
+    x_user_name: str = Header(default="System"),
+    _perm: bool = Depends(require_permission("Role Engineering", "edit"))
+):
+    return ClassificationService.auto_classify_by_confidence(
+        db=db,
+        birthright_min=payload.birthright_min if payload.birthright_min is not None else 80.0,
+        request_based_min=payload.request_based_min if payload.request_based_min is not None else 50.0,
+        overwrite_existing=payload.overwrite_existing if payload.overwrite_existing is not None else True,
+        user=x_user_name
+    )
 
 
 @router.get("/candidate-roles/stats")

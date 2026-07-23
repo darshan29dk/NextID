@@ -75,7 +75,10 @@ import {
   previewMerge,
   executeMerge,
   previewSplit,
-  executeSplit
+  executeSplit,
+  getClassificationRanges,
+  saveClassificationRanges,
+  runAutoClassification
 } from '../../services/candidateRoleWorkbenchService';
 import { publishRole } from '../../services/roleCatalogService';
 import './CandidateRoleWorkbench.css';
@@ -177,6 +180,8 @@ const CandidateRoleWorkbench = () => {
   // KPI Stats state
   const [kpiStats, setKpiStats] = useState({
     total: 0,
+    classified: 0,
+    notClassified: 0,
     business: 0,
     technical: 0,
     composite: 0,
@@ -185,9 +190,54 @@ const CandidateRoleWorkbench = () => {
     draft: 0
   });
 
+  // ── Range Config & Auto-Classification State ─────────────────────────────
+  const [showRangeModal, setShowRangeModal] = useState(false);
+  const [birthrightMin, setBirthrightMin] = useState(80);
+  const [requestBasedMin, setRequestBasedMin] = useState(50);
+  const [overwriteExisting, setOverwriteExisting] = useState(true);
+  const [savingRanges, setSavingRanges] = useState(false);
+  const [autoClassifying, setAutoClassifying] = useState(false);
+  const [autoClassifyResult, setAutoClassifyResult] = useState('');
+
   // Unique filters data (departments and business units gathered from roles)
   const [uniqueDepartments, setUniqueDepartments] = useState([]);
   const [uniqueBUs, setUniqueBUs] = useState([]);
+
+  const handleFetchRanges = async () => {
+    try {
+      const ranges = await getClassificationRanges();
+      if (ranges) {
+        if (ranges.birthright_min !== undefined) setBirthrightMin(ranges.birthright_min);
+        if (ranges.request_based_min !== undefined) setRequestBasedMin(ranges.request_based_min);
+      }
+    } catch (err) {
+      console.error("Failed to load classification ranges:", err);
+    }
+  };
+
+  const handleRunAutoClassify = async () => {
+    try {
+      setAutoClassifying(true);
+      setAutoClassifyResult('');
+      const res = await runAutoClassification({
+        birthright_min: birthrightMin,
+        request_based_min: requestBasedMin,
+        overwrite_existing: overwriteExisting
+      });
+      setAutoClassifyResult(res.message || 'Auto-classification complete.');
+      fetchKPIStats();
+      fetchRolesData();
+      setTimeout(() => {
+        setShowRangeModal(false);
+        setAutoClassifyResult('');
+      }, 1800);
+    } catch (err) {
+      console.error("Auto-classification failed:", err);
+      setAutoClassifyResult('Failed to run auto-classification.');
+    } finally {
+      setAutoClassifying(false);
+    }
+  };
 
   // ── RE-005 Owner State ────────────────────────────────────────────────────
   const [ownerData, setOwnerData] = useState({ primary: null, backup: null });
@@ -234,6 +284,8 @@ const CandidateRoleWorkbench = () => {
 
       setKpiStats({
         total: stats.total || 0,
+        classified: stats.classified || 0,
+        notClassified: stats.not_classified || 0,
         birthright: stats.birthright || 0,
         requestBased: stats.request_based || 0,
         business: stats.business || 0,
@@ -884,13 +936,25 @@ const CandidateRoleWorkbench = () => {
     <div className="workbench-container">
       <Breadcrumb items={['Role Engineering', 'Candidate Role Workbench']} />
 
-      <div className="page-header-actions" style={{ marginBottom: '4px' }}>
+      <div className="page-header-actions" style={{ marginBottom: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div className="header-title-section">
           <h2 style={{ fontSize: '20px', fontWeight: 700, margin: 0 }}>Role Engineering</h2>
           <p className="text-muted" style={{ fontSize: '13px', margin: '4px 0 0 0' }}>
             Refines discovered role candidates through ownership assignment, classification, and SoD review prior to Approval.
           </p>
         </div>
+
+        <button
+          className="btn-action-premium primary"
+          style={{ padding: '8px 16px', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600, fontSize: '13px', cursor: 'pointer' }}
+          onClick={() => {
+            setShowRangeModal(true);
+            handleFetchRanges();
+          }}
+        >
+          <SlidersHorizontal size={16} />
+          <span>Define Classification Ranges</span>
+        </button>
       </div>
 
       {errorMsg && (
@@ -949,32 +1013,46 @@ const CandidateRoleWorkbench = () => {
         />
       </div>
 
-      {/* Sub-Navigation Tabs by Role Type */}
+      {/* Sub-Navigation Tabs by Role Type and Classification */}
       <div className="controls-card">
         <button
-          className={`drawer-tab-btn ${typeFilter === '' ? 'active' : ''}`}
-          onClick={() => { setTypeFilter(''); setPage(1); }}
+          className={`drawer-tab-btn ${typeFilter === '' && classificationFilter === '' ? 'active' : ''}`}
+          onClick={() => { setTypeFilter(''); setClassificationFilter(''); setPage(1); }}
         >
           <Shield size={14} />
           <span>All Roles ({kpiStats.total})</span>
         </button>
         <button
+          className={`drawer-tab-btn ${classificationFilter === 'Classified' ? 'active' : ''}`}
+          onClick={() => { setClassificationFilter('Classified'); setTypeFilter(''); setPage(1); }}
+        >
+          <BadgeCheck size={14} style={{ color: 'var(--success, #10b981)' }} />
+          <span>Classified ({kpiStats.classified || 0})</span>
+        </button>
+        <button
+          className={`drawer-tab-btn ${classificationFilter === 'Not Classified' ? 'active' : ''}`}
+          onClick={() => { setClassificationFilter('Not Classified'); setTypeFilter(''); setPage(1); }}
+        >
+          <XCircle size={14} style={{ color: 'var(--warning, #f59e0b)' }} />
+          <span>Not Classified ({kpiStats.notClassified || 0})</span>
+        </button>
+        <button
           className={`drawer-tab-btn ${typeFilter === 'Business' ? 'active' : ''}`}
-          onClick={() => { setTypeFilter('Business'); setPage(1); }}
+          onClick={() => { setTypeFilter('Business'); setClassificationFilter(''); setPage(1); }}
         >
           <Briefcase size={14} />
           <span>Business Roles ({kpiStats.business})</span>
         </button>
         <button
           className={`drawer-tab-btn ${typeFilter === 'Technical' ? 'active' : ''}`}
-          onClick={() => { setTypeFilter('Technical'); setPage(1); }}
+          onClick={() => { setTypeFilter('Technical'); setClassificationFilter(''); setPage(1); }}
         >
           <Cpu size={14} />
           <span>Technical Roles ({kpiStats.technical})</span>
         </button>
         <button
           className={`drawer-tab-btn ${typeFilter === 'Composite' ? 'active' : ''}`}
-          onClick={() => { setTypeFilter('Composite'); setPage(1); }}
+          onClick={() => { setTypeFilter('Composite'); setClassificationFilter(''); setPage(1); }}
         >
           <Boxes size={14} />
           <span>Composite Roles ({kpiStats.composite})</span>
@@ -1070,9 +1148,10 @@ const CandidateRoleWorkbench = () => {
               <label>Classification</label>
               <select value={classificationFilter} onChange={(e) => { setClassificationFilter(e.target.value); setPage(1); }}>
                 <option value="">All Classifications</option>
+                <option value="Classified">Classified (Any Category)</option>
+                <option value="Not Classified">Not Classified (Unassigned)</option>
                 <option value="Birthright">Birthright</option>
                 <option value="Request-Based">Request-Based</option>
-                <option value="None">None / Unassigned</option>
               </select>
             </div>
 
@@ -2663,6 +2742,163 @@ const CandidateRoleWorkbench = () => {
               >
                 {splitSubmitting ? 'Splitting...' : 'Confirm Split'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Range Configurator Modal */}
+      {showRangeModal && (
+        <div className="modal-overlay-custom">
+          <div className="modal-content-custom" style={{ maxWidth: '580px', width: '92%', borderRadius: '12px' }}>
+            <div className="modal-header-custom" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '17px', fontWeight: 700 }}>
+                <SlidersHorizontal size={20} style={{ color: 'var(--primary, #2563eb)' }} />
+                Confidence Score Range Configuration
+              </h3>
+              <button className="modal-close-btn-custom" type="button" onClick={() => setShowRangeModal(false)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ padding: '20px' }}>
+              <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                Define confidence score percentage thresholds to automatically classify candidate roles into governance categories (Birthright vs. Request-Based).
+              </p>
+
+              {/* Range Cards */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
+
+                {/* Birthright Range Card */}
+                <div style={{ padding: '14px', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '14px', color: '#10b981' }}>
+                      <BadgeCheck size={16} />
+                      Birthright Role Range
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: 600, background: '#10b981', color: '#fff', padding: '2px 8px', borderRadius: '12px' }}>
+                      &ge; {birthrightMin}%
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 10px 0' }}>
+                    Candidate roles with high similarity score (&ge; {birthrightMin}%) will be automatically classified as <b>Birthright</b>.
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <input
+                      type="range"
+                      min="50"
+                      max="95"
+                      step="1"
+                      value={birthrightMin}
+                      onChange={e => setBirthrightMin(parseFloat(e.target.value))}
+                      style={{ flex: 1, accentColor: '#10b981' }}
+                    />
+                    <input
+                      type="number"
+                      min="50"
+                      max="95"
+                      value={birthrightMin}
+                      onChange={e => setBirthrightMin(parseFloat(e.target.value) || 50)}
+                      style={{ width: '64px', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px', fontWeight: 600 }}
+                    />
+                    <span style={{ fontSize: '12px', fontWeight: 600 }}>%</span>
+                  </div>
+                </div>
+
+                {/* Request-Based Range Card */}
+                <div style={{ padding: '14px', border: '1px solid rgba(147, 51, 234, 0.3)', borderRadius: '8px', background: 'rgba(147, 51, 234, 0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '14px', color: '#9333ea' }}>
+                      <Shield size={16} />
+                      Request-Based Role Range
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: 600, background: '#9333ea', color: '#fff', padding: '2px 8px', borderRadius: '12px' }}>
+                      {requestBasedMin}% to {(birthrightMin - 0.1).toFixed(1)}%
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 10px 0' }}>
+                    Candidate roles with moderate similarity score ({requestBasedMin}% - {(birthrightMin - 0.1).toFixed(1)}%) will be classified as <b>Request-Based</b>.
+                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <input
+                      type="range"
+                      min="10"
+                      max={birthrightMin - 5}
+                      step="1"
+                      value={requestBasedMin}
+                      onChange={e => setRequestBasedMin(parseFloat(e.target.value))}
+                      style={{ flex: 1, accentColor: '#9333ea' }}
+                    />
+                    <input
+                      type="number"
+                      min="10"
+                      max={birthrightMin - 5}
+                      value={requestBasedMin}
+                      onChange={e => setRequestBasedMin(parseFloat(e.target.value) || 10)}
+                      style={{ width: '64px', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px', fontWeight: 600 }}
+                    />
+                    <span style={{ fontSize: '12px', fontWeight: 600 }}>%</span>
+                  </div>
+                </div>
+
+                {/* Not Classified Card */}
+                <div style={{ padding: '14px', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--bg-muted, rgba(0,0,0,0.02))' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '14px', color: 'var(--text-muted)' }}>
+                      <XCircle size={16} />
+                      Not Classified (Unassigned) Range
+                    </div>
+                    <span style={{ fontSize: '12px', fontWeight: 600, background: 'var(--text-muted)', color: '#fff', padding: '2px 8px', borderRadius: '12px' }}>
+                      &lt; {requestBasedMin}%
+                    </span>
+                  </div>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: 0 }}>
+                    Candidate roles with similarity below {requestBasedMin}% remain <b>Not Classified</b> for manual review.
+                  </p>
+                </div>
+
+              </div>
+
+              {/* Overwrite Option */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', padding: '10px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px' }}>
+                <input
+                  type="checkbox"
+                  id="chk-overwrite-cls"
+                  checked={overwriteExisting}
+                  onChange={e => setOverwriteExisting(e.target.checked)}
+                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                />
+                <label htmlFor="chk-overwrite-cls" style={{ fontSize: '12.5px', color: 'var(--text-main)', cursor: 'pointer', margin: 0 }}>
+                  Re-evaluate and overwrite existing candidate role classifications
+                </label>
+              </div>
+
+              {/* Feedback Banner */}
+              {autoClassifyResult && (
+                <div style={{ padding: '10px 14px', borderRadius: '6px', marginBottom: '16px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <CheckCircle2 size={16} />
+                  <span>{autoClassifyResult}</span>
+                </div>
+              )}
+
+              {/* Action Footer */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  className="btn-action-premium"
+                  type="button"
+                  onClick={() => setShowRangeModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn-action-premium primary"
+                  type="button"
+                  disabled={savingRanges || autoClassifying}
+                  onClick={handleRunAutoClassify}
+                >
+                  {autoClassifying ? "Applying Auto-Classification..." : "Save Ranges & Auto-Classify Roles"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

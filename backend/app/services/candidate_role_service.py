@@ -139,8 +139,22 @@ class CandidateRoleService:
             b for (b,) in base.with_entities(CandidateRole.business_unit).distinct().all() if b
         ]
 
+        classified_count = base.filter(
+            CandidateRole.classification.isnot(None),
+            CandidateRole.classification != ""
+        ).count()
+
+        not_classified_count = base.filter(
+            or_(
+                CandidateRole.classification.is_(None),
+                CandidateRole.classification == ""
+            )
+        ).count()
+
         return {
             "total": total,
+            "classified": classified_count,
+            "not_classified": not_classified_count,
             "birthright": classification_counts.get("Birthright", 0),
             "request_based": classification_counts.get("Request-Based", 0),
             "business": role_type_counts.get("Business", 0),
@@ -178,7 +192,21 @@ class CandidateRoleService:
 
         # Filters
         if classification:
-            query = query.filter(CandidateRole.classification == classification)
+            clean_cls = classification.strip().lower()
+            if clean_cls in ["classified", "is_classified"]:
+                query = query.filter(
+                    CandidateRole.classification.isnot(None),
+                    CandidateRole.classification != ""
+                )
+            elif clean_cls in ["none", "unclassified", "not_classified", "not classified"]:
+                query = query.filter(
+                    or_(
+                        CandidateRole.classification.is_(None),
+                        CandidateRole.classification == ""
+                    )
+                )
+            else:
+                query = query.filter(CandidateRole.classification == classification)
         if status:
             query = query.filter(CandidateRole.status == status)
         if risk_level:

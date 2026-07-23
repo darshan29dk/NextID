@@ -62,6 +62,21 @@ export const bulkClassifyRoles = async (roleIds, classification) => {
   return response.data;
 };
 
+export const getClassificationRanges = async () => {
+  const response = await apiClient.get('/candidate-roles/classification-ranges');
+  return response.data;
+};
+
+export const saveClassificationRanges = async (data) => {
+  const response = await apiClient.post('/candidate-roles/classification-ranges', data);
+  return response.data;
+};
+
+export const runAutoClassification = async (data) => {
+  const response = await apiClient.post('/candidate-roles/auto-classify', data);
+  return response.data;
+};
+
 export const exportCandidateRolesCSV = async (params) => {
   const response = await apiClient.get('/candidate-roles/export/csv', {
     params,
