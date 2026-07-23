@@ -244,7 +244,7 @@ const CandidateRoleWorkbench = () => {
       setTimeout(() => {
         setShowRangeModal(false);
         setAutoClassifyResult('');
-      }, 1500);
+      }, 400);
     } catch (err) {
       console.error("Failed to save classification ranges:", err);
       setAutoClassifyResult('Failed to save classification ranges.');
@@ -269,7 +269,7 @@ const CandidateRoleWorkbench = () => {
       setTimeout(() => {
         setShowRangeModal(false);
         setAutoClassifyResult('');
-      }, 1800);
+      }, 500);
     } catch (err) {
       console.error("Auto-classification failed:", err);
       setAutoClassifyResult('Failed to run auto-classification.');
