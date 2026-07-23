@@ -70,6 +70,16 @@ class CandidateRoleCreate(BaseModel):
     business_unit: Optional[str] = None
 
 
+class CandidateRoleUpdate(BaseModel):
+    role_name: Optional[str] = None
+    role_description: Optional[str] = None
+    role_type: Optional[str] = None
+    risk_level: Optional[str] = None
+    status: Optional[str] = None
+    department: Optional[str] = None
+    business_unit: Optional[str] = None
+
+
 class ClassificationRangesPayload(BaseModel):
     birthright_min: float = 80.0
     request_based_min: float = 50.0

@@ -154,7 +154,11 @@ class ClassificationService:
         cls._classification_ranges["request_based_min"] = float(request_based_min)
         cls._classification_ranges["request_based_max"] = round(float(birthright_min) - 0.1, 1)
         cls._classification_ranges["unclassified_max"] = round(float(request_based_min) - 0.1, 1)
-        return cls._classification_ranges.copy()
+        return {
+            "success": True,
+            "message": f"Classification ranges saved successfully: Birthright >= {birthright_min}%, Request-Based {request_based_min}% - {round(float(birthright_min) - 0.1, 1)}%.",
+            "ranges": cls._classification_ranges.copy()
+        }
 
     @classmethod
     def auto_classify_by_confidence(

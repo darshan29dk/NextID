@@ -207,11 +207,49 @@ const CandidateRoleWorkbench = () => {
     try {
       const ranges = await getClassificationRanges();
       if (ranges) {
-        if (ranges.birthright_min !== undefined) setBirthrightMin(ranges.birthright_min);
-        if (ranges.request_based_min !== undefined) setRequestBasedMin(ranges.request_based_min);
+        const b = ranges.birthright_min !== undefined ? ranges.birthright_min : (ranges.ranges?.birthright_min ?? 80);
+        const r = ranges.request_based_min !== undefined ? ranges.request_based_min : (ranges.ranges?.request_based_min ?? 50);
+        setBirthrightMin(b);
+        setRequestBasedMin(r);
       }
     } catch (err) {
       console.error("Failed to load classification ranges:", err);
+    }
+  };
+
+  const sanitizeRanges = () => {
+    let bMin = typeof birthrightMin === 'number' ? birthrightMin : parseFloat(birthrightMin);
+    let rMin = typeof requestBasedMin === 'number' ? requestBasedMin : parseFloat(requestBasedMin);
+    if (isNaN(bMin)) bMin = 80;
+    if (isNaN(rMin)) rMin = 50;
+
+    bMin = Math.min(100, Math.max(10, bMin));
+    rMin = Math.min(bMin - 1, Math.max(0, rMin));
+
+    setBirthrightMin(bMin);
+    setRequestBasedMin(rMin);
+    return { bMin, rMin };
+  };
+
+  const handleSaveRangesOnly = async () => {
+    try {
+      setSavingRanges(true);
+      setAutoClassifyResult('');
+      const { bMin, rMin } = sanitizeRanges();
+      const res = await saveClassificationRanges({
+        birthright_min: bMin,
+        request_based_min: rMin
+      });
+      setAutoClassifyResult(res.message || 'Classification ranges saved successfully.');
+      setTimeout(() => {
+        setShowRangeModal(false);
+        setAutoClassifyResult('');
+      }, 1500);
+    } catch (err) {
+      console.error("Failed to save classification ranges:", err);
+      setAutoClassifyResult('Failed to save classification ranges.');
+    } finally {
+      setSavingRanges(false);
     }
   };
 
@@ -219,9 +257,10 @@ const CandidateRoleWorkbench = () => {
     try {
       setAutoClassifying(true);
       setAutoClassifyResult('');
+      const { bMin, rMin } = sanitizeRanges();
       const res = await runAutoClassification({
-        birthright_min: birthrightMin,
-        request_based_min: requestBasedMin,
+        birthright_min: bMin,
+        request_based_min: rMin,
         overwrite_existing: overwriteExisting
       });
       setAutoClassifyResult(res.message || 'Auto-classification complete.');
@@ -2786,20 +2825,24 @@ const CandidateRoleWorkbench = () => {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <input
                       type="range"
-                      min="50"
-                      max="95"
+                      min="20"
+                      max="100"
                       step="1"
-                      value={birthrightMin}
+                      value={birthrightMin || 80}
                       onChange={e => setBirthrightMin(parseFloat(e.target.value))}
                       style={{ flex: 1, accentColor: '#10b981' }}
                     />
                     <input
                       type="number"
-                      min="50"
-                      max="95"
+                      min="10"
+                      max="100"
                       value={birthrightMin}
-                      onChange={e => setBirthrightMin(parseFloat(e.target.value) || 50)}
-                      style={{ width: '64px', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px', fontWeight: 600 }}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setBirthrightMin(val === '' ? '' : parseFloat(val));
+                      }}
+                      onBlur={() => sanitizeRanges()}
+                      style={{ width: '70px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px', fontWeight: 600 }}
                     />
                     <span style={{ fontSize: '12px', fontWeight: 600 }}>%</span>
                   </div>
@@ -2813,29 +2856,33 @@ const CandidateRoleWorkbench = () => {
                       Request-Based Role Range
                     </div>
                     <span style={{ fontSize: '12px', fontWeight: 600, background: '#9333ea', color: '#fff', padding: '2px 8px', borderRadius: '12px' }}>
-                      {requestBasedMin}% to {(birthrightMin - 0.1).toFixed(1)}%
+                      {requestBasedMin}% to {((parseFloat(birthrightMin) || 80) - 0.1).toFixed(1)}%
                     </span>
                   </div>
                   <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '0 0 10px 0' }}>
-                    Candidate roles with moderate similarity score ({requestBasedMin}% - {(birthrightMin - 0.1).toFixed(1)}%) will be classified as <b>Request-Based</b>.
+                    Candidate roles with moderate similarity score ({requestBasedMin}% - {((parseFloat(birthrightMin) || 80) - 0.1).toFixed(1)}%) will be classified as <b>Request-Based</b>.
                   </p>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <input
                       type="range"
-                      min="10"
-                      max={birthrightMin - 5}
+                      min="0"
+                      max={Math.max(10, (parseFloat(birthrightMin) || 80) - 1)}
                       step="1"
-                      value={requestBasedMin}
+                      value={requestBasedMin || 50}
                       onChange={e => setRequestBasedMin(parseFloat(e.target.value))}
                       style={{ flex: 1, accentColor: '#9333ea' }}
                     />
                     <input
                       type="number"
-                      min="10"
-                      max={birthrightMin - 5}
+                      min="0"
+                      max={Math.max(10, (parseFloat(birthrightMin) || 80) - 1)}
                       value={requestBasedMin}
-                      onChange={e => setRequestBasedMin(parseFloat(e.target.value) || 10)}
-                      style={{ width: '64px', padding: '4px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px', fontWeight: 600 }}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setRequestBasedMin(val === '' ? '' : parseFloat(val));
+                      }}
+                      onBlur={() => sanitizeRanges()}
+                      style={{ width: '70px', padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border-color)', fontSize: '13px', fontWeight: 600 }}
                     />
                     <span style={{ fontSize: '12px', fontWeight: 600 }}>%</span>
                   </div>
@@ -2869,7 +2916,7 @@ const CandidateRoleWorkbench = () => {
                   style={{ width: '16px', height: '16px', cursor: 'pointer' }}
                 />
                 <label htmlFor="chk-overwrite-cls" style={{ fontSize: '12.5px', color: 'var(--text-main)', cursor: 'pointer', margin: 0 }}>
-                  Re-evaluate and overwrite existing candidate role classifications
+                  Re-evaluate and overwrite existing candidate role classifications during auto-classification
                 </label>
               </div>
 
@@ -2891,12 +2938,21 @@ const CandidateRoleWorkbench = () => {
                   Cancel
                 </button>
                 <button
+                  className="btn-action-premium"
+                  type="button"
+                  disabled={savingRanges || autoClassifying}
+                  onClick={handleSaveRangesOnly}
+                  style={{ background: 'var(--bg-card)', borderColor: 'var(--primary, #2563eb)', color: 'var(--primary, #2563eb)', fontWeight: 600 }}
+                >
+                  {savingRanges ? "Saving..." : "Save Ranges Only"}
+                </button>
+                <button
                   className="btn-action-premium primary"
                   type="button"
                   disabled={savingRanges || autoClassifying}
                   onClick={handleRunAutoClassify}
                 >
-                  {autoClassifying ? "Applying Auto-Classification..." : "Save Ranges & Auto-Classify Roles"}
+                  {autoClassifying ? "Applying Auto-Classification..." : "Save & Auto-Classify Roles"}
                 </button>
               </div>
             </div>
