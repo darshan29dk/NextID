@@ -2789,24 +2789,24 @@ const CandidateRoleWorkbench = () => {
       {/* Range Configurator Modal */}
       {showRangeModal && (
         <div className="modal-overlay-custom">
-          <div className="modal-content-custom" style={{ maxWidth: '580px', width: '92%', borderRadius: '12px' }}>
-            <div className="modal-header-custom" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '17px', fontWeight: 700 }}>
-                <SlidersHorizontal size={20} style={{ color: 'var(--primary, #2563eb)' }} />
+          <div className="modal-dialog-panel" style={{ maxWidth: '620px' }}>
+            <div className="modal-dialog-header">
+              <h4 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, fontSize: '16px', fontWeight: 700 }}>
+                <SlidersHorizontal size={18} style={{ color: 'var(--primary, #2563eb)' }} />
                 Confidence Score Range Configuration
-              </h3>
-              <button className="modal-close-btn-custom" type="button" onClick={() => setShowRangeModal(false)}>
-                <X size={18} />
+              </h4>
+              <button type="button" className="btn-drawer-close" onClick={() => setShowRangeModal(false)}>
+                <X size={16} />
               </button>
             </div>
 
-            <div style={{ padding: '20px' }}>
-              <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
-                Define confidence score percentage thresholds to automatically classify candidate roles into governance categories (Birthright vs. Request-Based).
+            <div className="modal-dialog-body">
+              <p style={{ margin: '0 0 8px 0', fontSize: '13px', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                Define confidence score percentage thresholds to automatically classify candidate roles into access governance categories.
               </p>
 
               {/* Range Cards */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '8px' }}>
 
                 {/* Birthright Range Card */}
                 <div style={{ padding: '14px', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '8px', background: 'rgba(16, 185, 129, 0.05)' }}>
@@ -2907,7 +2907,7 @@ const CandidateRoleWorkbench = () => {
               </div>
 
               {/* Overwrite Option */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', padding: '10px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', padding: '10px 12px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px' }}>
                 <input
                   type="checkbox"
                   id="chk-overwrite-cls"
@@ -2922,39 +2922,39 @@ const CandidateRoleWorkbench = () => {
 
               {/* Feedback Banner */}
               {autoClassifyResult && (
-                <div style={{ padding: '10px 14px', borderRadius: '6px', marginBottom: '16px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ padding: '10px 14px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#10b981', fontSize: '12.5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <CheckCircle2 size={16} />
                   <span>{autoClassifyResult}</span>
                 </div>
               )}
+            </div>
 
-              {/* Action Footer */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button
-                  className="btn-action-premium"
-                  type="button"
-                  onClick={() => setShowRangeModal(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="btn-action-premium"
-                  type="button"
-                  disabled={savingRanges || autoClassifying}
-                  onClick={handleSaveRangesOnly}
-                  style={{ background: 'var(--bg-card)', borderColor: 'var(--primary, #2563eb)', color: 'var(--primary, #2563eb)', fontWeight: 600 }}
-                >
-                  {savingRanges ? "Saving..." : "Save Ranges Only"}
-                </button>
-                <button
-                  className="btn-action-premium primary"
-                  type="button"
-                  disabled={savingRanges || autoClassifying}
-                  onClick={handleRunAutoClassify}
-                >
-                  {autoClassifying ? "Applying Auto-Classification..." : "Save & Auto-Classify Roles"}
-                </button>
-              </div>
+            {/* Sticky Action Footer */}
+            <div className="modal-dialog-footer">
+              <button
+                className="btn-action-premium"
+                type="button"
+                onClick={() => setShowRangeModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-action-premium"
+                type="button"
+                disabled={savingRanges || autoClassifying}
+                onClick={handleSaveRangesOnly}
+                style={{ background: 'var(--bg-card)', borderColor: 'var(--primary, #2563eb)', color: 'var(--primary, #2563eb)', fontWeight: 600 }}
+              >
+                {savingRanges ? "Saving..." : "Save Ranges Only"}
+              </button>
+              <button
+                className="btn-action-premium primary"
+                type="button"
+                disabled={savingRanges || autoClassifying}
+                onClick={handleRunAutoClassify}
+              >
+                {autoClassifying ? "Applying Auto-Classification..." : "Save & Auto-Classify Roles"}
+              </button>
             </div>
           </div>
         </div>
