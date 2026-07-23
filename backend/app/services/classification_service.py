@@ -170,9 +170,10 @@ class ClassificationService:
         user: str = "System"
     ) -> dict:
         """
-        Evaluates candidate roles' confidence_score against configured ranges and updates classification.
-        - confidence_score >= birthright_min -> 'Birthright'
-        - confidence_score >= request_based_min and < birthright_min -> 'Request-Based'
+        Evaluates candidate roles' confidence_score against configured ranges, updates classification,
+        and automatically publishes classified roles to Published status.
+        - confidence_score >= birthright_min -> 'Birthright' (Status: Published)
+        - confidence_score >= request_based_min and < birthright_min -> 'Request-Based' (Status: Published)
         - confidence_score < request_based_min -> None / Unclassified
         """
         cls.save_classification_ranges(birthright_min, request_based_min)
@@ -183,6 +184,8 @@ class ClassificationService:
         request_based_count = 0
         unclassified_count = 0
         total_processed = 0
+        published_count = 0
+        now = datetime.utcnow()
 
         for role in roles:
             # If overwrite_existing is False and role already has a classification, skip
@@ -202,26 +205,33 @@ class ClassificationService:
                 new_class = None
                 unclassified_count += 1
 
-            if old_classification != new_class:
+            if old_classification != new_class or (new_class is not None and role.status != "Published"):
                 role.classification = new_class
+                if new_class is not None:
+                    role.status = "Published"
+                    role.published_at = now
+                    role.published_by = user
+                    role.current_version = (role.current_version or 0) + 1
+                    published_count += 1
                 role.modified_by = user
-                role.updated_at = datetime.utcnow()
+                role.updated_at = now
                 total_processed += 1
 
         if total_processed > 0:
             audit = AuditLog(
                 module="Role Engineering",
-                action="Auto-Classification Execution",
+                action="Auto-Classification & Auto-Publish Execution",
                 performed_by=user,
                 new_value=json.dumps({
                     "birthright_min": birthright_min,
                     "request_based_min": request_based_min,
                     "processed": total_processed,
+                    "published_count": published_count,
                     "birthright_count": birthright_count,
                     "request_based_count": request_based_count,
                     "unclassified_count": unclassified_count
                 }),
-                timestamp=datetime.utcnow()
+                timestamp=now
             )
             db.add(audit)
             db.commit()
@@ -229,10 +239,11 @@ class ClassificationService:
         return {
             "total_roles": len(roles),
             "total_updated": total_processed,
+            "published_count": published_count,
             "birthright_count": birthright_count,
             "request_based_count": request_based_count,
             "unclassified_count": unclassified_count,
             "ranges": cls._classification_ranges.copy(),
-            "message": f"Auto-classification completed. Classified {birthright_count} Birthright roles, {request_based_count} Request-Based roles, and {unclassified_count} Unclassified roles."
+            "message": f"Auto-classification complete! Auto-published {published_count} classified roles ({birthright_count} Birthright, {request_based_count} Request-Based)."
         }
 
