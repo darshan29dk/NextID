@@ -173,10 +173,11 @@ class ClassificationService:
         user: str = "System"
     ) -> dict:
         """
-        Evaluates candidate roles' confidence_score against configured ranges:
-        - Classified (Birthright / Request-Based) -> Status: Published -> Direct to Role Catalog
-        - Unclassified / Not Published -> Status: Business Review -> Routed to Approval Workflow
-        Optimized with bulk set lookups & batch SQL inserts for sub-second execution.
+        Evaluates candidate roles' confidence_score against configured ranges and assigns classification.
+        - confidence_score >= birthright_min -> 'Birthright'
+        - confidence_score >= request_based_min and < birthright_min -> 'Request-Based'
+        - confidence_score < request_based_min -> None / Unclassified
+        Note: Only assigns classifications to roles. Does NOT publish or alter role status.
         """
         cls.save_classification_ranges(birthright_min, request_based_min)
 
@@ -186,22 +187,7 @@ class ClassificationService:
         request_based_count = 0
         unclassified_count = 0
         total_processed = 0
-        published_count = 0
-        approval_submitted_count = 0
         now = datetime.utcnow()
-        due_date = now + timedelta(days=7)
-
-        active_statuses = ["Draft", "Submitted", "Business Review", "Security Review", "Pending Approval"]
-
-        # Bulk pre-fetch existing active ApprovalRequests to eliminate N+1 SQL queries
-        active_req_role_ids = set(
-            r[0] for r in db.query(ApprovalRequest.candidate_role_id).filter(
-                ApprovalRequest.status.in_(active_statuses)
-            ).all()
-        )
-
-        new_requests = []
-        new_steps = []
 
         for role in roles:
             # If overwrite_existing is False and role already has a classification, skip
@@ -221,75 +207,21 @@ class ClassificationService:
                 new_class = None
                 unclassified_count += 1
 
-            if new_class is not None:
-                # ── Path 1: Classified Roles -> Direct to Role Catalog (Status: Published) ──
-                if old_classification != new_class or role.status != "Published":
-                    role.classification = new_class
-                    role.status = "Published"
-                    role.published_at = now
-                    role.published_by = user
-                    role.current_version = (role.current_version or 0) + 1
-                    role.modified_by = user
-                    role.updated_at = now
-                    published_count += 1
-                    total_processed += 1
-            else:
-                # ── Path 2: Unclassified / Low Confidence -> Routed to Approval Workflow ──
-                role.classification = None
-                if role.status != "Business Review":
-                    role.status = "Business Review"
-                    role.modified_by = user
-                    role.updated_at = now
-                    total_processed += 1
+            if old_classification != new_class:
+                role.classification = new_class
+                role.modified_by = user
+                role.updated_at = now
+                total_processed += 1
 
-                # Bulk check using set lookup
-                if role.id not in active_req_role_ids:
-                    req = ApprovalRequest(
-                        candidate_role_id=role.id,
-                        workflow_name="Unclassified Role Governance Review",
-                        current_stage="Business Review",
-                        status="Business Review",
-                        submitted_by=user,
-                        submitted_at=now,
-                        due_date=due_date,
-                        priority="High",
-                        remarks="Auto-submitted to Approval Workflow due to unclassified / low confidence score.",
-                        created_at=now,
-                        updated_at=now
-                    )
-                    new_requests.append(req)
-                    active_req_role_ids.add(role.id)
-                    approval_submitted_count += 1
-
-        if new_requests:
-            db.add_all(new_requests)
-            db.flush()
-            for req in new_requests:
-                step = ApprovalStep(
-                    approval_request_id=req.id,
-                    step_order=1,
-                    step_name="L1: Unclassified Governance Review",
-                    approver_type="Security Administrator",
-                    approver_id=None,
-                    approver_name="Security Lead",
-                    status="Pending",
-                    assigned_at=now
-                )
-                new_steps.append(step)
-            if new_steps:
-                db.add_all(new_steps)
-
-        if total_processed > 0 or approval_submitted_count > 0:
+        if total_processed > 0:
             audit = AuditLog(
                 module="Role Engineering",
-                action="Auto-Classification, Catalog Publish & Approval Routing",
+                action="Auto-Classification Execution",
                 performed_by=user,
                 new_value=json.dumps({
                     "birthright_min": birthright_min,
                     "request_based_min": request_based_min,
                     "processed": total_processed,
-                    "published_count": published_count,
-                    "approval_submitted_count": approval_submitted_count,
                     "birthright_count": birthright_count,
                     "request_based_count": request_based_count,
                     "unclassified_count": unclassified_count
@@ -302,12 +234,10 @@ class ClassificationService:
         return {
             "total_roles": len(roles),
             "total_updated": total_processed,
-            "published_count": published_count,
-            "approval_submitted_count": approval_submitted_count,
             "birthright_count": birthright_count,
             "request_based_count": request_based_count,
             "unclassified_count": unclassified_count,
             "ranges": cls._classification_ranges.copy(),
-            "message": f"Auto-classification complete! Published {published_count} classified roles directly to Role Catalog. Routed {unclassified_count} unclassified roles to Approval Workflow."
+            "message": f"Auto-classification completed! Assigned classification to {total_processed} roles ({birthright_count} Birthright, {request_based_count} Request-Based, {unclassified_count} Unclassified)."
         }
 

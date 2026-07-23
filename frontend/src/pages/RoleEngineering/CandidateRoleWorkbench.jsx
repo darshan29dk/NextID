@@ -2953,7 +2953,7 @@ const CandidateRoleWorkbench = () => {
                 disabled={savingRanges || autoClassifying}
                 onClick={handleRunAutoClassify}
               >
-                {autoClassifying ? "Classifying & Publishing Roles..." : "Save, Classify & Auto-Publish Roles"}
+                {autoClassifying ? "Assigning Classifications..." : "Save & Auto-Classify Roles"}
               </button>
             </div>
           </div>
