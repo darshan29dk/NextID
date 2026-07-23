@@ -1,4 +1,4 @@
-﻿from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from datetime import datetime
 from typing import Optional, Dict, List
@@ -225,21 +225,24 @@ class SecurityApprovalService:
                 status="Approved", assigned_at=now, action_at=now, remarks=remarks,
             ))
 
-        # Role becomes Ready For Publish
+        # Role becomes Published directly to Role Catalog upon Security Approval
         cand_role = db.query(CandidateRole).filter(CandidateRole.id == request.candidate_role_id).first()
         if cand_role:
-            cand_role.status = "Ready For Publish"
+            cand_role.status = "Published"
+            cand_role.published_at = now
+            cand_role.published_by = user
+            cand_role.current_version = (cand_role.current_version or 0) + 1
             cand_role.modified_by = user
             cand_role.updated_at = now
 
         role_name = cand_role.role_name if cand_role else ""
         db.add(AuditLog(module="Approval Workflow", action="Security Approved", performed_by=user,
-                        new_value=f"Security-approved role '{role_name}'. Now Ready For Publish.", timestamp=now))
-        db.add(RecentActivity(user=user, action=f"Security-approved '{role_name}' -- Ready For Publish.",
+                        new_value=f"Security-approved role '{role_name}'. Automatically published to Role Catalog.", timestamp=now))
+        db.add(RecentActivity(user=user, action=f"Security-approved '{role_name}' -- Published to Role Catalog.",
                               status="success", created_at=now))
         db.add(Notification(
-            title=f"Role Approved: {role_name}",
-            message=f"{user} security-approved role '{role_name}'. It is now Ready For Publish.",
+            title=f"Role Published: {role_name}",
+            message=f"{user} security-approved and published role '{role_name}' to the Role Catalog.",
             status="unread",
             created_at=now
         ))
