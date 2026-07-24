@@ -311,7 +311,6 @@ const CandidateRoleWorkbench = () => {
   const [matrixLoading, setMatrixLoading] = useState(false);
   const [matrixError, setMatrixError] = useState('');
   const [analyticalViewMode, setAnalyticalViewMode] = useState('grid'); // 'grid' | 'coverage' | 'core' | 'member' | 'role'
-  const [entitlementFilter, setEntitlementFilter] = useState('all'); // 'all' | 'core' | 'non-core'
   const [coreThresholdPct, setCoreThresholdPct] = useState(60); // user-configurable core threshold %
 
   // ── Drawer fullscreen toggle - the matrix needs the room ─────────────────
@@ -1421,26 +1420,12 @@ const CandidateRoleWorkbench = () => {
         const rawEntitlements = multiRoleMatrix?.entitlements || [];
         const rawCells = multiRoleMatrix?.cells || [];
 
-        const filteredIndices = rawEntitlements
-          .map((e, idx) => ({ e, idx }))
-          .filter(({ e }) => {
-            const isCore = typeof e.member_coverage_pct === 'number'
-              ? e.member_coverage_pct >= coreThresholdPct
-              : e.is_core;
-            if (entitlementFilter === 'core') return isCore;
-            if (entitlementFilter === 'non-core') return !isCore;
-            return true;
-          })
-          .map(({ idx }) => idx);
-
-        const displayEntitlements = filteredIndices.map((idx) => {
-          const ent = rawEntitlements[idx];
+        const displayEntitlements = rawEntitlements.map((ent) => {
           const isCore = typeof ent.member_coverage_pct === 'number'
             ? ent.member_coverage_pct >= coreThresholdPct
             : ent.is_core;
           return { ...ent, is_core: isCore };
         });
-        const displayCells = filteredIndices.map((idx) => rawCells[idx]);
 
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -1479,17 +1464,6 @@ const CandidateRoleWorkbench = () => {
                   <span style={{ fontWeight: 'bold', color: 'var(--text-muted)' }}>%</span>
                 </div>
 
-                <select
-                  className="analytical-view-select"
-                  value={entitlementFilter}
-                  onChange={(e) => setEntitlementFilter(e.target.value)}
-                  title="Filter entitlements by core status"
-                >
-                  <option value="all">All Entitlements</option>
-                  <option value="core">Core Only (≥{coreThresholdPct}%)</option>
-                  <option value="non-core">Non-Core Only (&lt;{coreThresholdPct}%)</option>
-                </select>
-
                 <button className="btn-action-premium" onClick={handleLoadMultiRoleMatrix}>
                   <RefreshCw size={14} className={matrixLoading ? 'spin-element' : ''} />
                   <span>Refresh</span>
@@ -1502,7 +1476,7 @@ const CandidateRoleWorkbench = () => {
                 loading={matrixLoading}
                 entitlements={displayEntitlements}
                 members={multiRoleMatrix?.members || []}
-                cells={displayCells}
+                cells={rawCells}
                 roles={multiRoleMatrix?.roles || []}
                 emptyMessage="No candidate roles with mined entitlements/members yet."
               />
@@ -1512,7 +1486,7 @@ const CandidateRoleWorkbench = () => {
                 mode={analyticalViewMode}
                 entitlements={displayEntitlements}
                 members={multiRoleMatrix?.members || []}
-                cells={displayCells}
+                cells={rawCells}
                 coreThresholdPct={coreThresholdPct}
                 emptyMessage="No candidate roles with mined entitlements/members yet."
               />

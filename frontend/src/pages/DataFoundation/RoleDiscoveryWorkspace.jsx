@@ -97,7 +97,6 @@ const RoleDiscoveryWorkspace = () => {
   const [matrixLoading, setMatrixLoading] = useState(false);
   const [matrixError, setMatrixError] = useState('');
   const [analyticalViewMode, setAnalyticalViewMode] = useState('grid'); // 'grid' | 'coverage' | 'core' | 'member' | 'role'
-  const [entitlementFilter, setEntitlementFilter] = useState('all'); // 'all' | 'core' | 'non-core'
   const [coreThresholdPct, setCoreThresholdPct] = useState(60); // user-configurable core threshold %
 
   const fetchCampaigns = useCallback(async () => {
@@ -588,32 +587,16 @@ const RoleDiscoveryWorkspace = () => {
               )}
             </div>
           );
-        })()}
-
-        {detailTab === 'matrix' && (() => {
+        })()}        {detailTab === 'matrix' && (() => {
           const rawEntitlements = campaignMatrix?.entitlements || [];
           const rawCells = campaignMatrix?.cells || [];
 
-          const filteredIndices = rawEntitlements
-            .map((e, idx) => ({ e, idx }))
-            .filter(({ e }) => {
-              const isCore = typeof e.member_coverage_pct === 'number'
-                ? e.member_coverage_pct >= coreThresholdPct
-                : e.is_core;
-              if (entitlementFilter === 'core') return isCore;
-              if (entitlementFilter === 'non-core') return !isCore;
-              return true;
-            })
-            .map(({ idx }) => idx);
-
-          const displayEntitlements = filteredIndices.map((idx) => {
-            const ent = rawEntitlements[idx];
+          const displayEntitlements = rawEntitlements.map((ent) => {
             const isCore = typeof ent.member_coverage_pct === 'number'
               ? ent.member_coverage_pct >= coreThresholdPct
               : ent.is_core;
             return { ...ent, is_core: isCore };
           });
-          const displayCells = filteredIndices.map((idx) => rawCells[idx]);
 
           return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -654,17 +637,6 @@ const RoleDiscoveryWorkspace = () => {
                     <span style={{ fontWeight: 'bold', color: 'var(--text-muted)' }}>%</span>
                   </div>
 
-                  <select
-                    className="analytical-view-select"
-                    value={entitlementFilter}
-                    onChange={(e) => setEntitlementFilter(e.target.value)}
-                    title="Filter entitlements by core status"
-                  >
-                    <option value="all">All Entitlements</option>
-                    <option value="core">Core Only (≥{coreThresholdPct}%)</option>
-                    <option value="non-core">Non-Core Only (&lt;{coreThresholdPct}%)</option>
-                  </select>
-
                   <button
                     className="btn-add-connector"
                     onClick={() => fetchCampaignMatrixData(selectedCampaign.id, selectedForCompare)}
@@ -681,7 +653,7 @@ const RoleDiscoveryWorkspace = () => {
                   loading={matrixLoading}
                   entitlements={displayEntitlements}
                   members={campaignMatrix?.members || []}
-                  cells={displayCells}
+                  cells={rawCells}
                   roles={campaignMatrix?.roles || []}
                   emptyMessage="No candidate roles with mined entitlements/members yet - run mining first."
                 />
@@ -691,14 +663,14 @@ const RoleDiscoveryWorkspace = () => {
                   mode={analyticalViewMode}
                   entitlements={displayEntitlements}
                   members={campaignMatrix?.members || []}
-                  cells={displayCells}
+                  cells={rawCells}
                   coreThresholdPct={coreThresholdPct}
                   emptyMessage="No candidate roles with mined entitlements/members yet - run mining first."
                 />
               )}
             </div>
           );
-        })()}
+        })()} })()}
 
         {/* Candidate Role detail drawer */}
         {selectedRoleDetail && (
