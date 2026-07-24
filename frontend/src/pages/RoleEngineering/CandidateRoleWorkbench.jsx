@@ -1451,7 +1451,7 @@ const CandidateRoleWorkbench = () => {
                 <span className="analytical-view-caption-title">
                   {selectedRoleIds.length > 0
                     ? `Scope: ${selectedRoleIds.length} selected role(s)`
-                    : `Scope: All candidate roles (${multiRoleMatrix?.total_candidate_roles || multiRoleMatrix?.roles?.length || 0} roles, Core ${coreThresholdPct}%)`}
+                    : `Scope: All candidate roles (${multiRoleMatrix?.total_candidate_roles || multiRoleMatrix?.roles?.length || 0} roles)`}
                 </span>
                 <span className="analytical-view-caption-desc">{ANALYTICAL_VIEW_HINTS[analyticalViewMode]}</span>
               </div>
@@ -1465,27 +1465,6 @@ const CandidateRoleWorkbench = () => {
                     <option key={vm.value} value={vm.value}>{vm.label}</option>
                   ))}
                 </select>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '3px 8px', fontSize: '12px' }}>
-                  <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Core %:</span>
-                  <input
-                    type="number"
-                    min="1"
-                    max="100"
-                    value={coreThresholdInput}
-                    onChange={(e) => setCoreThresholdInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        applyCoreThreshold();
-                      }
-                    }}
-                    onBlur={applyCoreThreshold}
-                    style={{ width: '46px', padding: '2px 4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}
-                    title="Type percentage and press Enter to apply threshold"
-                  />
-                  <span style={{ fontWeight: 'bold', color: 'var(--text-muted)' }}>%</span>
-                </div>
 
                 <button className="btn-action-premium" onClick={handleLoadMultiRoleMatrix}>
                   <RefreshCw size={14} className={matrixLoading ? 'spin-element' : ''} />
