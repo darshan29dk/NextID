@@ -597,7 +597,9 @@ const RoleDiscoveryWorkspace = () => {
               )}
             </div>
           );
-        })()}        {detailTab === 'matrix' && (() => {
+        })()}
+
+        {detailTab === 'matrix' && (() => {
           const rawEntitlements = campaignMatrix?.entitlements || [];
           const rawCells = campaignMatrix?.cells || [];
 
@@ -684,7 +686,7 @@ const RoleDiscoveryWorkspace = () => {
               )}
             </div>
           );
-        })()} })()}
+        })()}
 
         {/* Candidate Role detail drawer */}
         {selectedRoleDetail && (
