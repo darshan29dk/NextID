@@ -97,7 +97,17 @@ const RoleDiscoveryWorkspace = () => {
   const [matrixLoading, setMatrixLoading] = useState(false);
   const [matrixError, setMatrixError] = useState('');
   const [analyticalViewMode, setAnalyticalViewMode] = useState('grid'); // 'grid' | 'coverage' | 'core' | 'member' | 'role'
+  const [coreThresholdInput, setCoreThresholdInput] = useState('60');
   const [coreThresholdPct, setCoreThresholdPct] = useState(60); // user-configurable core threshold %
+
+  const applyCoreThreshold = useCallback(() => {
+    const num = parseFloat(coreThresholdInput);
+    if (!isNaN(num) && num >= 1 && num <= 100) {
+      setCoreThresholdPct(num);
+    } else {
+      setCoreThresholdInput(String(coreThresholdPct));
+    }
+  }, [coreThresholdInput, coreThresholdPct]);
 
   const fetchCampaigns = useCallback(async () => {
     try {
@@ -626,13 +636,17 @@ const RoleDiscoveryWorkspace = () => {
                       type="number"
                       min="1"
                       max="100"
-                      value={coreThresholdPct}
-                      onChange={(e) => {
-                        const val = Math.max(1, Math.min(100, Number(e.target.value) || 0));
-                        setCoreThresholdPct(val);
+                      value={coreThresholdInput}
+                      onChange={(e) => setCoreThresholdInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          applyCoreThreshold();
+                        }
                       }}
-                      style={{ width: '42px', padding: '2px 4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}
-                      title="Set custom Core Entitlement coverage percentage threshold"
+                      onBlur={applyCoreThreshold}
+                      style={{ width: '46px', padding: '2px 4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}
+                      title="Type percentage and press Enter to apply threshold"
                     />
                     <span style={{ fontWeight: 'bold', color: 'var(--text-muted)' }}>%</span>
                   </div>
