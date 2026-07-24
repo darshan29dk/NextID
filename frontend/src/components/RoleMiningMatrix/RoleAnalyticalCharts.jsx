@@ -70,14 +70,19 @@ const Donut = ({ segments, centerLabel, centerSubLabel }) => {
   );
 };
 
-const CoreDoughnut = ({ entitlements }) => {
-  const coreCount = entitlements.filter((e) => e.is_core).length;
+const CoreDoughnut = ({ entitlements, coreThresholdPct = 60 }) => {
+  const coreCount = entitlements.filter((e) => {
+    if (typeof e.member_coverage_pct === 'number') {
+      return e.member_coverage_pct >= coreThresholdPct;
+    }
+    return e.is_core;
+  }).length;
   const nonCoreCount = entitlements.length - coreCount;
   return (
     <Donut
       segments={[
-        { label: 'Core', value: coreCount, color: 'var(--success)' },
-        { label: 'Non-Core', value: nonCoreCount, color: 'var(--text-muted)' },
+        { label: `Core (≥${coreThresholdPct}%)`, value: coreCount, color: 'var(--success)' },
+        { label: `Non-Core (<${coreThresholdPct}%)`, value: nonCoreCount, color: 'var(--text-muted)' },
       ]}
       centerLabel={entitlements.length}
       centerSubLabel="Entitlements"
@@ -168,7 +173,7 @@ const MemberMatchBarChart = ({ entitlements, members, cells }) => {
   );
 };
 
-const RoleAnalyticalCharts = ({ entitlements = [], members = [], cells = [], loading = false, mode = 'core', emptyMessage = 'No mining data available for this view yet.' }) => {
+const RoleAnalyticalCharts = ({ entitlements = [], members = [], cells = [], loading = false, mode = 'core', coreThresholdPct = 60, emptyMessage = 'No mining data available for this view yet.' }) => {
   if (loading) {
     return <div className="matrix-empty-state">Loading...</div>;
   }
@@ -185,7 +190,7 @@ const RoleAnalyticalCharts = ({ entitlements = [], members = [], cells = [], loa
       return <RoleSplitDoughnut entitlements={entitlements} />;
     case 'core':
     default:
-      return <CoreDoughnut entitlements={entitlements} />;
+      return <CoreDoughnut entitlements={entitlements} coreThresholdPct={coreThresholdPct} />;
   }
 };
 

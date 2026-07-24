@@ -312,6 +312,7 @@ const CandidateRoleWorkbench = () => {
   const [matrixError, setMatrixError] = useState('');
   const [analyticalViewMode, setAnalyticalViewMode] = useState('grid'); // 'grid' | 'coverage' | 'core' | 'member' | 'role'
   const [entitlementFilter, setEntitlementFilter] = useState('all'); // 'all' | 'core' | 'non-core'
+  const [coreThresholdPct, setCoreThresholdPct] = useState(60); // user-configurable core threshold %
 
   // ── Drawer fullscreen toggle - the matrix needs the room ─────────────────
   const [drawerFullscreen, setDrawerFullscreen] = useState(false);
@@ -1423,13 +1424,22 @@ const CandidateRoleWorkbench = () => {
         const filteredIndices = rawEntitlements
           .map((e, idx) => ({ e, idx }))
           .filter(({ e }) => {
-            if (entitlementFilter === 'core') return e.is_core;
-            if (entitlementFilter === 'non-core') return !e.is_core;
+            const isCore = typeof e.member_coverage_pct === 'number'
+              ? e.member_coverage_pct >= coreThresholdPct
+              : e.is_core;
+            if (entitlementFilter === 'core') return isCore;
+            if (entitlementFilter === 'non-core') return !isCore;
             return true;
           })
           .map(({ idx }) => idx);
 
-        const displayEntitlements = filteredIndices.map((idx) => rawEntitlements[idx]);
+        const displayEntitlements = filteredIndices.map((idx) => {
+          const ent = rawEntitlements[idx];
+          const isCore = typeof ent.member_coverage_pct === 'number'
+            ? ent.member_coverage_pct >= coreThresholdPct
+            : ent.is_core;
+          return { ...ent, is_core: isCore };
+        });
         const displayCells = filteredIndices.map((idx) => rawCells[idx]);
 
         return (
@@ -1441,7 +1451,7 @@ const CandidateRoleWorkbench = () => {
                 </span>
                 <span className="analytical-view-caption-desc">{ANALYTICAL_VIEW_HINTS[analyticalViewMode]}</span>
               </div>
-              <div className="analytical-view-controls">
+              <div className="analytical-view-controls" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <select
                   className="analytical-view-select"
                   value={analyticalViewMode}
@@ -1452,16 +1462,32 @@ const CandidateRoleWorkbench = () => {
                   ))}
                 </select>
 
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '3px 8px', fontSize: '12px' }}>
+                  <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Core %:</span>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={coreThresholdPct}
+                    onChange={(e) => {
+                      const val = Math.max(1, Math.min(100, Number(e.target.value) || 0));
+                      setCoreThresholdPct(val);
+                    }}
+                    style={{ width: '42px', padding: '2px 4px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', color: 'var(--text-main)', fontSize: '12px', fontWeight: 'bold', textAlign: 'center' }}
+                    title="Set custom Core Entitlement coverage percentage threshold"
+                  />
+                  <span style={{ fontWeight: 'bold', color: 'var(--text-muted)' }}>%</span>
+                </div>
+
                 <select
                   className="analytical-view-select"
                   value={entitlementFilter}
                   onChange={(e) => setEntitlementFilter(e.target.value)}
-                  style={{ marginLeft: '4px' }}
                   title="Filter entitlements by core status"
                 >
                   <option value="all">All Entitlements</option>
-                  <option value="core">Core Entitlements Only (≥60%)</option>
-                  <option value="non-core">Non-Core Entitlements (&lt;60%)</option>
+                  <option value="core">Core Only (≥{coreThresholdPct}%)</option>
+                  <option value="non-core">Non-Core Only (&lt;{coreThresholdPct}%)</option>
                 </select>
 
                 <button className="btn-action-premium" onClick={handleLoadMultiRoleMatrix}>
@@ -1487,6 +1513,7 @@ const CandidateRoleWorkbench = () => {
                 entitlements={displayEntitlements}
                 members={multiRoleMatrix?.members || []}
                 cells={displayCells}
+                coreThresholdPct={coreThresholdPct}
                 emptyMessage="No candidate roles with mined entitlements/members yet."
               />
             )}
