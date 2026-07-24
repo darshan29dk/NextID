@@ -617,7 +617,7 @@ const RoleDiscoveryWorkspace = () => {
                   <span className="analytical-view-caption-title">
                     {selectedForCompare.length > 0
                       ? `Scope: ${selectedForCompare.length} selected role(s)`
-                      : 'Scope: Top 10 roles by confidence score'}
+                      : `Scope: All candidate roles (${campaignMatrix?.roles?.length || 0} roles, Core ≥ ${coreThresholdPct}%)`}
                   </span>
                   <span className="analytical-view-caption-desc">{ANALYTICAL_VIEW_HINTS[analyticalViewMode]}</span>
                 </div>

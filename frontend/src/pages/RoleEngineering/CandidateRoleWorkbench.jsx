@@ -1442,7 +1442,9 @@ const CandidateRoleWorkbench = () => {
             <div className="analytical-view-toolbar">
               <div className="analytical-view-caption">
                 <span className="analytical-view-caption-title">
-                  {selectedRoleIds.length > 0 ? `Scope: ${selectedRoleIds.length} selected role(s)` : 'Scope: Top 10 roles by confidence score'}
+                  {selectedRoleIds.length > 0
+                    ? `Scope: ${selectedRoleIds.length} selected role(s)`
+                    : `Scope: All candidate roles (${multiRoleMatrix?.roles?.length || 0} roles, Core ≥ ${coreThresholdPct}%)`}
                 </span>
                 <span className="analytical-view-caption-desc">{ANALYTICAL_VIEW_HINTS[analyticalViewMode]}</span>
               </div>

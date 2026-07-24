@@ -93,6 +93,7 @@ def _build_role_block(db: Session, role: CandidateRole, color: str):
             "entitlement_name": e.entitlement_name,
             "application_name": e.application_name,
             "is_core": e.is_core,
+            "member_coverage_pct": e.member_coverage_pct,
             "role_id": role.id,
             "role_name": role.role_name,
             "color": color,
@@ -212,8 +213,7 @@ def get_campaign_matrix(db: Session, campaign_id: int, role_ids: Optional[List[i
         order = {rid: i for i, rid in enumerate(role_ids)}
         roles.sort(key=lambda r: order.get(r.id, 999))
     else:
-        # Default: cap at 10 roles (one per palette color) so the grid stays readable
-        roles = query.order_by(CandidateRole.confidence_score.desc()).limit(10).all()
+        roles = query.order_by(CandidateRole.confidence_score.desc()).all()
 
     result = _build_multi_role_matrix(db, roles)
     result["campaign_id"] = campaign_id
@@ -224,7 +224,7 @@ def get_multi_role_matrix(db: Session, role_ids: Optional[List[int]] = None) -> 
     """Multi-role matrix for Role Engineering's list-level Analytical View -
     not tied to a single mining campaign, spans every candidate role in the
     system (Mining or Manual). Scoped to whatever's checked in the table, or
-    the top 10 candidate roles by confidence score if nothing's checked."""
+    all candidate roles by confidence score if nothing's checked."""
     query = db.query(CandidateRole).filter(CandidateRole.is_deleted == False)
     if role_ids:
         query = query.filter(CandidateRole.id.in_(role_ids))
@@ -232,6 +232,6 @@ def get_multi_role_matrix(db: Session, role_ids: Optional[List[int]] = None) -> 
         order = {rid: i for i, rid in enumerate(role_ids)}
         roles.sort(key=lambda r: order.get(r.id, 999))
     else:
-        roles = query.order_by(CandidateRole.confidence_score.desc()).limit(10).all()
+        roles = query.order_by(CandidateRole.confidence_score.desc()).all()
 
     return _build_multi_role_matrix(db, roles)
