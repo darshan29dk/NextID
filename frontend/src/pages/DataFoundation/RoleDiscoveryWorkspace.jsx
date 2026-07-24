@@ -34,7 +34,6 @@ const INITIAL_FORM = {
 const ANALYTICAL_VIEW_HINTS = {
   grid: 'Entitlement grants by member, based on verified account data.',
   coverage: 'Member coverage percentage per entitlement.',
-  core: 'Core and non-core entitlement distribution.',
   member: 'Entitlement match percentage per member.',
   role: 'Entitlement distribution across candidate roles.',
 };

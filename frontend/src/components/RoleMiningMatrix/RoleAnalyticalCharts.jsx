@@ -18,7 +18,6 @@ import './RoleMiningMatrix.css';
 const VIEW_MODES = [
   { value: 'grid', label: 'Grid (dots)' },
   { value: 'coverage', label: 'Coverage by Entitlement' },
-  { value: 'core', label: 'Core vs Non-Core' },
   { value: 'member', label: 'Member Match' },
   { value: 'role', label: 'Entitlements by Role' },
 ];
@@ -173,7 +172,7 @@ const MemberMatchBarChart = ({ entitlements, members, cells }) => {
   );
 };
 
-const RoleAnalyticalCharts = ({ entitlements = [], members = [], cells = [], loading = false, mode = 'core', coreThresholdPct = 60, emptyMessage = 'No mining data available for this view yet.' }) => {
+const RoleAnalyticalCharts = ({ entitlements = [], members = [], cells = [], loading = false, mode = 'coverage', coreThresholdPct = 60, emptyMessage = 'No mining data available for this view yet.' }) => {
   if (loading) {
     return <div className="matrix-empty-state">Loading...</div>;
   }
@@ -182,15 +181,13 @@ const RoleAnalyticalCharts = ({ entitlements = [], members = [], cells = [], loa
   }
 
   switch (mode) {
-    case 'coverage':
-      return <CoverageBarChart entitlements={entitlements} members={members} cells={cells} />;
     case 'member':
       return <MemberMatchBarChart entitlements={entitlements} members={members} cells={cells} />;
     case 'role':
       return <RoleSplitDoughnut entitlements={entitlements} />;
-    case 'core':
+    case 'coverage':
     default:
-      return <CoreDoughnut entitlements={entitlements} coreThresholdPct={coreThresholdPct} />;
+      return <CoverageBarChart entitlements={entitlements} members={members} cells={cells} />;
   }
 };
 
