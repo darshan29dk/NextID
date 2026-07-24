@@ -603,12 +603,20 @@ const RoleDiscoveryWorkspace = () => {
           const rawEntitlements = campaignMatrix?.entitlements || [];
           const rawCells = campaignMatrix?.cells || [];
 
-          const displayEntitlements = rawEntitlements.map((ent) => {
+          const mappedEntitlements = rawEntitlements.map((ent) => {
             const isCore = typeof ent.member_coverage_pct === 'number'
               ? ent.member_coverage_pct >= coreThresholdPct
               : ent.is_core;
             return { ...ent, is_core: isCore };
           });
+
+          const sortedIndices = mappedEntitlements
+            .map((ent, origIdx) => ({ ent, origIdx }))
+            .sort((a, b) => (Number(b.ent.is_core) - Number(a.ent.is_core)) || ((b.ent.member_coverage_pct || 0) - (a.ent.member_coverage_pct || 0)))
+            .map((item) => item.origIdx);
+
+          const displayEntitlements = sortedIndices.map((idx) => mappedEntitlements[idx]);
+          const displayCells = sortedIndices.map((idx) => rawCells[idx]);
 
           return (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -669,7 +677,7 @@ const RoleDiscoveryWorkspace = () => {
                   loading={matrixLoading}
                   entitlements={displayEntitlements}
                   members={campaignMatrix?.members || []}
-                  cells={rawCells}
+                  cells={displayCells}
                   roles={campaignMatrix?.roles || []}
                   emptyMessage="No candidate roles with mined entitlements/members yet - run mining first."
                 />
@@ -679,7 +687,7 @@ const RoleDiscoveryWorkspace = () => {
                   mode={analyticalViewMode}
                   entitlements={displayEntitlements}
                   members={campaignMatrix?.members || []}
-                  cells={rawCells}
+                  cells={displayCells}
                   coreThresholdPct={coreThresholdPct}
                   emptyMessage="No candidate roles with mined entitlements/members yet - run mining first."
                 />

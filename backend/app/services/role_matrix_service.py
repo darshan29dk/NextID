@@ -60,10 +60,6 @@ def _member_display_name(account: ApplicationAccount, identity: Optional[Identit
 def _build_role_block(db: Session, role: CandidateRole, color: str):
     """Returns (entitlement_rows, member_columns, grant_lookup) for one role.
     grant_lookup is a set of (account_id, entitlement_id) pairs that are real."""
-    entitlements = db.query(CandidateRoleEntitlement).filter(
-        CandidateRoleEntitlement.candidate_role_id == role.id
-    ).order_by(CandidateRoleEntitlement.is_core.desc(), CandidateRoleEntitlement.member_coverage_pct.desc()).all()
-
     member_rows = db.query(CampaignAccountResult, ApplicationAccount, Application).join(
         ApplicationAccount, CampaignAccountResult.account_id == ApplicationAccount.id
     ).join(
@@ -71,35 +67,81 @@ def _build_role_block(db: Session, role: CandidateRole, color: str):
     ).filter(CampaignAccountResult.candidate_role_id == role.id).all()
 
     account_ids = [acc.id for _, acc, _ in member_rows]
+    total_members = len(account_ids)
+
     identity_ids = [acc.identity_id for _, acc, _ in member_rows if acc.identity_id]
     identities_by_id = {}
     if identity_ids:
         for ident in db.query(Identity).filter(Identity.id.in_(identity_ids)).all():
             identities_by_id[ident.id] = ident
 
-    entitlement_ids = [e.entitlement_id for e in entitlements if e.entitlement_id]
-    grant_lookup = set()
-    if account_ids and entitlement_ids:
-        grants = db.query(ApplicationAccountEntitlement).filter(
-            ApplicationAccountEntitlement.account_id.in_(account_ids),
-            ApplicationAccountEntitlement.entitlement_id.in_(entitlement_ids)
-        ).all()
-        grant_lookup = {(g.account_id, g.entitlement_id) for g in grants}
+    cre_list = db.query(CandidateRoleEntitlement).filter(
+        CandidateRoleEntitlement.candidate_role_id == role.id
+    ).all()
 
-    entitlement_rows = [
-        {
-            "key": f"role{role.id}-ent{e.id}",
+    grant_lookup = set()
+    grants_by_ent_id = defaultdict(set)
+    if account_ids:
+        grants = db.query(ApplicationAccountEntitlement).filter(
+            ApplicationAccountEntitlement.account_id.in_(account_ids)
+        ).all()
+        for g in grants:
+            if g.entitlement_id:
+                grant_lookup.add((g.account_id, g.entitlement_id))
+                grants_by_ent_id[g.entitlement_id].add(g.account_id)
+
+    seen_keys = set()
+    entitlement_rows = []
+
+    for e in cre_list:
+        key = f"role{role.id}-ent{e.id}"
+        seen_keys.add(key)
+        holders = len(grants_by_ent_id.get(e.entitlement_id, set())) if e.entitlement_id else total_members
+        coverage_pct = round((holders / total_members) * 100.0, 1) if total_members > 0 else (e.member_coverage_pct or 0.0)
+
+        entitlement_rows.append({
+            "key": key,
             "entitlement_id": e.entitlement_id,
             "entitlement_name": e.entitlement_name,
-            "application_name": e.application_name,
+            "application_name": e.application_name or "System Default",
             "is_core": e.is_core,
-            "member_coverage_pct": e.member_coverage_pct,
+            "member_coverage_pct": coverage_pct,
             "role_id": role.id,
             "role_name": role.role_name,
             "color": color,
-        }
-        for e in entitlements
-    ]
+        })
+
+    if account_ids:
+        from app.models.application_entitlement import ApplicationEntitlement
+        extra_ent_ids = set(grants_by_ent_id.keys()) - {e.entitlement_id for e in cre_list if e.entitlement_id}
+        if extra_ent_ids:
+            extra_ents = db.query(
+                ApplicationEntitlement.id,
+                ApplicationEntitlement.entitlement_name,
+                Application.application_name
+            ).join(Application, ApplicationEntitlement.application_id == Application.id).filter(
+                ApplicationEntitlement.id.in_(extra_ent_ids)
+            ).all()
+
+            for ent_id, ent_name, app_name in extra_ents:
+                key = f"role{role.id}-extraent{ent_id}"
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    holders = len(grants_by_ent_id.get(ent_id, set()))
+                    coverage_pct = round((holders / total_members) * 100.0, 1) if total_members > 0 else 0.0
+                    entitlement_rows.append({
+                        "key": key,
+                        "entitlement_id": ent_id,
+                        "entitlement_name": ent_name,
+                        "application_name": app_name or "System Default",
+                        "is_core": False,
+                        "member_coverage_pct": coverage_pct,
+                        "role_id": role.id,
+                        "role_name": role.role_name,
+                        "color": color,
+                    })
+
+    entitlement_rows.sort(key=lambda x: (x["is_core"], x["member_coverage_pct"]), reverse=True)
 
     member_columns = [
         {
