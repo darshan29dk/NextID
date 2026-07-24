@@ -97,6 +97,7 @@ const RoleDiscoveryWorkspace = () => {
   const [matrixLoading, setMatrixLoading] = useState(false);
   const [matrixError, setMatrixError] = useState('');
   const [analyticalViewMode, setAnalyticalViewMode] = useState('grid'); // 'grid' | 'coverage' | 'core' | 'member' | 'role'
+  const [entitlementFilter, setEntitlementFilter] = useState('all'); // 'all' | 'core' | 'non-core'
 
   const fetchCampaigns = useCallback(async () => {
     try {
@@ -588,59 +589,89 @@ const RoleDiscoveryWorkspace = () => {
           );
         })()}
 
-        {detailTab === 'matrix' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div className="analytical-view-toolbar">
-              <div className="analytical-view-caption">
-                <span className="analytical-view-caption-title">
-                  {selectedForCompare.length > 0
-                    ? `Scope: ${selectedForCompare.length} selected role(s)`
-                    : 'Scope: Top 10 roles by confidence score'}
-                </span>
-                <span className="analytical-view-caption-desc">{ANALYTICAL_VIEW_HINTS[analyticalViewMode]}</span>
+        {detailTab === 'matrix' && (() => {
+          const rawEntitlements = campaignMatrix?.entitlements || [];
+          const rawCells = campaignMatrix?.cells || [];
+
+          const filteredIndices = rawEntitlements
+            .map((e, idx) => ({ e, idx }))
+            .filter(({ e }) => {
+              if (entitlementFilter === 'core') return e.is_core;
+              if (entitlementFilter === 'non-core') return !e.is_core;
+              return true;
+            })
+            .map(({ idx }) => idx);
+
+          const displayEntitlements = filteredIndices.map((idx) => rawEntitlements[idx]);
+          const displayCells = filteredIndices.map((idx) => rawCells[idx]);
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div className="analytical-view-toolbar">
+                <div className="analytical-view-caption">
+                  <span className="analytical-view-caption-title">
+                    {selectedForCompare.length > 0
+                      ? `Scope: ${selectedForCompare.length} selected role(s)`
+                      : 'Scope: Top 10 roles by confidence score'}
+                  </span>
+                  <span className="analytical-view-caption-desc">{ANALYTICAL_VIEW_HINTS[analyticalViewMode]}</span>
+                </div>
+                <div className="analytical-view-controls">
+                  <select
+                    className="analytical-view-select"
+                    value={analyticalViewMode}
+                    onChange={(e) => setAnalyticalViewMode(e.target.value)}
+                  >
+                    {VIEW_MODES.map((vm) => (
+                      <option key={vm.value} value={vm.value}>{vm.label}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    className="analytical-view-select"
+                    value={entitlementFilter}
+                    onChange={(e) => setEntitlementFilter(e.target.value)}
+                    style={{ marginLeft: '4px' }}
+                    title="Filter entitlements by core status"
+                  >
+                    <option value="all">All Entitlements</option>
+                    <option value="core">Core Entitlements Only (≥60%)</option>
+                    <option value="non-core">Non-Core Entitlements (&lt;60%)</option>
+                  </select>
+
+                  <button
+                    className="btn-add-connector"
+                    onClick={() => fetchCampaignMatrixData(selectedCampaign.id, selectedForCompare)}
+                    style={{ padding: '8px 14px', fontSize: '12.5px' }}
+                  >
+                    <RotateCcw size={13} className={matrixLoading ? 'spinner-icon' : ''} />
+                    <span>Refresh</span>
+                  </button>
+                </div>
               </div>
-              <div className="analytical-view-controls">
-                <select
-                  className="analytical-view-select"
-                  value={analyticalViewMode}
-                  onChange={(e) => setAnalyticalViewMode(e.target.value)}
-                >
-                  {VIEW_MODES.map((vm) => (
-                    <option key={vm.value} value={vm.value}>{vm.label}</option>
-                  ))}
-                </select>
-                <button
-                  className="btn-add-connector"
-                  onClick={() => fetchCampaignMatrixData(selectedCampaign.id, selectedForCompare)}
-                  style={{ padding: '8px 14px', fontSize: '12.5px' }}
-                >
-                  <RotateCcw size={13} className={matrixLoading ? 'spinner-icon' : ''} />
-                  <span>Refresh</span>
-                </button>
-              </div>
+              {matrixError && <div className="drawer-tab-empty-msg"><p>{matrixError}</p></div>}
+              {analyticalViewMode === 'grid' ? (
+                <RoleMiningMatrix
+                  loading={matrixLoading}
+                  entitlements={displayEntitlements}
+                  members={campaignMatrix?.members || []}
+                  cells={displayCells}
+                  roles={campaignMatrix?.roles || []}
+                  emptyMessage="No candidate roles with mined entitlements/members yet - run mining first."
+                />
+              ) : (
+                <RoleAnalyticalCharts
+                  loading={matrixLoading}
+                  mode={analyticalViewMode}
+                  entitlements={displayEntitlements}
+                  members={campaignMatrix?.members || []}
+                  cells={displayCells}
+                  emptyMessage="No candidate roles with mined entitlements/members yet - run mining first."
+                />
+              )}
             </div>
-            {matrixError && <div className="drawer-tab-empty-msg"><p>{matrixError}</p></div>}
-            {analyticalViewMode === 'grid' ? (
-              <RoleMiningMatrix
-                loading={matrixLoading}
-                entitlements={campaignMatrix?.entitlements || []}
-                members={campaignMatrix?.members || []}
-                cells={campaignMatrix?.cells || []}
-                roles={campaignMatrix?.roles || []}
-                emptyMessage="No candidate roles with mined entitlements/members yet - run mining first."
-              />
-            ) : (
-              <RoleAnalyticalCharts
-                loading={matrixLoading}
-                mode={analyticalViewMode}
-                entitlements={campaignMatrix?.entitlements || []}
-                members={campaignMatrix?.members || []}
-                cells={campaignMatrix?.cells || []}
-                emptyMessage="No candidate roles with mined entitlements/members yet - run mining first."
-              />
-            )}
-          </div>
-        )}
+          );
+        })()}
 
         {/* Candidate Role detail drawer */}
         {selectedRoleDetail && (
