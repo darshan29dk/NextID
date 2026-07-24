@@ -139,11 +139,16 @@ const ApprovalRequestDetail = () => {
 
   const isPlatformAdmin = currentUser?.role === 'Platform Administrator';
   const isSecurityAdmin = currentUser?.role === 'Security Administrator';
+  const namesMatch = (a, b) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
 
+  // Business Review actions are owner-only - being a Platform Administrator
+  // no longer bypasses this (see BusinessApprovalService._validate_reviewer_
+  // auth on the backend, which is the actual source of truth this must
+  // mirror). Security Review stays role-based, since that stage was never
+  // tied to a specific role owner to begin with.
   const canPerformBusinessAction = request && (
-    isPlatformAdmin || 
-    (currentUser?.role !== 'Role Engineer' && currentUser?.role !== 'Viewer' &&
-     (request.primary_owner_name === currentUser?.name || request.backup_owner_name === currentUser?.name))
+    currentUser?.role !== 'Role Engineer' && currentUser?.role !== 'Viewer' &&
+    (namesMatch(request.primary_owner_name, currentUser?.name) || namesMatch(request.backup_owner_name, currentUser?.name))
   );
 
   const canPerformSecurityAction = request && (

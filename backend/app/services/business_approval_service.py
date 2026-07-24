@@ -15,19 +15,82 @@ class BusinessApprovalService:
     @staticmethod
     def _validate_reviewer_auth(db: Session, request: ApprovalRequest, user: str, role: str):
         """
-        Ensures the calling user is the designated owner or is a Platform Admin.
-        """
-        if role == "Platform Administrator":
-            return True  # Admins bypass ownership checks (override mode)
+        Ensures the calling user is the specifically assigned Primary or
+        Backup owner of the role - and only that. Being a Platform
+        Administrator no longer grants an automatic bypass here: a blanket
+        "any admin can approve anything" override made the whole point of
+        assigning a named, review-dated owner meaningless, and it also
+        silently defeated the review-date expiry enforcement below (an admin
+        could approve a role whose owner had already lapsed). A deliberate,
+        clearly-logged override path for a genuinely unavailable owner is a
+        separate feature to add later, not a silent role-based bypass.
 
+        Also enforces owner review-date expiry: an owner's certification to
+        act on a role lapses along with their review date, even for a request
+        already in flight. Blocking silently would just leave the request
+        stuck with nobody able to see why, so this fires two notifications -
+        one telling the expired owner they can no longer approve, one telling
+        Platform Administrators a new owner needs to be assigned so the
+        request can be unblocked.
+        """
         cand_role = db.query(CandidateRole).filter(CandidateRole.id == request.candidate_role_id).first()
         if not cand_role:
             raise ValueError("Associated candidate role not found")
 
-        # Match by full name
-        owners = [cand_role.primary_owner_name, cand_role.backup_owner_name]
-        if user not in owners:
-            raise ValueError(f"User '{user}' is not authorized to action this request. Only the assigned role owner or a Platform Admin can review.")
+        # Match by full name, case/whitespace-insensitive - the owner picker
+        # and the logged-in display name aren't guaranteed to match exactly
+        # in case (e.g. "sania gupta" vs "Sania Gupta"), and a strict ==
+        # here would lock out the very owner the request is assigned to.
+        user_norm = (user or "").strip().lower()
+        owner_type = None
+        if user_norm and user_norm == (cand_role.primary_owner_name or "").strip().lower():
+            owner_type = "Primary"
+        elif user_norm and user_norm == (cand_role.backup_owner_name or "").strip().lower():
+            owner_type = "Backup"
+
+        if owner_type is None:
+            raise ValueError(f"User '{user}' is not authorized to action this request. Only the assigned Primary or Backup Owner can review.")
+
+        from app.models.role_owner_history import RoleOwnerHistory
+        owner_record = db.query(RoleOwnerHistory).filter(
+            RoleOwnerHistory.candidate_role_id == cand_role.id,
+            RoleOwnerHistory.owner_type == owner_type,
+            RoleOwnerHistory.is_active == True
+        ).first()
+
+        now = datetime.utcnow()
+        if owner_record and owner_record.review_date and owner_record.review_date < now:
+            if not owner_record.is_expired:
+                owner_record.is_expired = True
+
+            db.add(Notification(
+                title=f"Review Expired - Approval Blocked: {cand_role.role_name}",
+                message=(
+                    f"Your review date for '{cand_role.role_name}' has expired, so you can no longer "
+                    f"approve this request. Please contact your Platform Administrator to renew your "
+                    f"review or reassign ownership."
+                ),
+                status="unread",
+                created_at=now
+            ))
+            db.add(Notification(
+                title=f"Owner Reassignment Needed: {cand_role.role_name}",
+                message=(
+                    f"{owner_type} Owner '{user}' attempted to approve role '{cand_role.role_name}' "
+                    f"but their review date expired on {owner_record.review_date.strftime('%d %b %Y')}. "
+                    f"Please assign a new owner so this approval request can proceed."
+                ),
+                status="unread",
+                created_at=now
+            ))
+            db.commit()
+
+            raise ValueError(
+                f"Your review date expired on {owner_record.review_date.strftime('%d %b %Y')} - you are no "
+                f"longer authorized to approve this request. The Platform Administrator has been notified "
+                f"to reassign ownership."
+            )
+
         return True
 
     @staticmethod

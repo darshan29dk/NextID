@@ -95,7 +95,11 @@ const SoDScanHistory = () => {
   const toUTC = (str) => {
     if (!str) return '';
     if (typeof str !== 'string') return str;
-    if (!str.endsWith('Z') && !str.includes('+') && !str.includes('-')) {
+    // Only a trailing timezone offset (e.g. "+05:30" or "-05:30") means the
+    // string already carries zone info. A bare check for "-" anywhere wrongly
+    // matched the date's own hyphens (e.g. "2026-07-23"), so it never
+    // actually appended 'Z' - this was a no-op for every normal timestamp.
+    if (!str.endsWith('Z') && !/[+-]\d{2}:\d{2}$/.test(str)) {
       return str + 'Z';
     }
     return str;

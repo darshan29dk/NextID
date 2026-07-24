@@ -51,19 +51,9 @@ const BusinessApproval = ({ hideHeader }) => {
       };
       const res = await getApprovalRequests(params);
       
-      // Filter list based on RBAC:
-      // If admin, show all. If business owner, show only owned. If Role Engineer/Viewer, show all but read-only.
-      const list = res.requests || [];
-      if (isAdmin || isRoleEngineer || isViewer) {
-        setRequests(list);
-      } else {
-        // Business owner filter
-        const owned = list.filter(r => 
-          r.primary_owner_name === currentUser?.name || 
-          r.backup_owner_name === currentUser?.name
-        );
-        setRequests(owned);
-      }
+      // Everyone with view access sees every request here - ownership only
+      // gates who can ACT on a row (see canUserAction), not who can see it.
+      setRequests(list);
     } catch (err) {
       console.error("Failed to load business approvals:", err);
       setError("Failed to load pending business approvals.");
@@ -75,6 +65,11 @@ const BusinessApproval = ({ hideHeader }) => {
   const handleRowSelect = (id) => {
     // If read-only role, prevent selection
     if (isRoleEngineer || isViewer) return;
+    // Bulk actions run through the same authorization as single-row actions -
+    // don't let someone select (and therefore bulk-action) a request they
+    // aren't the assigned owner of, same restriction as the per-row buttons.
+    const row = requests.find(r => r.id === id);
+    if (row && !canUserAction(row)) return;
 
     if (selectedIds.includes(id)) {
       setSelectedIds(selectedIds.filter(x => x !== id));
@@ -86,10 +81,11 @@ const BusinessApproval = ({ hideHeader }) => {
   const handleSelectAll = () => {
     if (isRoleEngineer || isViewer) return;
 
-    if (selectedIds.length === requests.length) {
+    const actionableIds = requests.filter(r => canUserAction(r)).map(r => r.id);
+    if (selectedIds.length === actionableIds.length) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(requests.map(r => r.id));
+      setSelectedIds(actionableIds);
     }
   };
 
@@ -103,12 +99,25 @@ const BusinessApproval = ({ hideHeader }) => {
     navigate(`/approval-workflow/requests/${id}`);
   };
 
-  // Determine if a row can be actioned by the current user
+  // Determine if a row can be actioned by the current user.
+  // Ownership is the only path to action - being a Platform Administrator no
+  // longer grants an automatic bypass here. Admins can still SEE every
+  // request (see the visibility filter above), just not act on one they
+  // don't own. A dedicated, clearly-logged override path for genuinely
+  // unavailable owners is a separate, deliberate feature to build later -
+  // not a silent blanket bypass.
+  const namesMatch = (a, b) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+
   const canUserAction = (r) => {
-    if (isAdmin) return true;
     if (isRoleEngineer || isViewer) return false;
-    // Check if name matches primary/backup
-    return r.primary_owner_name === currentUser?.name || r.backup_owner_name === currentUser?.name;
+    // Case/whitespace-insensitive - the owner picker's stored name and the
+    // logged-in display name aren't guaranteed to match exactly in case
+    // (e.g. "sania gupta" vs "Sania Gupta"), and a strict === here would
+    // lock out the very owner the request is assigned to. Must mirror the
+    // same normalization the backend applies in
+    // BusinessApprovalService._validate_reviewer_auth, or the button could
+    // show here and still get rejected server-side.
+    return namesMatch(r.primary_owner_name, currentUser?.name) || namesMatch(r.backup_owner_name, currentUser?.name);
   };
 
   return (

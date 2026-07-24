@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from typing import Optional, List, Dict, Any
 import json
 
@@ -10,6 +10,8 @@ from app.models.platform_user import PlatformUser
 from app.models.notification import Notification
 from app.models.audit_log import AuditLog
 from app.models.dashboard import RecentActivity
+from app.models.approval_request import ApprovalRequest
+from app.models.approval_step import ApprovalStep
 
 
 class RoleOwnerService:
@@ -130,6 +132,18 @@ class RoleOwnerService:
                 continue
         if review_dt is None:
             raise ValueError("review_date must be in format YYYY-MM-DDTHH:MM (date and time required)")
+
+        # The browser's datetime picker sends local wall-clock time (IST,
+        # UTC+5:30) with no timezone marker, but every expiry check in the
+        # system (RoleOwnerService.get_current_owners, BusinessApprovalService.
+        # _validate_reviewer_auth, ApprovalWorkflowService.check_and_expire_
+        # owner_reviews) compares review_date against datetime.utcnow(). Left
+        # unconverted, a review date that's already passed in IST still looks
+        # ~5.5 hours in the future to those UTC comparisons - the same class
+        # of bug found earlier tonight in the scan-history Duration display.
+        # Converting to true UTC here, once, at the point data enters the
+        # system, keeps every downstream comparison correct.
+        review_dt = review_dt - timedelta(hours=5, minutes=30)
 
         # --- Create new history record ---
         new_entry = RoleOwnerHistory(
@@ -295,6 +309,68 @@ class RoleOwnerService:
             created_at=datetime.utcnow()
         )
         db.add(activity)
+
+        # --- Withdraw a pending approval request left with no one to act on it ---
+        # If a Business Review request is outstanding for this role and, after
+        # this removal, neither a Primary nor a Backup owner remains active,
+        # nobody is left who is authorized to Approve/Reject/Return it (see
+        # BusinessApprovalService._validate_reviewer_auth). Rather than let it
+        # sit invisible-but-stuck the way the old auto-classify bug left 801
+        # owner-less requests behind, withdraw it immediately: same treatment
+        # as ApprovalWorkflowService.check_and_expire_owner_reviews uses for a
+        # lapsed review date - role back to Draft, request marked Expired.
+        db.flush()
+        remaining_owners = db.query(RoleOwnerHistory).filter(
+            RoleOwnerHistory.candidate_role_id == role_id,
+            RoleOwnerHistory.is_active == True
+        ).count()
+
+        if remaining_owners == 0:
+            now = datetime.utcnow()
+            pending_request = db.query(ApprovalRequest).filter(
+                ApprovalRequest.candidate_role_id == role_id,
+                ApprovalRequest.status == "Business Review"
+            ).first()
+            if pending_request:
+                pending_request.status = "Expired"
+                pending_request.current_stage = "Owner Review Expired"
+                pending_request.completed_at = now
+                pending_request.updated_at = now
+
+                pending_step = db.query(ApprovalStep).filter(
+                    ApprovalStep.approval_request_id == pending_request.id,
+                    ApprovalStep.status == "Pending"
+                ).first()
+                if pending_step:
+                    pending_step.status = "Expired"
+                    pending_step.action_at = now
+                    pending_step.remarks = f"{owner_type} Owner removed before action was taken; no owner remains assigned."
+
+                role.status = "Draft"
+                role.modified_by = "System (Owner Removed)"
+                role.updated_at = now
+
+                db.add(AuditLog(
+                    module="Approval Workflow",
+                    action="Request Auto-Expired (Owner Removed)",
+                    performed_by=removed_by,
+                    old_value=f"Role '{role.role_name}' was pending Business Review",
+                    new_value=(
+                        f"{owner_type} Owner '{removed_by}' removed the last remaining owner; "
+                        f"request expired and role returned to Draft for resubmission."
+                    ),
+                    timestamp=now
+                ))
+                db.add(Notification(
+                    title=f"Approval Withdrawn: {role.role_name}",
+                    message=(
+                        f"The pending approval request for role '{role.role_name}' was withdrawn "
+                        f"because its {owner_type} Owner was removed and no owner remains assigned. "
+                        f"Please assign a new owner and resubmit for approval."
+                    ),
+                    status="unread",
+                    created_at=now
+                ))
 
         db.commit()
         return {"message": f"{owner_type} owner removed successfully"}

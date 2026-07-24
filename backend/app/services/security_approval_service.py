@@ -225,24 +225,29 @@ class SecurityApprovalService:
                 status="Approved", assigned_at=now, action_at=now, remarks=remarks,
             ))
 
-        # Role becomes Published directly to Role Catalog upon Security Approval
+        # Role becomes "Ready For Publish" - NOT published automatically.
+        # Publishing to the Role Catalog stays a deliberate, separate manual
+        # action (RoleCatalogService.publish_role, triggered by clicking
+        # Publish) even after Security Approval completes. A prior change
+        # here auto-published directly on Security Approval, which collapsed
+        # the last manual checkpoint in the pipeline - reverted per explicit
+        # requirement: classification is the only thing that should ever be
+        # set automatically; owner assignment, Submit for Approval, and
+        # Publish all remain human actions.
         cand_role = db.query(CandidateRole).filter(CandidateRole.id == request.candidate_role_id).first()
         if cand_role:
-            cand_role.status = "Published"
-            cand_role.published_at = now
-            cand_role.published_by = user
-            cand_role.current_version = (cand_role.current_version or 0) + 1
+            cand_role.status = "Ready For Publish"
             cand_role.modified_by = user
             cand_role.updated_at = now
 
         role_name = cand_role.role_name if cand_role else ""
         db.add(AuditLog(module="Approval Workflow", action="Security Approved", performed_by=user,
-                        new_value=f"Security-approved role '{role_name}'. Automatically published to Role Catalog.", timestamp=now))
-        db.add(RecentActivity(user=user, action=f"Security-approved '{role_name}' -- Published to Role Catalog.",
+                        new_value=f"Security-approved role '{role_name}'. Now Ready For Publish.", timestamp=now))
+        db.add(RecentActivity(user=user, action=f"Security-approved '{role_name}' -- Ready For Publish.",
                               status="success", created_at=now))
         db.add(Notification(
-            title=f"Role Published: {role_name}",
-            message=f"{user} security-approved and published role '{role_name}' to the Role Catalog.",
+            title=f"Role Approved: {role_name}",
+            message=f"{user} security-approved role '{role_name}'. It is now Ready For Publish.",
             status="unread",
             created_at=now
         ))

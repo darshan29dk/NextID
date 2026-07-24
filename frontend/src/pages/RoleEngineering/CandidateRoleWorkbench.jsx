@@ -833,6 +833,23 @@ const CandidateRoleWorkbench = () => {
     return () => clearTimeout(t);
   }, [ownerSearchQuery, showAssignOwnerForm]);
 
+  // Owner review_date is stored as true UTC (backend converts the IST wall-
+  // clock value entered in the picker), but comes back as a naive ISO string
+  // with no 'Z'/offset. Without a marker, JS's Date parser treats a bare
+  // date-time string as local time, which would silently shift the displayed
+  // value ~5.5 hours earlier than what was actually entered. Appending 'Z'
+  // forces correct UTC parsing so toLocaleString() converts it back to the
+  // viewer's local time properly - same pattern already used in
+  // SoDScanHistory.jsx for scan start/end times.
+  const toUTC = (str) => {
+    if (!str) return '';
+    if (typeof str !== 'string') return str;
+    if (!str.endsWith('Z') && !str.includes('+') && !/-\d{2}:\d{2}$/.test(str)) {
+      return str + 'Z';
+    }
+    return str;
+  };
+
   // ── RE-005: Handle owner assignment ─────────────────────────────────────
   const handleAssignOwner = async () => {
     setOwnerFormError('');
@@ -1926,7 +1943,7 @@ const CandidateRoleWorkbench = () => {
                                 <div className="meta-attribute-item">
                                   <label>Review Date</label>
                                   <span style={{ color: owner.is_expired ? 'var(--danger)' : 'inherit' }}>
-                                    {owner.review_date ? new Date(owner.review_date).toLocaleDateString() : 'Not set'}
+                                    {owner.review_date ? new Date(toUTC(owner.review_date)).toLocaleString() : 'Not set'}
                                   </span>
                                 </div>
                                 <div className="meta-attribute-item">

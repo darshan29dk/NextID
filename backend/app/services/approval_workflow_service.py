@@ -182,6 +182,107 @@ class ApprovalWorkflowService:
         }
 
     @staticmethod
+    def check_and_expire_owner_reviews(db: Session) -> int:
+        """
+        A role's assigned owner is only authorized to act on it while their
+        review date hasn't lapsed (see BusinessApprovalService._validate_
+        reviewer_auth). Blocking the stale owner from clicking Approve isn't
+        enough on its own - a request can otherwise sit in "Business Review"
+        forever with nobody able to act on it. This scans for exactly that
+        situation and auto-withdraws the request: role goes back to Draft in
+        Role Engineering, the request is marked "Expired" (so it drops out
+        of the Business Approval queue, which filters on status="Business
+        Review"), and both the lapsed owner and a Platform Administrator are
+        notified that a fresh owner assignment + re-submission is needed.
+
+        Only expires a request when EVERY currently-active owner (Primary
+        and Backup, if both are assigned) has a lapsed review date - if a
+        Backup Owner is still within their review window, they can still
+        act, so the request stays live.
+        """
+        from app.models.role_owner_history import RoleOwnerHistory
+
+        now = datetime.utcnow()
+        pending = db.query(ApprovalRequest).filter(ApprovalRequest.status == "Business Review").all()
+
+        count = 0
+        for req in pending:
+            role = db.query(CandidateRole).filter(CandidateRole.id == req.candidate_role_id).first()
+            if not role:
+                continue
+
+            owner_records = db.query(RoleOwnerHistory).filter(
+                RoleOwnerHistory.candidate_role_id == role.id,
+                RoleOwnerHistory.is_active == True
+            ).all()
+            if not owner_records:
+                continue
+
+            all_expired = all(o.review_date and o.review_date < now for o in owner_records)
+            if not all_expired:
+                continue
+
+            primary = next((o for o in owner_records if o.owner_type == "Primary"), owner_records[0])
+
+            req.status = "Expired"
+            req.current_stage = "Owner Review Expired"
+            req.completed_at = now
+            req.updated_at = now
+
+            pending_step = db.query(ApprovalStep).filter(
+                ApprovalStep.approval_request_id == req.id,
+                ApprovalStep.status == "Pending"
+            ).first()
+            if pending_step:
+                pending_step.status = "Expired"
+                pending_step.action_at = now
+                pending_step.remarks = "Owner review date expired before action was taken."
+
+            role.status = "Draft"
+            role.modified_by = "System (Owner Review Expired)"
+            role.updated_at = now
+
+            for o in owner_records:
+                if not o.is_expired:
+                    o.is_expired = True
+
+            db.add(AuditLog(
+                module="Approval Workflow",
+                action="Request Auto-Expired (Owner Review Lapsed)",
+                performed_by="System",
+                old_value=f"Role '{role.role_name}' was pending Business Review from '{primary.owner_name}'",
+                new_value=(
+                    f"Review date expired on {primary.review_date.strftime('%d %b %Y')}. "
+                    f"Request expired; role returned to Draft for resubmission."
+                ),
+                timestamp=now
+            ))
+            db.add(Notification(
+                title=f"Owner Review Expired: {role.role_name}",
+                message=(
+                    f"Your review date for role '{role.role_name}' has expired, so the pending approval "
+                    f"request has been withdrawn. You are no longer authorized to approve it."
+                ),
+                status="unread",
+                created_at=now
+            ))
+            db.add(Notification(
+                title=f"Owner Reassignment Needed: {role.role_name}",
+                message=(
+                    f"The approval request for role '{role.role_name}' was auto-expired because owner "
+                    f"'{primary.owner_name}' passed their review date. The role has returned to Role "
+                    f"Engineering - please assign a new owner and resubmit for approval."
+                ),
+                status="unread",
+                created_at=now
+            ))
+            count += 1
+
+        if count > 0:
+            db.commit()
+        return count
+
+    @staticmethod
     def get_approval_requests(
         db: Session,
         page: int = 1,
@@ -216,12 +317,26 @@ class ApprovalWorkflowService:
         if overdue_reqs:
             db.commit()
 
+        # Auto-expire Business Review requests whose owner's review date has
+        # lapsed - same lazy-check-on-read pattern as the SLA breach check
+        # above, so it's caught the moment anyone loads this list rather than
+        # needing a separate scheduled job.
+        ApprovalWorkflowService.check_and_expire_owner_reviews(db)
+
         # Build query
         query = db.query(ApprovalRequest)
 
         # Filters
         if status:
             query = query.filter(ApprovalRequest.status == status)
+        else:
+            # An "Expired" request (owner review lapsed, or the assigned
+            # owner was removed with nobody left to act on it) has already
+            # been withdrawn back to Role Engineering - it should not
+            # clutter the default Approval Requests view. It's still
+            # reachable by explicitly filtering status="Expired" if ever
+            # needed for audit purposes.
+            query = query.filter(ApprovalRequest.status != "Expired")
         if priority:
             query = query.filter(ApprovalRequest.priority == priority)
         if submitted_by:
