@@ -1,5 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './RoleMiningMatrix.css';
+
+// Past this many roles, colors start repeating anyway (fixed 10-color
+// palette), so a full legend row stops being a useful "match color to
+// role" reference and just becomes a wall of text above the grid. Each
+// row already prints its role name, so the legend can collapse to a
+// one-line summary by default once it gets this big.
+const LEGEND_COLLAPSE_THRESHOLD = 10;
 
 /**
  * Entitlement x User matrix grid, per sir's (Dharankumar Bera) Role Studio
@@ -18,6 +25,8 @@ import './RoleMiningMatrix.css';
  *   loading, emptyMessage
  */
 const RoleMiningMatrix = ({ entitlements = [], members = [], cells = [], roles = [], loading = false, emptyMessage = 'No mining data available for this view yet.' }) => {
+  const [showFullLegend, setShowFullLegend] = useState(false);
+
   if (loading) {
     return <div className="matrix-empty-state">Loading matrix...</div>;
   }
@@ -26,9 +35,25 @@ const RoleMiningMatrix = ({ entitlements = [], members = [], cells = [], roles =
     return <div className="matrix-empty-state">{emptyMessage}</div>;
   }
 
+  const isLegendLarge = roles.length > LEGEND_COLLAPSE_THRESHOLD;
+
   return (
     <div className="role-matrix-wrapper">
-      {roles.length > 1 && (
+      {roles.length > 1 && isLegendLarge && !showFullLegend && (
+        <div className="matrix-legend" style={{ alignItems: 'center' }}>
+          <span className="text-muted" style={{ fontSize: '12.5px' }}>
+            {roles.length} roles shown - colors repeat past {LEGEND_COLLAPSE_THRESHOLD}, so each row's role name is printed as text instead.
+          </span>
+          <button
+            className="btn-add-connector"
+            onClick={() => setShowFullLegend(true)}
+            style={{ padding: '4px 10px', fontSize: '11.5px' }}
+          >
+            Show full legend
+          </button>
+        </div>
+      )}
+      {roles.length > 1 && (!isLegendLarge || showFullLegend) && (
         <div className="matrix-legend">
           {roles.map((r) => (
             <span className="matrix-legend-item" key={r.role_id}>
@@ -36,6 +61,15 @@ const RoleMiningMatrix = ({ entitlements = [], members = [], cells = [], roles =
               {r.role_name}
             </span>
           ))}
+          {isLegendLarge && (
+            <button
+              className="btn-add-connector"
+              onClick={() => setShowFullLegend(false)}
+              style={{ padding: '4px 10px', fontSize: '11.5px' }}
+            >
+              Collapse
+            </button>
+          )}
         </div>
       )}
 
@@ -57,7 +91,14 @@ const RoleMiningMatrix = ({ entitlements = [], members = [], cells = [], roles =
             {entitlements.map((ent, rowIdx) => (
               <tr key={ent.key}>
                 <td className="matrix-row-label" style={{ borderLeftColor: ent.color }}>
-                  <span className="matrix-row-label-name">{ent.entitlement_name}</span>
+                  <span className="matrix-row-label-name">
+                    {ent.entitlement_name}
+                    {roles.length > 1 && ent.role_name && (
+                      <span className="text-muted" style={{ fontSize: '10.5px', marginLeft: '6px', fontWeight: 400 }}>
+                        ({ent.role_name})
+                      </span>
+                    )}
+                  </span>
                   {ent.application_name && (
                     <span className="matrix-row-label-app">{ent.application_name}</span>
                   )}

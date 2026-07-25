@@ -923,12 +923,40 @@ const CandidateRoleWorkbench = () => {
     finally { setOwnerHistoryLoading(false); }
   };
 
-  // ── Load entitlement x user matrix across the checked (or top 10) roles ──
+  // Whether any of the list's filters/search are narrowing things down -
+  // used to decide what the Analytical View should be scoped to.
+  const isRoleListFilterActive = !!(
+    search.trim() || classificationFilter || statusFilter || riskFilter || deptFilter || buFilter || typeFilter
+  );
+
+  // ── Load entitlement x user matrix across the checked roles, or - if
+  // none are checked but a filter/search is active - every role matching
+  // that filter (not just the current page), so the Analytical View
+  // reflects what's actually been filtered to instead of always falling
+  // back to an unrelated Top 10 by confidence. Only when nothing is
+  // selected AND nothing is filtered does it fall back to that default.
   const handleLoadMultiRoleMatrix = async () => {
     try {
       setMatrixLoading(true);
       setMatrixError('');
-      const matrix = await getCandidateRolesMatrix(selectedRoleIds);
+
+      let roleIds = selectedRoleIds;
+      if (roleIds.length === 0 && isRoleListFilterActive) {
+        const allMatching = await getCandidateRoles({
+          page: 1,
+          limit: 1000, // effectively "no pagination" for scope purposes only
+          search: search.trim() || undefined,
+          classification: classificationFilter || undefined,
+          status: statusFilter || undefined,
+          risk_level: riskFilter || undefined,
+          department: deptFilter || undefined,
+          business_unit: buFilter || undefined,
+          role_type: typeFilter || undefined
+        });
+        roleIds = (allMatching.roles || []).map((r) => r.id);
+      }
+
+      const matrix = await getCandidateRolesMatrix(roleIds);
       setMultiRoleMatrix(matrix);
     } catch (err) {
       setMatrixError(err?.response?.data?.detail || 'Failed to load matrix.');
@@ -1420,9 +1448,18 @@ const CandidateRoleWorkbench = () => {
           <div className="analytical-view-toolbar">
             <div className="analytical-view-caption">
               <span className="analytical-view-caption-title">
-                {selectedRoleIds.length > 0 ? `Scope: ${selectedRoleIds.length} selected role(s)` : 'Scope: Top 10 roles by confidence score'}
+                {selectedRoleIds.length > 0
+                  ? `Scope: ${selectedRoleIds.length} selected role(s)`
+                  : isRoleListFilterActive
+                  ? `Scope: ${multiRoleMatrix?.roles?.length ?? 0} filtered role(s)`
+                  : 'Scope: Top 10 roles by confidence score'}
               </span>
               <span className="analytical-view-caption-desc">{ANALYTICAL_VIEW_HINTS[analyticalViewMode]}</span>
+              {analyticalViewMode === 'grid' && isRoleListFilterActive && selectedRoleIds.length === 0 && (multiRoleMatrix?.roles?.length ?? 0) > 10 && (
+                <span className="analytical-view-caption-desc" style={{ color: 'var(--warning, #b8860b)' }}>
+                  Past 10 roles, colors repeat (only 10 distinct colors in the palette) - each row's role name is printed as text so it's still identifiable regardless of color.
+                </span>
+              )}
             </div>
             <div className="analytical-view-controls">
               <select

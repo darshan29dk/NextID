@@ -214,6 +214,8 @@ def run_mining_campaign(
 def get_candidate_roles(
     id: int,
     search: Optional[str] = None,
+    department: Optional[str] = None,
+    application: Optional[str] = None,
     db: Session = Depends(get_db),
     _perm: bool = Depends(require_permission("Role Discovery", "view"))
 ):
@@ -225,8 +227,35 @@ def get_candidate_roles(
     if search:
         search_term = f"%{search}%"
         query = query.filter(or_(CandidateRole.role_name.like(search_term), CandidateRole.job_function.like(search_term)))
+    if department:
+        query = query.filter(CandidateRole.department == department)
+    if application:
+        # A role has no single "application" column of its own - its core
+        # entitlements can span several applications - so "belongs to this
+        # application" means at least one of its entitlement rows does.
+        matching_role_ids = db.query(CandidateRoleEntitlement.candidate_role_id).filter(
+            CandidateRoleEntitlement.application_name == application
+        ).distinct()
+        query = query.filter(CandidateRole.id.in_(matching_role_ids))
 
     roles = query.order_by(CandidateRole.job_function.asc(), CandidateRole.confidence_score.desc()).all()
+
+    # Distinct department/application options for this campaign's roles, so
+    # the frontend filter dropdowns only ever offer choices that actually
+    # narrow something down instead of a global, campaign-irrelevant list.
+    all_campaign_roles = db.query(CandidateRole.id, CandidateRole.department).filter(
+        CandidateRole.campaign_id == id
+    ).all()
+    department_options = sorted({d for _, d in all_campaign_roles if d})
+    campaign_role_ids = [rid for rid, _ in all_campaign_roles]
+    application_options = []
+    if campaign_role_ids:
+        application_options = sorted({
+            a for (a,) in db.query(CandidateRoleEntitlement.application_name).filter(
+                CandidateRoleEntitlement.candidate_role_id.in_(campaign_role_ids),
+                CandidateRoleEntitlement.application_name.isnot(None)
+            ).distinct().all() if a
+        })
 
     return {
         "roles": [
@@ -234,12 +263,15 @@ def get_candidate_roles(
                 "id": r.id,
                 "role_name": r.role_name,
                 "job_function": r.job_function,
+                "department": r.department,
                 "member_count": r.member_count,
                 "confidence_score": r.confidence_score,
                 "status": r.status,
                 "created_at": r.created_at.isoformat()
             } for r in roles
-        ]
+        ],
+        "department_options": department_options,
+        "application_options": application_options
     }
 
 

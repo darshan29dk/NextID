@@ -91,6 +91,17 @@ const RoleDiscoveryWorkspace = () => {
   const [matrixError, setMatrixError] = useState('');
   const [analyticalViewMode, setAnalyticalViewMode] = useState('grid'); // 'grid' | 'coverage' | 'core' | 'member' | 'role'
 
+  // Candidate role list filters (department / application) - so a reviewer
+  // can narrow down to a manageable, meaningful subset instead of being
+  // stuck with either "top 10 by confidence" or checking boxes one by one.
+  // Application in particular has no single column on CandidateRole (its
+  // core entitlements can span several apps), so this filters by "at least
+  // one core entitlement belongs to this application" server-side.
+  const [roleDeptFilter, setRoleDeptFilter] = useState('');
+  const [roleAppFilter, setRoleAppFilter] = useState('');
+  const [roleDeptOptions, setRoleDeptOptions] = useState([]);
+  const [roleAppOptions, setRoleAppOptions] = useState([]);
+
   const fetchCampaigns = useCallback(async () => {
     try {
       setLoading(true);
@@ -213,17 +224,39 @@ const RoleDiscoveryWorkspace = () => {
   // ---------------------------------------------------------------
   // Detail view
   // ---------------------------------------------------------------
-  const fetchCandidateRoles = useCallback(async (campaignId) => {
+  const fetchCandidateRoles = useCallback(async (campaignId, filters) => {
     try {
       setRolesLoading(true);
-      const data = await getCandidateRoles(campaignId);
+      const params = {};
+      const dept = filters?.department;
+      const app = filters?.application;
+      if (dept) params.department = dept;
+      if (app) params.application = app;
+      const data = await getCandidateRoles(campaignId, params);
       setCandidateRoles(data.roles || []);
+      setRoleDeptOptions(data.department_options || []);
+      setRoleAppOptions(data.application_options || []);
     } catch (err) {
       console.error('Failed to load candidate roles:', err);
     } finally {
       setRolesLoading(false);
     }
   }, []);
+
+  // Re-fetch whenever a filter changes, and drop any selection that no
+  // longer applies so the Analytical View doesn't silently keep scoring
+  // against roles that have been filtered out of view.
+  const handleRoleFilterChange = (next) => {
+    const dept = next.department !== undefined ? next.department : roleDeptFilter;
+    const app = next.application !== undefined ? next.application : roleAppFilter;
+    setRoleDeptFilter(dept);
+    setRoleAppFilter(app);
+    setSelectedForCompare([]);
+    setCampaignMatrix(null);
+    if (selectedCampaign) {
+      fetchCandidateRoles(selectedCampaign.id, { department: dept, application: app });
+    }
+  };
 
   const fetchOutliers = useCallback(async (campaignId) => {
     try {
@@ -242,6 +275,8 @@ const RoleDiscoveryWorkspace = () => {
     setDetailTab('roles');
     setSelectedForCompare([]);
     setCampaignMatrix(null);
+    setRoleDeptFilter('');
+    setRoleAppFilter('');
     setView('detail');
     fetchCandidateRoles(campaign.id);
     fetchOutliers(campaign.id);
@@ -280,6 +315,26 @@ const RoleDiscoveryWorkspace = () => {
     } finally {
       setRoleDetailLoading(false);
     }
+  };
+
+  // Priority for what the Analytical View shows: an explicit manual
+  // selection (checkboxes) always wins for direct comparisons; otherwise,
+  // if a Department/Application filter has narrowed the list, follow that
+  // filtered set instead of silently ignoring it; only fall back to the
+  // backend's "top 10 by confidence" default when nothing is selected or
+  // filtered at all.
+  const isRoleFilterActive = !!(roleDeptFilter || roleAppFilter);
+  const getEffectiveRoleIds = () => {
+    if (selectedForCompare.length > 0) return selectedForCompare;
+    if (isRoleFilterActive) {
+      // Show every role matching the filter, however many that is. The
+      // color palette only has 10 distinct colors, so past that point
+      // colors repeat across roles - but RoleMiningMatrix also prints the
+      // role name as text on each row now, so rows stay identifiable even
+      // when their color isn't unique anymore.
+      return candidateRoles.map((r) => r.id);
+    }
+    return [];
   };
 
   const toggleCompareSelection = (roleId) => {
@@ -345,7 +400,7 @@ const RoleDiscoveryWorkspace = () => {
                 setShowDashboard(next);
                 if (next && detailTab !== 'matrix') {
                   setDetailTab('matrix');
-                  if (!campaignMatrix) fetchCampaignMatrixData(selectedCampaign.id, selectedForCompare);
+                  if (!campaignMatrix) fetchCampaignMatrixData(selectedCampaign.id, getEffectiveRoleIds());
                 }
               }}
               title="Show Campaign Dashboard & Analytics"
@@ -398,7 +453,7 @@ const RoleDiscoveryWorkspace = () => {
           </button>
           <button
             className={`drawer-tab-btn ${detailTab === 'matrix' ? 'active' : ''}`}
-            onClick={() => { setDetailTab('matrix'); if (!campaignMatrix) fetchCampaignMatrixData(selectedCampaign.id, selectedForCompare); }}
+            onClick={() => { setDetailTab('matrix'); if (!campaignMatrix) fetchCampaignMatrixData(selectedCampaign.id, getEffectiveRoleIds()); }}
             style={{ padding: '10px 18px' }}
           >
             <PieChart size={14} style={{ marginRight: '6px', verticalAlign: 'middle' }} /> Analytical View
@@ -407,14 +462,45 @@ const RoleDiscoveryWorkspace = () => {
 
         {detailTab === 'roles' && (
           <>
-            {selectedForCompare.length > 0 && (
-              <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span className="text-muted" style={{ fontSize: '13px' }}>{selectedForCompare.length} selected</span>
-                <button className="btn-add-connector" onClick={handleCompare} disabled={selectedForCompare.length < 2} style={{ padding: '8px 14px', fontSize: '12.5px' }}>
-                  <GitCompare size={13} /> <span>Compare Selected</span>
+            <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+              <select
+                className="analytical-view-select"
+                value={roleAppFilter}
+                onChange={(e) => handleRoleFilterChange({ application: e.target.value })}
+              >
+                <option value="">All Applications</option>
+                {roleAppOptions.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+              <select
+                className="analytical-view-select"
+                value={roleDeptFilter}
+                onChange={(e) => handleRoleFilterChange({ department: e.target.value })}
+              >
+                <option value="">All Departments</option>
+                {roleDeptOptions.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+              {isRoleFilterActive && (
+                <button
+                  className="btn-add-connector"
+                  onClick={() => handleRoleFilterChange({ department: '', application: '' })}
+                  style={{ padding: '8px 14px', fontSize: '12.5px' }}
+                >
+                  <X size={13} /> <span>Clear Filters</span>
                 </button>
-              </div>
-            )}
+              )}
+              {selectedForCompare.length > 0 && (
+                <>
+                  <span className="text-muted" style={{ fontSize: '13px' }}>{selectedForCompare.length} selected</span>
+                  <button className="btn-add-connector" onClick={handleCompare} disabled={selectedForCompare.length < 2} style={{ padding: '8px 14px', fontSize: '12.5px' }}>
+                    <GitCompare size={13} /> <span>Compare Selected</span>
+                  </button>
+                </>
+              )}
+            </div>
             <div className="table-card">
               <table className="detail-inner-table">
                 <thead>
@@ -423,16 +509,19 @@ const RoleDiscoveryWorkspace = () => {
                     <th></th>
                     <th style={{ textAlign: 'left' }}>Role Name</th>
                     <th style={{ textAlign: 'left' }}>Job Function</th>
+                    <th style={{ textAlign: 'left' }}>Department</th>
                     <th style={{ textAlign: 'center' }}>Members</th>
                     <th style={{ textAlign: 'center' }}>Confidence</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rolesLoading ? (
-                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '24px' }}>Loading...</td></tr>
+                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: '24px' }}>Loading...</td></tr>
                   ) : candidateRoles.length === 0 ? (
-                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: '24px' }} className="text-muted">
-                      No candidate roles yet. Click "Run Mining" above to analyze this campaign's scope.
+                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: '24px' }} className="text-muted">
+                      {isRoleFilterActive
+                        ? 'No candidate roles match this filter.'
+                        : 'No candidate roles yet. Click "Run Mining" above to analyze this campaign\'s scope.'}
                     </td></tr>
                   ) : candidateRoles.map((role, idx) => (
                     <tr key={role.id} onClick={() => handleOpenRoleDetail(role.id)} style={{ cursor: 'pointer' }}>
@@ -446,6 +535,7 @@ const RoleDiscoveryWorkspace = () => {
                       </td>
                       <td style={{ fontWeight: '600' }}>{role.role_name}</td>
                       <td>{role.job_function}</td>
+                      <td>{role.department || '—'}</td>
                       <td style={{ textAlign: 'center' }}>{role.member_count}</td>
                       <td style={{ textAlign: 'center' }}>
                         <span className={`status-badge ${role.confidence_score >= 85 ? 'connected' : role.confidence_score >= 70 ? 'draft' : 'disabled'}`}>
@@ -512,9 +602,16 @@ const RoleDiscoveryWorkspace = () => {
                 <span className="analytical-view-caption-title">
                   {selectedForCompare.length > 0
                     ? `Scope: ${selectedForCompare.length} selected role(s)`
+                    : isRoleFilterActive
+                    ? `Scope: ${candidateRoles.length} filtered role(s)${roleAppFilter ? ` in ${roleAppFilter}` : ''}${roleDeptFilter ? ` / ${roleDeptFilter}` : ''}`
                     : 'Scope: Top 10 roles by confidence score'}
                 </span>
                 <span className="analytical-view-caption-desc">{ANALYTICAL_VIEW_HINTS[analyticalViewMode]}</span>
+                {analyticalViewMode === 'grid' && isRoleFilterActive && candidateRoles.length > 10 && (
+                  <span className="analytical-view-caption-desc" style={{ color: 'var(--warning, #b8860b)' }}>
+                    Showing all {candidateRoles.length} filtered roles. Past 10 roles, colors repeat (only 10 distinct colors in the palette) - each row's role name is printed as text so it's still identifiable regardless of color.
+                  </span>
+                )}
               </div>
               <div className="analytical-view-controls">
                 <select
@@ -528,7 +625,7 @@ const RoleDiscoveryWorkspace = () => {
                 </select>
                 <button
                   className="btn-add-connector"
-                  onClick={() => fetchCampaignMatrixData(selectedCampaign.id, selectedForCompare)}
+                  onClick={() => fetchCampaignMatrixData(selectedCampaign.id, getEffectiveRoleIds())}
                   style={{ padding: '8px 14px', fontSize: '12.5px' }}
                 >
                   <RotateCcw size={13} className={matrixLoading ? 'spinner-icon' : ''} />
