@@ -88,7 +88,6 @@ import SubmitApprovalModal from '../../components/SubmitApprovalModal/SubmitAppr
 const ANALYTICAL_VIEW_HINTS = {
   grid: 'Entitlement grants by member, based on verified account data.',
   coverage: 'Member coverage percentage per entitlement.',
-  core: 'Core and non-core entitlement distribution.',
   member: 'Entitlement match percentage per member.',
   role: 'Entitlement distribution across candidate roles.',
 };
@@ -311,6 +310,17 @@ const CandidateRoleWorkbench = () => {
   const [matrixLoading, setMatrixLoading] = useState(false);
   const [matrixError, setMatrixError] = useState('');
   const [analyticalViewMode, setAnalyticalViewMode] = useState('grid'); // 'grid' | 'coverage' | 'core' | 'member' | 'role'
+  const [coreThresholdInput, setCoreThresholdInput] = useState('60');
+  const [coreThresholdPct, setCoreThresholdPct] = useState(60); // user-configurable core threshold %
+
+  const applyCoreThreshold = useCallback(() => {
+    const num = parseFloat(coreThresholdInput);
+    if (!isNaN(num) && num >= 1 && num <= 100) {
+      setCoreThresholdPct(num);
+    } else {
+      setCoreThresholdInput(String(coreThresholdPct));
+    }
+  }, [coreThresholdInput, coreThresholdPct]);
 
   // ── Drawer fullscreen toggle - the matrix needs the room ─────────────────
   const [drawerFullscreen, setDrawerFullscreen] = useState(false);
@@ -1443,62 +1453,83 @@ const CandidateRoleWorkbench = () => {
       )}
 
       {/* Analytical View - list-level, spans the checked (or top 10) candidate roles */}
-      {showAnalyticalView && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div className="analytical-view-toolbar">
-            <div className="analytical-view-caption">
-              <span className="analytical-view-caption-title">
-                {selectedRoleIds.length > 0
-                  ? `Scope: ${selectedRoleIds.length} selected role(s)`
-                  : isRoleListFilterActive
-                  ? `Scope: ${multiRoleMatrix?.roles?.length ?? 0} filtered role(s)`
-                  : 'Scope: Top 10 roles by confidence score'}
-              </span>
-              <span className="analytical-view-caption-desc">{ANALYTICAL_VIEW_HINTS[analyticalViewMode]}</span>
-              {analyticalViewMode === 'grid' && isRoleListFilterActive && selectedRoleIds.length === 0 && (multiRoleMatrix?.roles?.length ?? 0) > 10 && (
-                <span className="analytical-view-caption-desc" style={{ color: 'var(--warning, #b8860b)' }}>
-                  Past 10 roles, colors repeat (only 10 distinct colors in the palette) - each row's role name is printed as text so it's still identifiable regardless of color.
+      {showAnalyticalView && (() => {
+        const rawEntitlements = multiRoleMatrix?.entitlements || [];
+        const rawCells = multiRoleMatrix?.cells || [];
+
+        const mappedEntitlements = rawEntitlements.map((ent) => {
+          const isCore = typeof ent.member_coverage_pct === 'number'
+            ? ent.member_coverage_pct >= coreThresholdPct
+            : ent.is_core;
+          return { ...ent, is_core: isCore };
+        });
+
+        const sortedIndices = mappedEntitlements
+          .map((ent, origIdx) => ({ ent, origIdx }))
+          .sort((a, b) => (Number(b.ent.is_core) - Number(a.ent.is_core)) || ((b.ent.member_coverage_pct || 0) - (a.ent.member_coverage_pct || 0)))
+          .map((item) => item.origIdx);
+
+        const displayEntitlements = sortedIndices.map((idx) => mappedEntitlements[idx]);
+        const displayCells = sortedIndices.map((idx) => rawCells[idx]);
+
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div className="analytical-view-toolbar">
+              <div className="analytical-view-caption">
+                <span className="analytical-view-caption-title">
+                  {selectedRoleIds.length > 0
+                    ? `Scope: ${selectedRoleIds.length} selected role(s)`
+                    : isRoleListFilterActive
+                    ? `Scope: ${multiRoleMatrix?.roles?.length ?? 0} filtered role(s)`
+                    : 'Scope: Top 10 roles by confidence score'}
                 </span>
-              )}
+                <span className="analytical-view-caption-desc">{ANALYTICAL_VIEW_HINTS[analyticalViewMode]}</span>
+                {analyticalViewMode === 'grid' && isRoleListFilterActive && selectedRoleIds.length === 0 && (multiRoleMatrix?.roles?.length ?? 0) > 10 && (
+                  <span className="analytical-view-caption-desc" style={{ color: 'var(--warning, #b8860b)' }}>
+                    Past 10 roles, colors repeat (only 10 distinct colors in the palette) - each row's role name is printed as text so it's still identifiable regardless of color.
+                  </span>
+                )}
+              </div>
+              <div className="analytical-view-controls" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <select
+                  className="analytical-view-select"
+                  value={analyticalViewMode}
+                  onChange={(e) => setAnalyticalViewMode(e.target.value)}
+                >
+                  {VIEW_MODES.map((vm) => (
+                    <option key={vm.value} value={vm.value}>{vm.label}</option>
+                  ))}
+                </select>
+                <button className="btn-action-premium" onClick={handleLoadMultiRoleMatrix}>
+                  <RefreshCw size={14} className={matrixLoading ? 'spin-element' : ''} />
+                  <span>Refresh</span>
+                </button>
+              </div>
             </div>
-            <div className="analytical-view-controls">
-              <select
-                className="analytical-view-select"
-                value={analyticalViewMode}
-                onChange={(e) => setAnalyticalViewMode(e.target.value)}
-              >
-                {VIEW_MODES.map((vm) => (
-                  <option key={vm.value} value={vm.value}>{vm.label}</option>
-                ))}
-              </select>
-              <button className="btn-action-premium" onClick={handleLoadMultiRoleMatrix}>
-                <RefreshCw size={14} className={matrixLoading ? 'spin-element' : ''} />
-                <span>Refresh</span>
-              </button>
-            </div>
+            {matrixError && <div className="drawer-tab-empty-msg"><p>{matrixError}</p></div>}
+            {analyticalViewMode === 'grid' ? (
+              <RoleMiningMatrix
+                loading={matrixLoading}
+                entitlements={displayEntitlements}
+                members={multiRoleMatrix?.members || []}
+                cells={displayCells}
+                roles={multiRoleMatrix?.roles || []}
+                emptyMessage="No candidate roles with mined entitlements/members yet."
+              />
+            ) : (
+              <RoleAnalyticalCharts
+                loading={matrixLoading}
+                mode={analyticalViewMode}
+                entitlements={displayEntitlements}
+                members={multiRoleMatrix?.members || []}
+                cells={displayCells}
+                coreThresholdPct={coreThresholdPct}
+                emptyMessage="No candidate roles with mined entitlements/members yet."
+              />
+            )}
           </div>
-          {matrixError && <div className="drawer-tab-empty-msg"><p>{matrixError}</p></div>}
-          {analyticalViewMode === 'grid' ? (
-            <RoleMiningMatrix
-              loading={matrixLoading}
-              entitlements={multiRoleMatrix?.entitlements || []}
-              members={multiRoleMatrix?.members || []}
-              cells={multiRoleMatrix?.cells || []}
-              roles={multiRoleMatrix?.roles || []}
-              emptyMessage="No candidate roles with mined entitlements/members yet."
-            />
-          ) : (
-            <RoleAnalyticalCharts
-              loading={matrixLoading}
-              mode={analyticalViewMode}
-              entitlements={multiRoleMatrix?.entitlements || []}
-              members={multiRoleMatrix?.members || []}
-              cells={multiRoleMatrix?.cells || []}
-              emptyMessage="No candidate roles with mined entitlements/members yet."
-            />
-          )}
-        </div>
-      )}
+        );
+      })()}
 
       {/* Right Detail Panel Drawer */}
       <div 

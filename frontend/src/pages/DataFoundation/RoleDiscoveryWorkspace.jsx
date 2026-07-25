@@ -34,7 +34,6 @@ const INITIAL_FORM = {
 const ANALYTICAL_VIEW_HINTS = {
   grid: 'Entitlement grants by member, based on verified account data.',
   coverage: 'Member coverage percentage per entitlement.',
-  core: 'Core and non-core entitlement distribution.',
   member: 'Entitlement match percentage per member.',
   role: 'Entitlement distribution across candidate roles.',
 };
@@ -76,6 +75,13 @@ const RoleDiscoveryWorkspace = () => {
   const [outliers, setOutliers] = useState([]);
   const [outliersLoading, setOutliersLoading] = useState(false);
 
+  // Pagination for Candidate Roles and Outliers in Campaign Detail view
+  const ROLES_PER_PAGE = 10;
+  const [rolesPage, setRolesPage] = useState(1);
+
+  const OUTLIERS_PER_PAGE = 10;
+  const [outliersPage, setOutliersPage] = useState(1);
+
   // Role detail drawer
   const [selectedRoleDetail, setSelectedRoleDetail] = useState(null);
   const [roleDetailLoading, setRoleDetailLoading] = useState(false);
@@ -90,6 +96,17 @@ const RoleDiscoveryWorkspace = () => {
   const [matrixLoading, setMatrixLoading] = useState(false);
   const [matrixError, setMatrixError] = useState('');
   const [analyticalViewMode, setAnalyticalViewMode] = useState('grid'); // 'grid' | 'coverage' | 'core' | 'member' | 'role'
+  const [coreThresholdInput, setCoreThresholdInput] = useState('60');
+  const [coreThresholdPct, setCoreThresholdPct] = useState(60); // user-configurable core threshold %
+
+  const applyCoreThreshold = useCallback(() => {
+    const num = parseFloat(coreThresholdInput);
+    if (!isNaN(num) && num >= 1 && num <= 100) {
+      setCoreThresholdPct(num);
+    } else {
+      setCoreThresholdInput(String(coreThresholdPct));
+    }
+  }, [coreThresholdInput, coreThresholdPct]);
 
   // Candidate role list filters (department / application) - so a reviewer
   // can narrow down to a manageable, meaningful subset instead of being
@@ -273,6 +290,8 @@ const RoleDiscoveryWorkspace = () => {
   const handleOpenDetail = (campaign) => {
     setSelectedCampaign(campaign);
     setDetailTab('roles');
+    setRolesPage(1);
+    setOutliersPage(1);
     setSelectedForCompare([]);
     setCampaignMatrix(null);
     setRoleDeptFilter('');
@@ -460,201 +479,297 @@ const RoleDiscoveryWorkspace = () => {
           </button>
         </div>
 
-        {detailTab === 'roles' && (
-          <>
-            <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-              <select
-                className="analytical-view-select"
-                value={roleAppFilter}
-                onChange={(e) => handleRoleFilterChange({ application: e.target.value })}
-              >
-                <option value="">All Applications</option>
-                {roleAppOptions.map((a) => (
-                  <option key={a} value={a}>{a}</option>
-                ))}
-              </select>
-              <select
-                className="analytical-view-select"
-                value={roleDeptFilter}
-                onChange={(e) => handleRoleFilterChange({ department: e.target.value })}
-              >
-                <option value="">All Departments</option>
-                {roleDeptOptions.map((d) => (
-                  <option key={d} value={d}>{d}</option>
-                ))}
-              </select>
-              {isRoleFilterActive && (
-                <button
-                  className="btn-add-connector"
-                  onClick={() => handleRoleFilterChange({ department: '', application: '' })}
-                  style={{ padding: '8px 14px', fontSize: '12.5px' }}
+        {detailTab === 'roles' && (() => {
+          const totalRolesPages = Math.ceil(candidateRoles.length / ROLES_PER_PAGE) || 1;
+          const paginatedRoles = candidateRoles.slice((rolesPage - 1) * ROLES_PER_PAGE, rolesPage * ROLES_PER_PAGE);
+
+          return (
+            <>
+              <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <select
+                  className="analytical-view-select"
+                  value={roleAppFilter}
+                  onChange={(e) => handleRoleFilterChange({ application: e.target.value })}
                 >
-                  <X size={13} /> <span>Clear Filters</span>
-                </button>
-              )}
-              {selectedForCompare.length > 0 && (
-                <>
-                  <span className="text-muted" style={{ fontSize: '13px' }}>{selectedForCompare.length} selected</span>
-                  <button className="btn-add-connector" onClick={handleCompare} disabled={selectedForCompare.length < 2} style={{ padding: '8px 14px', fontSize: '12.5px' }}>
-                    <GitCompare size={13} /> <span>Compare Selected</span>
+                  <option value="">All Applications</option>
+                  {roleAppOptions.map((a) => (
+                    <option key={a} value={a}>{a}</option>
+                  ))}
+                </select>
+                <select
+                  className="analytical-view-select"
+                  value={roleDeptFilter}
+                  onChange={(e) => handleRoleFilterChange({ department: e.target.value })}
+                >
+                  <option value="">All Departments</option>
+                  {roleDeptOptions.map((d) => (
+                    <option key={d} value={d}>{d}</option>
+                  ))}
+                </select>
+                {isRoleFilterActive && (
+                  <button
+                    className="btn-add-connector"
+                    onClick={() => handleRoleFilterChange({ department: '', application: '' })}
+                    style={{ padding: '8px 14px', fontSize: '12.5px' }}
+                  >
+                    <X size={13} /> <span>Clear Filters</span>
                   </button>
-                </>
-              )}
-            </div>
+                )}
+                {selectedForCompare.length > 0 && (
+                  <>
+                    <span className="text-muted" style={{ fontSize: '13px' }}>{selectedForCompare.length} selected</span>
+                    <button className="btn-add-connector" onClick={handleCompare} disabled={selectedForCompare.length < 2} style={{ padding: '8px 14px', fontSize: '12.5px' }}>
+                      <GitCompare size={13} /> <span>Compare Selected</span>
+                    </button>
+                  </>
+                )}
+              </div>
+              <div className="table-card">
+                <table className="detail-inner-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '40px', textAlign: 'center' }}>#</th>
+                      <th></th>
+                      <th style={{ textAlign: 'left' }}>Role Name</th>
+                      <th style={{ textAlign: 'left' }}>Job Function</th>
+                      <th style={{ textAlign: 'left' }}>Department</th>
+                      <th style={{ textAlign: 'center' }}>Members</th>
+                      <th style={{ textAlign: 'center' }}>Confidence</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rolesLoading ? (
+                      <tr><td colSpan={7} style={{ textAlign: 'center', padding: '24px' }}>Loading...</td></tr>
+                    ) : candidateRoles.length === 0 ? (
+                      <tr><td colSpan={7} style={{ textAlign: 'center', padding: '24px' }} className="text-muted">
+                        {isRoleFilterActive
+                          ? 'No candidate roles match this filter.'
+                          : 'No candidate roles yet. Click "Run Mining" above to analyze this campaign\'s scope.'}
+                      </td></tr>
+                    ) : paginatedRoles.map((role, idx) => (
+                      <tr key={role.id} onClick={() => handleOpenRoleDetail(role.id)} style={{ cursor: 'pointer' }}>
+                        <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                          {(rolesPage - 1) * ROLES_PER_PAGE + idx + 1}
+                        </td>
+                        <td onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            checked={selectedForCompare.includes(role.id)}
+                            onChange={() => toggleCompareSelection(role.id)}
+                          />
+                        </td>
+                        <td style={{ fontWeight: '600' }}>{role.role_name}</td>
+                        <td>{role.job_function}</td>
+                        <td>{role.department || '—'}</td>
+                        <td style={{ textAlign: 'center' }}>{role.member_count}</td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`status-badge ${role.confidence_score >= 85 ? 'connected' : role.confidence_score >= 70 ? 'draft' : 'disabled'}`}>
+                            {role.confidence_score}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {candidateRoles.length > 0 && (
+                  <div className="table-pagination-footer" style={{ borderTop: '1px solid var(--border-color)', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div className="pagination-info">
+                      Showing <b>{(rolesPage - 1) * ROLES_PER_PAGE + 1}</b> to <b>{Math.min(rolesPage * ROLES_PER_PAGE, candidateRoles.length)}</b> of <b>{candidateRoles.length}</b> candidate roles
+                    </div>
+                    {totalRolesPages > 1 && (
+                      <div className="pagination-controls" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button
+                          className="btn-pagination"
+                          onClick={() => setRolesPage((p) => Math.max(p - 1, 1))}
+                          disabled={rolesPage === 1}
+                          title="Previous Page"
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        {getPageNumbers(rolesPage, totalRolesPages).map((pageNum, i) => (
+                          <button
+                            key={i}
+                            className={`btn-pagination ${pageNum === rolesPage ? 'active' : ''} ${pageNum === '...' ? 'dots' : ''}`}
+                            onClick={() => typeof pageNum === 'number' && setRolesPage(pageNum)}
+                            disabled={pageNum === '...'}
+                          >
+                            {pageNum}
+                          </button>
+                        ))}
+                        <button
+                          className="btn-pagination"
+                          onClick={() => setRolesPage((p) => Math.min(p + 1, totalRolesPages))}
+                          disabled={rolesPage === totalRolesPages}
+                          title="Next Page"
+                        >
+                          <ChevronRight size={16} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </>
+          );
+        })()}
+
+        {detailTab === 'outliers' && (() => {
+          const totalOutliersPages = Math.ceil(outliers.length / OUTLIERS_PER_PAGE) || 1;
+          const paginatedOutliersList = outliers.slice((outliersPage - 1) * OUTLIERS_PER_PAGE, outliersPage * OUTLIERS_PER_PAGE);
+
+          return (
             <div className="table-card">
               <table className="detail-inner-table">
                 <thead>
                   <tr>
                     <th style={{ width: '40px', textAlign: 'center' }}>#</th>
-                    <th></th>
-                    <th style={{ textAlign: 'left' }}>Role Name</th>
+                    <th style={{ textAlign: 'left' }}>Account</th>
+                    <th style={{ textAlign: 'left' }}>Application</th>
                     <th style={{ textAlign: 'left' }}>Job Function</th>
-                    <th style={{ textAlign: 'left' }}>Department</th>
-                    <th style={{ textAlign: 'center' }}>Members</th>
-                    <th style={{ textAlign: 'center' }}>Confidence</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rolesLoading ? (
-                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: '24px' }}>Loading...</td></tr>
-                  ) : candidateRoles.length === 0 ? (
-                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: '24px' }} className="text-muted">
-                      {isRoleFilterActive
-                        ? 'No candidate roles match this filter.'
-                        : 'No candidate roles yet. Click "Run Mining" above to analyze this campaign\'s scope.'}
+                  {outliersLoading ? (
+                    <tr><td colSpan={4} style={{ textAlign: 'center', padding: '24px' }}>Loading...</td></tr>
+                  ) : outliers.length === 0 ? (
+                    <tr><td colSpan={4} style={{ textAlign: 'center', padding: '24px' }} className="text-muted">
+                      No outliers — every scoped account either fit a candidate role or hasn't been analyzed yet.
                     </td></tr>
-                  ) : candidateRoles.map((role, idx) => (
-                    <tr key={role.id} onClick={() => handleOpenRoleDetail(role.id)} style={{ cursor: 'pointer' }}>
-                      <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>{idx + 1}</td>
-                      <td onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          checked={selectedForCompare.includes(role.id)}
-                          onChange={() => toggleCompareSelection(role.id)}
-                        />
+                  ) : paginatedOutliersList.map((o, i) => (
+                    <tr key={i}>
+                      <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>
+                        {(outliersPage - 1) * OUTLIERS_PER_PAGE + i + 1}
                       </td>
-                      <td style={{ fontWeight: '600' }}>{role.role_name}</td>
-                      <td>{role.job_function}</td>
-                      <td>{role.department || '—'}</td>
-                      <td style={{ textAlign: 'center' }}>{role.member_count}</td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className={`status-badge ${role.confidence_score >= 85 ? 'connected' : role.confidence_score >= 70 ? 'draft' : 'disabled'}`}>
-                          {role.confidence_score}%
-                        </span>
-                      </td>
+                      <td style={{ fontWeight: '600' }}>{o.account_name || o.account_id}</td>
+                      <td>{o.application_name}</td>
+                      <td>{o.job_function || '—'}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-              {candidateRoles.length > 0 && (
-                <div className="table-pagination-footer" style={{ borderTop: '1px solid var(--border-color)', padding: '12px 24px' }}>
+              {outliers.length > 0 && (
+                <div className="table-pagination-footer" style={{ borderTop: '1px solid var(--border-color)', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div className="pagination-info">
-                    Showing <b>1</b> to <b>{candidateRoles.length}</b> of <b>{candidateRoles.length}</b> candidate roles
+                    Showing <b>{(outliersPage - 1) * OUTLIERS_PER_PAGE + 1}</b> to <b>{Math.min(outliersPage * OUTLIERS_PER_PAGE, outliers.length)}</b> of <b>{outliers.length}</b> outliers
                   </div>
+                  {totalOutliersPages > 1 && (
+                    <div className="pagination-controls" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <button
+                        className="btn-pagination"
+                        onClick={() => setOutliersPage((p) => Math.max(p - 1, 1))}
+                        disabled={outliersPage === 1}
+                        title="Previous Page"
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      {getPageNumbers(outliersPage, totalOutliersPages).map((pageNum, i) => (
+                        <button
+                          key={i}
+                          className={`btn-pagination ${pageNum === outliersPage ? 'active' : ''} ${pageNum === '...' ? 'dots' : ''}`}
+                          onClick={() => typeof pageNum === 'number' && setOutliersPage(pageNum)}
+                          disabled={pageNum === '...'}
+                        >
+                          {pageNum}
+                        </button>
+                      ))}
+                      <button
+                        className="btn-pagination"
+                        onClick={() => setOutliersPage((p) => Math.min(p + 1, totalOutliersPages))}
+                        disabled={outliersPage === totalOutliersPages}
+                        title="Next Page"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-          </>
-        )}
+          );
+        })()}
 
-        {detailTab === 'outliers' && (
-          <div className="table-card">
-            <table className="detail-inner-table">
-              <thead>
-                <tr>
-                  <th style={{ width: '40px', textAlign: 'center' }}>#</th>
-                  <th style={{ textAlign: 'left' }}>Account</th>
-                  <th style={{ textAlign: 'left' }}>Application</th>
-                  <th style={{ textAlign: 'left' }}>Job Function</th>
-                </tr>
-              </thead>
-              <tbody>
-                {outliersLoading ? (
-                  <tr><td colSpan={4} style={{ textAlign: 'center', padding: '24px' }}>Loading...</td></tr>
-                ) : outliers.length === 0 ? (
-                  <tr><td colSpan={4} style={{ textAlign: 'center', padding: '24px' }} className="text-muted">
-                    No outliers — every scoped account either fit a candidate role or hasn't been analyzed yet.
-                  </td></tr>
-                ) : outliers.map((o, i) => (
-                  <tr key={i}>
-                    <td style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '12px' }}>{i + 1}</td>
-                    <td style={{ fontWeight: '600' }}>{o.account_name || o.account_id}</td>
-                    <td>{o.application_name}</td>
-                    <td>{o.job_function || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {outliers.length > 0 && (
-              <div className="table-pagination-footer" style={{ borderTop: '1px solid var(--border-color)', padding: '12px 24px' }}>
-                <div className="pagination-info">
-                  Showing <b>1</b> to <b>{outliers.length}</b> of <b>{outliers.length}</b> outliers
+        {detailTab === 'matrix' && (() => {
+          const rawEntitlements = campaignMatrix?.entitlements || [];
+          const rawCells = campaignMatrix?.cells || [];
+
+          const mappedEntitlements = rawEntitlements.map((ent) => {
+            const isCore = typeof ent.member_coverage_pct === 'number'
+              ? ent.member_coverage_pct >= coreThresholdPct
+              : ent.is_core;
+            return { ...ent, is_core: isCore };
+          });
+
+          const sortedIndices = mappedEntitlements
+            .map((ent, origIdx) => ({ ent, origIdx }))
+            .sort((a, b) => (Number(b.ent.is_core) - Number(a.ent.is_core)) || ((b.ent.member_coverage_pct || 0) - (a.ent.member_coverage_pct || 0)))
+            .map((item) => item.origIdx);
+
+          const displayEntitlements = sortedIndices.map((idx) => mappedEntitlements[idx]);
+          const displayCells = sortedIndices.map((idx) => rawCells[idx]);
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div className="analytical-view-toolbar">
+                <div className="analytical-view-caption">
+                  <span className="analytical-view-caption-title">
+                    {selectedForCompare.length > 0
+                      ? `Scope: ${selectedForCompare.length} selected role(s)`
+                      : isRoleFilterActive
+                      ? `Scope: ${candidateRoles.length} filtered role(s)${roleAppFilter ? ` in ${roleAppFilter}` : ''}${roleDeptFilter ? ` / ${roleDeptFilter}` : ''}`
+                      : 'Scope: Top 10 roles by confidence score'}
+                  </span>
+                  <span className="analytical-view-caption-desc">{ANALYTICAL_VIEW_HINTS[analyticalViewMode]}</span>
+                  {analyticalViewMode === 'grid' && isRoleFilterActive && candidateRoles.length > 10 && (
+                    <span className="analytical-view-caption-desc" style={{ color: 'var(--warning, #b8860b)' }}>
+                      Showing all {candidateRoles.length} filtered roles. Past 10 roles, colors repeat (only 10 distinct colors in the palette) - each row's role name is printed as text so it's still identifiable regardless of color.
+                    </span>
+                  )}
+                </div>
+                <div className="analytical-view-controls" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <select
+                    className="analytical-view-select"
+                    value={analyticalViewMode}
+                    onChange={(e) => setAnalyticalViewMode(e.target.value)}
+                  >
+                    {VIEW_MODES.map((vm) => (
+                      <option key={vm.value} value={vm.value}>{vm.label}</option>
+                    ))}
+                  </select>
+
+                  <button
+                    className="btn-add-connector"
+                    onClick={() => fetchCampaignMatrixData(selectedCampaign.id, getEffectiveRoleIds())}
+                    style={{ padding: '8px 14px', fontSize: '12.5px' }}
+                  >
+                    <RotateCcw size={13} className={matrixLoading ? 'spinner-icon' : ''} />
+                    <span>Refresh</span>
+                  </button>
                 </div>
               </div>
-            )}
-          </div>
-        )}
-
-        {detailTab === 'matrix' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <div className="analytical-view-toolbar">
-              <div className="analytical-view-caption">
-                <span className="analytical-view-caption-title">
-                  {selectedForCompare.length > 0
-                    ? `Scope: ${selectedForCompare.length} selected role(s)`
-                    : isRoleFilterActive
-                    ? `Scope: ${candidateRoles.length} filtered role(s)${roleAppFilter ? ` in ${roleAppFilter}` : ''}${roleDeptFilter ? ` / ${roleDeptFilter}` : ''}`
-                    : 'Scope: Top 10 roles by confidence score'}
-                </span>
-                <span className="analytical-view-caption-desc">{ANALYTICAL_VIEW_HINTS[analyticalViewMode]}</span>
-                {analyticalViewMode === 'grid' && isRoleFilterActive && candidateRoles.length > 10 && (
-                  <span className="analytical-view-caption-desc" style={{ color: 'var(--warning, #b8860b)' }}>
-                    Showing all {candidateRoles.length} filtered roles. Past 10 roles, colors repeat (only 10 distinct colors in the palette) - each row's role name is printed as text so it's still identifiable regardless of color.
-                  </span>
-                )}
-              </div>
-              <div className="analytical-view-controls">
-                <select
-                  className="analytical-view-select"
-                  value={analyticalViewMode}
-                  onChange={(e) => setAnalyticalViewMode(e.target.value)}
-                >
-                  {VIEW_MODES.map((vm) => (
-                    <option key={vm.value} value={vm.value}>{vm.label}</option>
-                  ))}
-                </select>
-                <button
-                  className="btn-add-connector"
-                  onClick={() => fetchCampaignMatrixData(selectedCampaign.id, getEffectiveRoleIds())}
-                  style={{ padding: '8px 14px', fontSize: '12.5px' }}
-                >
-                  <RotateCcw size={13} className={matrixLoading ? 'spinner-icon' : ''} />
-                  <span>Refresh</span>
-                </button>
-              </div>
+              {matrixError && <div className="drawer-tab-empty-msg"><p>{matrixError}</p></div>}
+              {analyticalViewMode === 'grid' ? (
+                <RoleMiningMatrix
+                  loading={matrixLoading}
+                  entitlements={displayEntitlements}
+                  members={campaignMatrix?.members || []}
+                  cells={displayCells}
+                  roles={campaignMatrix?.roles || []}
+                  emptyMessage="No candidate roles with mined entitlements/members yet - run mining first."
+                />
+              ) : (
+                <RoleAnalyticalCharts
+                  loading={matrixLoading}
+                  mode={analyticalViewMode}
+                  entitlements={displayEntitlements}
+                  members={campaignMatrix?.members || []}
+                  cells={displayCells}
+                  coreThresholdPct={coreThresholdPct}
+                  emptyMessage="No candidate roles with mined entitlements/members yet - run mining first."
+                />
+              )}
             </div>
-            {matrixError && <div className="drawer-tab-empty-msg"><p>{matrixError}</p></div>}
-            {analyticalViewMode === 'grid' ? (
-              <RoleMiningMatrix
-                loading={matrixLoading}
-                entitlements={campaignMatrix?.entitlements || []}
-                members={campaignMatrix?.members || []}
-                cells={campaignMatrix?.cells || []}
-                roles={campaignMatrix?.roles || []}
-                emptyMessage="No candidate roles with mined entitlements/members yet - run mining first."
-              />
-            ) : (
-              <RoleAnalyticalCharts
-                loading={matrixLoading}
-                mode={analyticalViewMode}
-                entitlements={campaignMatrix?.entitlements || []}
-                members={campaignMatrix?.members || []}
-                cells={campaignMatrix?.cells || []}
-                emptyMessage="No candidate roles with mined entitlements/members yet - run mining first."
-              />
-            )}
-          </div>
-        )}
+          );
+        })()}
 
         {/* Candidate Role detail drawer */}
         {selectedRoleDetail && (

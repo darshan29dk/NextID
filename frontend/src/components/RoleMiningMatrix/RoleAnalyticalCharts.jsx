@@ -18,7 +18,6 @@ import './RoleMiningMatrix.css';
 const VIEW_MODES = [
   { value: 'grid', label: 'Grid (dots)' },
   { value: 'coverage', label: 'Coverage by Entitlement' },
-  { value: 'core', label: 'Core vs Non-Core' },
   { value: 'member', label: 'Member Match' },
   { value: 'role', label: 'Entitlements by Role' },
 ];
@@ -70,14 +69,19 @@ const Donut = ({ segments, centerLabel, centerSubLabel }) => {
   );
 };
 
-const CoreDoughnut = ({ entitlements }) => {
-  const coreCount = entitlements.filter((e) => e.is_core).length;
+const CoreDoughnut = ({ entitlements, coreThresholdPct = 60 }) => {
+  const coreCount = entitlements.filter((e) => {
+    if (typeof e.member_coverage_pct === 'number') {
+      return e.member_coverage_pct >= coreThresholdPct;
+    }
+    return e.is_core;
+  }).length;
   const nonCoreCount = entitlements.length - coreCount;
   return (
     <Donut
       segments={[
-        { label: 'Core', value: coreCount, color: 'var(--success)' },
-        { label: 'Non-Core', value: nonCoreCount, color: 'var(--text-muted)' },
+        { label: `Core (≥${coreThresholdPct}%)`, value: coreCount, color: 'var(--success)' },
+        { label: `Non-Core (<${coreThresholdPct}%)`, value: nonCoreCount, color: 'var(--text-muted)' },
       ]}
       centerLabel={entitlements.length}
       centerSubLabel="Entitlements"
@@ -168,7 +172,7 @@ const MemberMatchBarChart = ({ entitlements, members, cells }) => {
   );
 };
 
-const RoleAnalyticalCharts = ({ entitlements = [], members = [], cells = [], loading = false, mode = 'core', emptyMessage = 'No mining data available for this view yet.' }) => {
+const RoleAnalyticalCharts = ({ entitlements = [], members = [], cells = [], loading = false, mode = 'coverage', coreThresholdPct = 60, emptyMessage = 'No mining data available for this view yet.' }) => {
   if (loading) {
     return <div className="matrix-empty-state">Loading...</div>;
   }
@@ -177,15 +181,13 @@ const RoleAnalyticalCharts = ({ entitlements = [], members = [], cells = [], loa
   }
 
   switch (mode) {
-    case 'coverage':
-      return <CoverageBarChart entitlements={entitlements} members={members} cells={cells} />;
     case 'member':
       return <MemberMatchBarChart entitlements={entitlements} members={members} cells={cells} />;
     case 'role':
       return <RoleSplitDoughnut entitlements={entitlements} />;
-    case 'core':
+    case 'coverage':
     default:
-      return <CoreDoughnut entitlements={entitlements} />;
+      return <CoverageBarChart entitlements={entitlements} members={members} cells={cells} />;
   }
 };
 
