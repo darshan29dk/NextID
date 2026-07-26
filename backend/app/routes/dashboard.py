@@ -5,6 +5,7 @@ from app.database import get_db
 from app.models.dashboard import DashboardStats, RecentActivity, IdentityRecord, ApprovalQueueItem, RoleMiningTrendPoint
 from app.models.notification import Notification
 from app.models.audit_log import AuditLog
+from app.cache import cache_get, cache_set, cache_delete_prefix
 from app.schemas.dashboard import (
     DashboardStatsResponse, RecentActivityResponse, ApprovalQueueResponse, SyncApiRequest,
     DepartmentCoverageData, ApplicationDistributionData, RoleLifecycleData
@@ -20,6 +21,10 @@ router = APIRouter()
 
 @router.get("/dashboard", response_model=DashboardStatsResponse)
 def get_dashboard_stats(db: Session = Depends(get_db)):
+    cached = cache_get("dashboard_stats")
+    if cached:
+        return cached
+
     records = db.query(
         IdentityRecord.applications,
         IdentityRecord.entitlements_count,
@@ -132,7 +137,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     
     trend_points = db.query(RoleMiningTrendPoint).order_by(RoleMiningTrendPoint.id.asc()).all()
     
-    return DashboardStatsResponse(
+    res = DashboardStatsResponse(
         totalUsers=total_users,
         accounts=accounts,
         applications=applications,
@@ -148,15 +153,25 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         roleLifecycle=role_lifecycle,
         miningTrend=trend_points
     )
+    cache_set("dashboard_stats", res, ttl_seconds=120)
+    return res
 
 @router.get("/recent-activities", response_model=List[RecentActivityResponse])
 def get_recent_activities(db: Session = Depends(get_db)):
+    cached = cache_get("recent_activities")
+    if cached:
+        return cached
     activities = db.query(RecentActivity).order_by(RecentActivity.id.desc()).limit(15).all()
+    cache_set("recent_activities", activities, ttl_seconds=60)
     return activities
 
 @router.get("/approval-queue", response_model=List[ApprovalQueueResponse])
 def get_approval_queue(db: Session = Depends(get_db)):
+    cached = cache_get("approval_queue")
+    if cached:
+        return cached
     queue = db.query(ApprovalQueueItem).order_by(ApprovalQueueItem.due_in_days.asc()).all()
+    cache_set("approval_queue", queue, ttl_seconds=60)
     return queue
 
 @router.post("/upload-data", response_model=DashboardStatsResponse)
@@ -304,6 +319,8 @@ async def upload_identity_data(file: UploadFile = File(...), db: Session = Depen
     ))
 
     db.commit()
+    from app.cache import cache_clear
+    cache_clear()
 
     return get_dashboard_stats(db)
 
