@@ -21,6 +21,7 @@ whole-role label - not derived from real request/provisioning history). Until
 real assignment-source data is available from a connector, this matrix only
 surfaces the existing role-level classification badge, not a per-cell flag.
 """
+from collections import defaultdict
 from sqlalchemy.orm import Session
 from typing import Optional, List
 
