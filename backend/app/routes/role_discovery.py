@@ -6,6 +6,7 @@ from datetime import datetime
 import json
 
 from app.database import get_db
+from app.cache import cache_get, cache_set, cache_clear
 from app.models.mining_campaign import MiningCampaign
 from app.models.candidate_role import CandidateRole
 from app.models.candidate_role_entitlement import CandidateRoleEntitlement
@@ -63,6 +64,11 @@ def get_mining_campaigns(
     db: Session = Depends(get_db),
     _perm: bool = Depends(require_permission("Role Discovery", "view"))
 ):
+    cache_key = f"mining_campaigns_{page}_{limit}_{search or ''}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+
     if page < 1:
         page = 1
     if limit < 1:
@@ -76,7 +82,9 @@ def get_mining_campaigns(
     total_pages = (total + limit - 1) // limit if total > 0 else 0
     campaigns = query.order_by(MiningCampaign.created_at.desc()).offset((page - 1) * limit).limit(limit).all()
 
-    return {"total": total, "page": page, "limit": limit, "total_pages": total_pages, "campaigns": campaigns}
+    res = {"total": total, "page": page, "limit": limit, "total_pages": total_pages, "campaigns": campaigns}
+    cache_set(cache_key, res, ttl_seconds=60)
+    return res
 
 
 @router.post("/mining-campaigns", response_model=MiningCampaignResponse, status_code=201)
@@ -203,6 +211,7 @@ def run_mining_campaign(
         "coverage_percentage": campaign.coverage_percentage
     })
 
+    cache_clear()
     return campaign
 
 

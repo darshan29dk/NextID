@@ -21,9 +21,10 @@ whole-role label - not derived from real request/provisioning history). Until
 real assignment-source data is available from a connector, this matrix only
 surfaces the existing role-level classification badge, not a per-cell flag.
 """
+from collections import defaultdict
 from sqlalchemy.orm import Session
 from typing import Optional, List, Dict
-from collections import defaultdict
+from app.cache import cache_get, cache_set
 
 from app.models.candidate_role import CandidateRole
 from app.models.candidate_role_entitlement import CandidateRoleEntitlement
@@ -317,54 +318,45 @@ def _build_multi_role_matrix(db: Session, roles: List[CandidateRole], max_member
     }
 
 
-def get_campaign_matrix(db: Session, campaign_id: int, role_ids: Optional[List[int]] = None) -> Optional[dict]:
-    """Multi-role matrix for Role Discovery - several roles shown together,
-    color-coded, matching the Role Studio reference image."""
+def get_campaign_matrix(db: Session, campaign_id: int, role_ids: Optional[List[int]] = None) -> dict:
+    cache_key = f"campaign_matrix_{campaign_id}_{','.join(map(str, sorted(role_ids))) if role_ids else 'default'}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+
     query = db.query(CandidateRole).filter(
         CandidateRole.campaign_id == campaign_id,
         CandidateRole.is_deleted == False
     )
     if role_ids:
-        # Explicit scope (manual selection, or a Department/Application
-        # filter from the frontend) - return every matching role, however
-        # many that is. No cap here: the caller already decided what it
-        # wants shown.
         query = query.filter(CandidateRole.id.in_(role_ids))
         roles = query.all()
         order = {rid: i for i, rid in enumerate(role_ids)}
         roles.sort(key=lambda r: order.get(r.id, 999))
     else:
-        # No explicit scope - default to Top 10 by confidence rather than
-        # every candidate role in the campaign. A campaign can easily have
-        # hundreds of roles (e.g. an under-tuned mining run), and the color
-        # palette only has 10 distinct colors anyway - fetching/rendering
-        # everything by default is slow and produces an unreadable grid.
-        # Filters or manual selection are the deliberate, opt-in way to see
-        # more than this default.
         roles = query.order_by(CandidateRole.confidence_score.desc()).limit(10).all()
 
     result = _build_multi_role_matrix(db, roles)
     result["campaign_id"] = campaign_id
+    cache_set(cache_key, result, ttl_seconds=120)
     return result
 
 
 def get_multi_role_matrix(db: Session, role_ids: Optional[List[int]] = None) -> dict:
-    """Multi-role matrix for Role Engineering's list-level Analytical View -
-    not tied to a single mining campaign, spans every candidate role in the
-    system (Mining or Manual). Scoped to whatever's checked in the table, to
-    a Department/Classification/Risk/etc. filter if one is active, or to the
-    top 10 candidate roles by confidence score if nothing's selected or
-    filtered."""
+    cache_key = f"multi_role_matrix_{','.join(map(str, sorted(role_ids))) if role_ids else 'default'}"
+    cached = cache_get(cache_key)
+    if cached:
+        return cached
+
     query = db.query(CandidateRole).filter(CandidateRole.is_deleted == False)
     if role_ids:
-        # Explicit scope, however large - see comment in get_campaign_matrix.
         query = query.filter(CandidateRole.id.in_(role_ids))
         roles = query.all()
         order = {rid: i for i, rid in enumerate(role_ids)}
         roles.sort(key=lambda r: order.get(r.id, 999))
     else:
-        # Default to Top 10 by confidence, not every candidate role in the
-        # system - see comment in get_campaign_matrix for why.
         roles = query.order_by(CandidateRole.confidence_score.desc()).limit(10).all()
 
-    return _build_multi_role_matrix(db, roles)
+    res = _build_multi_role_matrix(db, roles)
+    cache_set(cache_key, res, ttl_seconds=120)
+    return res
