@@ -22,7 +22,8 @@ real assignment-source data is available from a connector, this matrix only
 surfaces the existing role-level classification badge, not a per-cell flag.
 """
 from sqlalchemy.orm import Session
-from typing import Optional, List
+from typing import Optional, List, Dict
+from collections import defaultdict
 
 from app.models.candidate_role import CandidateRole
 from app.models.candidate_role_entitlement import CandidateRoleEntitlement
@@ -192,9 +193,21 @@ def get_role_matrix(db: Session, role_id: int) -> Optional[dict]:
 
 
 def _build_multi_role_matrix(db: Session, roles: List[CandidateRole], max_members: int = 500) -> dict:
-    """De-duplicates entitlements and members across all candidate roles in scope,
-    returns unique entitlement rows with exact overall coverage %, unique member columns,
-    and a grant matrix grid."""
+    """One entitlement row per (role, entitlement) pair - deliberately NOT
+    deduplicated across roles. If the same entitlement (e.g.
+    "ServiceNow_Report_User") is genuinely held by several different roles,
+    it shows up once per owning role, each row a single solid color for
+    that role. This is intentional: per mentor/demo feedback, a row that
+    mixed several roles' colors together (from an earlier de-duplicated
+    version of this function) was harder to read at a glance than seeing
+    the same entitlement repeated, once per role, each unambiguously
+    colored. Coverage % is computed within each role's own members, not
+    across the combined pool of every role in scope.
+
+    NOTE: this re-queries CandidateRoleEntitlement/grants once (batched
+    across all roles, not per-role), so it stays efficient even though rows
+    aren't collapsed - the only difference from the deduplicated version is
+    the dict key includes candidate_role_id."""
     if not roles:
         return {"roles": [], "entitlements": [], "members": [], "cells": [], "total_candidate_roles": 0}
 
@@ -224,7 +237,9 @@ def _build_multi_role_matrix(db: Session, roles: List[CandidateRole], max_member
         for ident in db.query(Identity).filter(Identity.id.in_(identity_ids)).all():
             identities_by_id[ident.id] = ident
 
+    accounts_by_role: Dict[int, set] = defaultdict(set)
     for res, acc, app in member_rows:
+        accounts_by_role[res.candidate_role_id].add(acc.id)
         if acc.id not in seen_account_ids:
             seen_account_ids.add(acc.id)
             color = role_color_map.get(res.candidate_role_id, ROLE_COLOR_PALETTE[0])
@@ -240,7 +255,6 @@ def _build_multi_role_matrix(db: Session, roles: List[CandidateRole], max_member
             if max_members and len(all_member_columns) >= max_members:
                 break
 
-    total_unique_members = len(all_member_columns)
     member_account_ids = [m["account_id"] for m in all_member_columns]
 
     grants_by_ent_id = defaultdict(set)
@@ -256,71 +270,47 @@ def _build_multi_role_matrix(db: Session, roles: List[CandidateRole], max_member
         CandidateRoleEntitlement.candidate_role_id.in_(role_ids)
     ).all()
 
-    unique_entitlements_dict = {}
+    entitlement_rows = []
     for e in cre_list:
-        ent_key = e.entitlement_id or e.entitlement_name
-        if ent_key not in unique_entitlements_dict:
-            holders_count = len(grants_by_ent_id.get(e.entitlement_id, set())) if e.entitlement_id else total_unique_members
-            coverage_pct = round((holders_count / total_unique_members) * 100.0, 1) if total_unique_members > 0 else (e.member_coverage_pct or 0.0)
-            color = role_color_map.get(e.candidate_role_id, ROLE_COLOR_PALETTE[0])
-            unique_entitlements_dict[ent_key] = {
-                "key": f"ent-{ent_key}",
-                "entitlement_id": e.entitlement_id,
-                "entitlement_name": e.entitlement_name,
-                "application_name": e.application_name or "System Default",
-                "is_core": e.is_core,
-                "member_coverage_pct": coverage_pct,
-                "role_id": e.candidate_role_id,
-                "role_name": role_name_map.get(e.candidate_role_id, "Candidate Role"),
-                "color": color,
-            }
+        role_accounts = accounts_by_role.get(e.candidate_role_id, set())
+        role_total = len(role_accounts)
+        if e.entitlement_id:
+            holders_count = len(grants_by_ent_id.get(e.entitlement_id, set()) & role_accounts)
+            coverage_pct = round((holders_count / role_total) * 100.0, 1) if role_total > 0 else (e.member_coverage_pct or 0.0)
+        else:
+            coverage_pct = e.member_coverage_pct or 0.0
+        color = role_color_map.get(e.candidate_role_id, ROLE_COLOR_PALETTE[0])
+        entitlement_rows.append({
+            "key": f"ent-role{e.candidate_role_id}-{e.entitlement_id or e.entitlement_name}",
+            "entitlement_id": e.entitlement_id,
+            "entitlement_name": e.entitlement_name,
+            "application_name": e.application_name or "System Default",
+            "is_core": e.is_core,
+            "member_coverage_pct": coverage_pct,
+            "role_id": e.candidate_role_id,
+            "role_name": role_name_map.get(e.candidate_role_id, "Candidate Role"),
+            "color": color,
+        })
 
-    if member_account_ids:
-        from app.models.application_entitlement import ApplicationEntitlement
-        extra_ent_ids = set(grants_by_ent_id.keys()) - {e.entitlement_id for e in cre_list if e.entitlement_id}
-        if extra_ent_ids:
-            extra_ents = db.query(
-                ApplicationEntitlement.id,
-                ApplicationEntitlement.entitlement_name,
-                Application.application_name
-            ).join(Application, ApplicationEntitlement.application_id == Application.id).filter(
-                ApplicationEntitlement.id.in_(extra_ent_ids)
-            ).all()
-
-            for ent_id, ent_name, app_name in extra_ents:
-                if ent_id not in unique_entitlements_dict:
-                    holders_count = len(grants_by_ent_id.get(ent_id, set()))
-                    coverage_pct = round((holders_count / total_unique_members) * 100.0, 1) if total_unique_members > 0 else 0.0
-                    unique_entitlements_dict[ent_id] = {
-                        "key": f"ent-{ent_id}",
-                        "entitlement_id": ent_id,
-                        "entitlement_name": ent_name,
-                        "application_name": app_name or "System Default",
-                        "is_core": False,
-                        "member_coverage_pct": coverage_pct,
-                        "role_id": None,
-                        "role_name": "General",
-                        "color": ROLE_COLOR_PALETTE[0],
-                    }
-
-    all_entitlement_rows = list(unique_entitlements_dict.values())
-    all_entitlement_rows.sort(key=lambda x: (x["is_core"], x["member_coverage_pct"]), reverse=True)
+    entitlement_rows.sort(key=lambda x: (x["is_core"], x["member_coverage_pct"]), reverse=True)
 
     cells = []
-    for ent in all_entitlement_rows:
-        row_cells = []
+    for ent in entitlement_rows:
         ent_holders = grants_by_ent_id.get(ent["entitlement_id"], set()) if ent["entitlement_id"] else set()
+        row_cells = []
         for mem in all_member_columns:
-            if ent["entitlement_id"] is not None:
+            if mem["role_id"] != ent["role_id"]:
+                has_grant = False
+            elif ent["entitlement_id"] is not None:
                 has_grant = mem["account_id"] in ent_holders
             else:
-                has_grant = mem["role_id"] == ent["role_id"]
+                has_grant = True
             row_cells.append(has_grant)
         cells.append(row_cells)
 
     return {
         "roles": role_legend,
-        "entitlements": all_entitlement_rows,
+        "entitlements": entitlement_rows,
         "members": all_member_columns,
         "cells": cells,
         "total_candidate_roles": total_candidate_roles,

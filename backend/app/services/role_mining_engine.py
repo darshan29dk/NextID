@@ -262,6 +262,8 @@ class RoleMiningEngine:
         total_candidate_roles = 0
         total_outliers = 0
         account_result_rows = []
+        member_rows: List[dict] = []
+        entitlement_rows: List[dict] = []
         role_confidence_scores: List[float] = []
 
         for job_function, accounts in groups.items():
@@ -417,14 +419,14 @@ class RoleMiningEngine:
                     # Seed members into candidate_role_members
                     ident = acc_id_to_identity[acc.id]
                     if ident.id not in added_identities:
-                        db.add(CandidateRoleMember(
-                            candidate_role_id=role.id,
-                            identity_id=ident.id,
-                            employee_id=ident.employee_id,
-                            employee_name=ident.display_name or f"{ident.first_name or ''} {ident.last_name or ''}".strip(),
-                            department=ident.department,
-                            created_at=datetime.utcnow()
-                        ))
+                        member_rows.append({
+                            "candidate_role_id": role.id,
+                            "identity_id": ident.id,
+                            "employee_id": ident.employee_id,
+                            "employee_name": ident.display_name or f"{ident.first_name or ''} {ident.last_name or ''}".strip(),
+                            "department": ident.department,
+                            "created_at": datetime.utcnow()
+                        })
                         added_identities.add(ident.id)
 
                 role.confidence_score = round(sum(similarities) / len(similarities), 1) if similarities else 0.0
@@ -434,29 +436,41 @@ class RoleMiningEngine:
                     ent_id = key_to_entitlement_id.get(key)
                     app_name = ent_id_to_app_name.get(ent_id) if ent_id else None
                     ent_risk = ent_id_to_risk.get(ent_id, "Low") if ent_id else "Low"
-                    db.add(CandidateRoleEntitlement(
-                        candidate_role_id=role.id,
-                        entitlement_id=ent_id,
-                        application_name=app_name,
-                        entitlement_name=key_to_display.get(key, key),
-                        risk=ent_risk,
-                        member_coverage_pct=round(pct, 1),
-                        is_core=key in core_set,
-                        created_at=datetime.utcnow()
-                    ))
+                    entitlement_rows.append({
+                        "candidate_role_id": role.id,
+                        "entitlement_id": ent_id,
+                        "application_name": app_name,
+                        "entitlement_name": key_to_display.get(key, key),
+                        "risk": ent_risk,
+                        "member_coverage_pct": round(pct, 1),
+                        "is_core": key in core_set,
+                        "created_at": datetime.utcnow()
+                    })
 
                 total_candidate_roles += 1
 
         # Bulk-insert via Core executemany instead of one ORM object per
-        # account (up to one per every scoped account, e.g. 4675) - the ORM
-        # add_all()/commit() path here was issuing an individual INSERT
-        # round-trip per row against the remote DB, same class of slowdown
-        # fixed earlier in Import Accounts and the correlation engine.
+        # account/member/entitlement - the previous db.add() one-at-a-time
+        # path here was issuing an individual INSERT round-trip per row
+        # against the remote DB. For a large campaign (Phase 1: 750 roles,
+        # each with its own members and core entitlements) that was several
+        # thousand extra round-trips on top of the per-role db.flush(),
+        # which is the main reason a full run took so long. Same class of
+        # slowdown already fixed for Import Accounts and the correlation
+        # engine - applying it here to all three row types.
         from sqlalchemy import insert
         if account_result_rows:
             for i in range(0, len(account_result_rows), 1000):
                 chunk = account_result_rows[i:i + 1000]
                 db.execute(insert(CampaignAccountResult.__table__), chunk)
+        if member_rows:
+            for i in range(0, len(member_rows), 1000):
+                chunk = member_rows[i:i + 1000]
+                db.execute(insert(CandidateRoleMember.__table__), chunk)
+        if entitlement_rows:
+            for i in range(0, len(entitlement_rows), 1000):
+                chunk = entitlement_rows[i:i + 1000]
+                db.execute(insert(CandidateRoleEntitlement.__table__), chunk)
 
         total_accounts_analyzed = len(scoped)
         campaign.total_accounts_analyzed = total_accounts_analyzed

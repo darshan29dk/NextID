@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Database,
   Server,
@@ -35,7 +35,8 @@ import {
   ClipboardCheck,
   Play,
   Clock,
-  Copy
+  Copy,
+  ChevronDown
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
@@ -111,6 +112,37 @@ const extractErrorMessage = (err, fallbackMessage = 'Failed to save connector co
   }
   return err.message || fallbackMessage;
 };
+
+// Step 1 "Choose Connector Ingestion Type" options - `extra` is merged into
+// formData on selection (same field defaults the old tile cards set on
+// click, e.g. LDAP's default port/auth_type).
+const CONNECTOR_TYPE_OPTIONS = [
+  {
+    value: 'CSV', label: 'CSV Flat File', icon: FileText, color: '#2563eb',
+    description: 'Upload comma or character separated values files directly from system exports.',
+    extra: {}
+  },
+  {
+    value: 'Excel', label: 'Excel Workbook', icon: FileSpreadsheet, color: '#16a34a',
+    description: 'Import sheets from Microsoft Excel xlsx files with multi-sheet parsing capabilities.',
+    extra: {}
+  },
+  {
+    value: 'Database', label: 'Database JDBC / Direct', icon: Database, color: '#7c3aed',
+    description: 'Connect directly to relational DB engine instances (MySQL, Postgres, SQL Server, Oracle).',
+    extra: {}
+  },
+  {
+    value: 'LDAP', label: 'LDAP Directory', icon: Globe, color: '#0ea5e9',
+    description: 'Connect directly to LDAP directories (Active Directory, OpenLDAP) for schema ingestion.',
+    extra: { port: 389, auth_type: 'Basic' }
+  },
+  {
+    value: 'API Gateway', label: 'API Gateway', icon: Server, color: '#8b5cf6',
+    description: 'Query and sync REST/SCIM API endpoints to extract JSON user records.',
+    extra: { host: 'https://', database_name: 'data', file_path: '{}', auth_type: 'None' }
+  },
+];
 
 const INITIAL_FORM_STATE = {
   connector_name: '',
@@ -246,6 +278,24 @@ const ConnectorWorkspace = () => {
   const [formErrors, setFormErrors] = useState({});
   const [formBannerError, setFormBannerError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Step 1 of the wizard used to be a grid of 5 always-visible tile cards.
+  // Replaced with a single dropdown per design feedback - same 5 choices
+  // and the same side-effect field defaults (LDAP's port/auth_type,
+  // API Gateway's host/database_name/file_path/auth_type), just collapsed
+  // behind one control instead of taking up the whole step visually.
+  const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
+  const typeDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (typeDropdownRef.current && !typeDropdownRef.current.contains(e.target)) {
+        setTypeDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const [selectedFile, setSelectedFile] = useState(null);
   const [excelSheets, setExcelSheets] = useState([]);
@@ -1349,47 +1399,86 @@ const ConnectorWorkspace = () => {
                     <div className="wizard-type-selection">
                       <h4>Choose Connector Ingestion Type</h4>
                       <p className="subtitle">Select the canonical format of this identity governance database.</p>
-                      <div className="type-options-grid">
-                        <div className={`type-option-card ${formData.connector_type === 'CSV' ? 'selected' : ''}`} onClick={() => setFormData((prev) => ({ ...prev, connector_type: 'CSV' }))}>
-                          <div className="option-icon-wrapper csv"><FileText size={24} /></div>
-                          <div className="option-text-wrapper">
-                            <h5>CSV Flat File</h5>
-                            <p>Upload comma or character separated values files directly from system exports.</p>
+
+                      <div ref={typeDropdownRef} style={{ position: 'relative', maxWidth: '560px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setTypeDropdownOpen((o) => !o)}
+                          style={{
+                            width: '100%', display: 'flex', alignItems: 'center', gap: '14px',
+                            padding: '14px 16px', borderRadius: '10px',
+                            border: `1px solid ${typeDropdownOpen ? 'var(--primary)' : 'var(--border-color)'}`,
+                            backgroundColor: 'var(--bg-card)', cursor: 'pointer', textAlign: 'left'
+                          }}
+                        >
+                          {(() => {
+                            const selected = CONNECTOR_TYPE_OPTIONS.find((o) => o.value === formData.connector_type) || CONNECTOR_TYPE_OPTIONS[0];
+                            const SelectedIcon = selected.icon;
+                            return (
+                              <>
+                                <div style={{
+                                  width: '38px', height: '38px', borderRadius: '8px', flexShrink: 0,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  backgroundColor: `${selected.color}1a`, color: selected.color
+                                }}>
+                                  <SelectedIcon size={19} />
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontWeight: 600, fontSize: '14px' }}>{selected.label}</div>
+                                  <div className="text-muted" style={{ fontSize: '12px', marginTop: '2px' }}>{selected.description}</div>
+                                </div>
+                              </>
+                            );
+                          })()}
+                          <ChevronDown
+                            size={16}
+                            className="text-muted"
+                            style={{ flexShrink: 0, transition: 'transform 0.15s ease', transform: typeDropdownOpen ? 'rotate(180deg)' : 'none' }}
+                          />
+                        </button>
+
+                        {typeDropdownOpen && (
+                          <div style={{
+                            marginTop: '6px',
+                            backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)',
+                            borderRadius: '10px', overflow: 'hidden'
+                          }}>
+                            {CONNECTOR_TYPE_OPTIONS.map((opt, idx) => {
+                              const OptIcon = opt.icon;
+                              const isSelected = formData.connector_type === opt.value;
+                              return (
+                                <div
+                                  key={opt.value}
+                                  onClick={() => {
+                                    setFormData((prev) => ({ ...prev, connector_type: opt.value, ...opt.extra }));
+                                    setTypeDropdownOpen(false);
+                                  }}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px',
+                                    cursor: 'pointer',
+                                    backgroundColor: isSelected ? 'rgba(37,99,235,0.08)' : 'transparent',
+                                    borderBottom: idx < CONNECTOR_TYPE_OPTIONS.length - 1 ? '1px solid var(--border-color)' : 'none'
+                                  }}
+                                  onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--bg-hover, rgba(0,0,0,0.03))'; }}
+                                  onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                >
+                                  <div style={{
+                                    width: '34px', height: '34px', borderRadius: '8px', flexShrink: 0,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    backgroundColor: `${opt.color}1a`, color: opt.color
+                                  }}>
+                                    <OptIcon size={17} />
+                                  </div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontWeight: 600, fontSize: '13.5px' }}>{opt.label}</div>
+                                    <div className="text-muted" style={{ fontSize: '11.5px', marginTop: '1px' }}>{opt.description}</div>
+                                  </div>
+                                  {isSelected && <Check size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />}
+                                </div>
+                              );
+                            })}
                           </div>
-                          {formData.connector_type === 'CSV' && <div className="option-badge"><Check size={12} /></div>}
-                        </div>
-                        <div className={`type-option-card ${formData.connector_type === 'Excel' ? 'selected' : ''}`} onClick={() => setFormData((prev) => ({ ...prev, connector_type: 'Excel' }))}>
-                          <div className="option-icon-wrapper excel"><FileSpreadsheet size={24} /></div>
-                          <div className="option-text-wrapper">
-                            <h5>Excel Workbook</h5>
-                            <p>Import sheets from Microsoft Excel xlsx files with multi-sheet parsing capabilities.</p>
-                          </div>
-                          {formData.connector_type === 'Excel' && <div className="option-badge"><Check size={12} /></div>}
-                        </div>
-                        <div className={`type-option-card ${formData.connector_type === 'Database' ? 'selected' : ''}`} onClick={() => setFormData((prev) => ({ ...prev, connector_type: 'Database' }))}>
-                          <div className="option-icon-wrapper database"><Database size={24} /></div>
-                          <div className="option-text-wrapper">
-                            <h5>Database JDBC / Direct</h5>
-                            <p>Connect directly to relational DB engine instances (MySQL, Postgres, SQL Server, Oracle).</p>
-                          </div>
-                          {formData.connector_type === 'Database' && <div className="option-badge"><Check size={12} /></div>}
-                        </div>
-                        <div className={`type-option-card ${formData.connector_type === 'LDAP' ? 'selected' : ''}`} onClick={() => setFormData((prev) => ({ ...prev, connector_type: 'LDAP', port: 389, auth_type: 'Basic' }))}>
-                          <div className="option-icon-wrapper database" style={{ color: '#0ea5e9' }}><Globe size={24} /></div>
-                          <div className="option-text-wrapper">
-                            <h5>LDAP Directory</h5>
-                            <p>Connect directly to LDAP directories (Active Directory, OpenLDAP) for schema ingestion.</p>
-                          </div>
-                          {formData.connector_type === 'LDAP' && <div className="option-badge"><Check size={12} /></div>}
-                        </div>
-                        <div className={`type-option-card ${formData.connector_type === 'API Gateway' ? 'selected' : ''}`} onClick={() => setFormData((prev) => ({ ...prev, connector_type: 'API Gateway', host: 'https://', database_name: 'data', file_path: '{}', auth_type: 'None' }))}>
-                          <div className="option-icon-wrapper database" style={{ color: '#8b5cf6' }}><Server size={24} /></div>
-                          <div className="option-text-wrapper">
-                            <h5>API Gateway</h5>
-                            <p>Query and sync REST/SCIM API endpoints to extract JSON user records.</p>
-                          </div>
-                          {formData.connector_type === 'API Gateway' && <div className="option-badge"><Check size={12} /></div>}
-                        </div>
+                        )}
                       </div>
                     </div>
                   )}

@@ -243,19 +243,21 @@ def get_candidate_roles(
     # Distinct department/application options for this campaign's roles, so
     # the frontend filter dropdowns only ever offer choices that actually
     # narrow something down instead of a global, campaign-irrelevant list.
-    all_campaign_roles = db.query(CandidateRole.id, CandidateRole.department).filter(
-        CandidateRole.campaign_id == id
-    ).all()
-    department_options = sorted({d for _, d in all_campaign_roles if d})
-    campaign_role_ids = [rid for rid, _ in all_campaign_roles]
-    application_options = []
-    if campaign_role_ids:
-        application_options = sorted({
-            a for (a,) in db.query(CandidateRoleEntitlement.application_name).filter(
-                CandidateRoleEntitlement.candidate_role_id.in_(campaign_role_ids),
-                CandidateRoleEntitlement.application_name.isnot(None)
-            ).distinct().all() if a
-        })
+    #
+    # This used to be two extra queries - one for departments, one building a
+    # Python list of every role id in the campaign and then running a second
+    # query with a huge `candidate_role_id IN (...)` against
+    # CandidateRoleEntitlement. For a large campaign (Phase 1 here has 750
+    # roles) that IN-clause got big enough to noticeably slow down every
+    # single load of this tab, even when nothing was actually filtered. A
+    # single LEFT JOIN gets the same two option lists in one round trip.
+    option_rows = db.query(
+        CandidateRole.department, CandidateRoleEntitlement.application_name
+    ).outerjoin(
+        CandidateRoleEntitlement, CandidateRole.id == CandidateRoleEntitlement.candidate_role_id
+    ).filter(CandidateRole.campaign_id == id).all()
+    department_options = sorted({d for d, _ in option_rows if d})
+    application_options = sorted({a for _, a in option_rows if a})
 
     return {
         "roles": [

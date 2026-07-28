@@ -17,3 +17,6 @@ backend/.env
 **/__pycache__/
 .agents/
 backend/uploads/
+
+# Ad/demo media - not project code, shouldn't live in git history
+*.mp4

@@ -25,10 +25,16 @@ router = APIRouter()
 
 otp_store = {}
 
+# No hardcoded credential fallback here on purpose - a real mailbox
+# password used to live as the default value for SMTP_USER/SMTP_PASSWORD,
+# which meant it shipped in source control. These now come only from the
+# environment (or the SMTP Settings page, via send_otp_email below); if
+# neither is configured, sending an OTP email fails loudly instead of
+# silently sending through someone's personal Gmail account.
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
-SMTP_USER = os.getenv("SMTP_USER", "saniagupta2280@gmail.com")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "zzejcvoduvnbciwh")
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

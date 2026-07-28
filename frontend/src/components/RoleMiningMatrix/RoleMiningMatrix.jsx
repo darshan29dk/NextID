@@ -110,8 +110,8 @@ const RoleMiningMatrix = ({ entitlements = [], members = [], cells = [], roles =
                       {hasGrant && (
                         <span
                           className="matrix-dot"
-                          style={{ backgroundColor: ent.color }}
-                          title={`${mem.name} has ${ent.entitlement_name}`}
+                          style={{ backgroundColor: mem.color }}
+                          title={`${mem.name} (${mem.role_name}) has ${ent.entitlement_name}`}
                         />
                       )}
                     </td>

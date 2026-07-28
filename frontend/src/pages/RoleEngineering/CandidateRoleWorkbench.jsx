@@ -44,7 +44,10 @@ import {
   Minimize2,
   PieChart,
   Lightbulb,
-  ArrowRightCircle
+  ArrowRightCircle,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
@@ -408,6 +411,17 @@ const CandidateRoleWorkbench = () => {
       setSortOrder('desc');
     }
     setPage(1);
+  };
+
+  // Small visual indicator so it's obvious a column header is clickable and
+  // which one/direction is currently active - the "sortable" class alone
+  // (cursor:pointer, no icon) made this easy to miss even though the sort
+  // itself was already wired up and working against the backend.
+  const renderSortIcon = (field) => {
+    if (sortBy !== field) return <ArrowUpDown size={11} style={{ opacity: 0.4, marginLeft: '4px', verticalAlign: 'middle' }} />;
+    return sortOrder === 'asc'
+      ? <ArrowUp size={11} style={{ marginLeft: '4px', verticalAlign: 'middle' }} />
+      : <ArrowDown size={11} style={{ marginLeft: '4px', verticalAlign: 'middle' }} />;
   };
 
   // Toggle Single Row Selection
@@ -1265,6 +1279,7 @@ const CandidateRoleWorkbench = () => {
                 <option value="">All Statuses</option>
                 <option value="Draft">Draft</option>
                 <option value="Reviewed">Reviewed</option>
+                <option value="Under Review">Under Review</option>
                 <option value="Approved">Approved</option>
                 <option value="Rejected">Rejected</option>
                 <option value="Published">Published</option>
@@ -1333,16 +1348,16 @@ const CandidateRoleWorkbench = () => {
                         onChange={handleToggleSelectAll}
                       />
                     </th>
-                    <th className="sortable" onClick={() => handleSort('role_name')}>Role Name</th>
-                    <th className="sortable" onClick={() => handleSort('classification')}>Classification</th>
-                    <th className="sortable" onClick={() => handleSort('role_type')}>Role Type</th>
-                    <th className="sortable" onClick={() => handleSort('risk_level')}>Risk</th>
-                    <th>Users</th>
-                    <th>Applications</th>
-                    <th>Entitlements</th>
-                    <th className="sortable" onClick={() => handleSort('confidence_score')}>Confidence</th>
-                    <th className="sortable" onClick={() => handleSort('status')}>Status</th>
-                    <th className="sortable" onClick={() => handleSort('generated_on')}>Generated On</th>
+                    <th className="sortable" onClick={() => handleSort('role_name')}>Role Name{renderSortIcon('role_name')}</th>
+                    <th className="sortable" onClick={() => handleSort('classification')}>Classification{renderSortIcon('classification')}</th>
+                    <th className="sortable" onClick={() => handleSort('role_type')}>Role Type{renderSortIcon('role_type')}</th>
+                    <th className="sortable" onClick={() => handleSort('risk_level')}>Risk{renderSortIcon('risk_level')}</th>
+                    <th className="sortable" onClick={() => handleSort('user_count')}>Users{renderSortIcon('user_count')}</th>
+                    <th className="sortable" onClick={() => handleSort('application_count')}>Applications{renderSortIcon('application_count')}</th>
+                    <th className="sortable" onClick={() => handleSort('entitlement_count')}>Entitlements{renderSortIcon('entitlement_count')}</th>
+                    <th className="sortable" onClick={() => handleSort('confidence_score')}>Confidence{renderSortIcon('confidence_score')}</th>
+                    <th className="sortable" onClick={() => handleSort('status')}>Status{renderSortIcon('status')}</th>
+                    <th className="sortable" onClick={() => handleSort('generated_on')}>Generated On{renderSortIcon('generated_on')}</th>
                     <th>Actions</th>
                   </tr>
                 </thead>

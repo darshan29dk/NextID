@@ -84,6 +84,8 @@ const getGreeting = () => {
     birthrightRoles: 0,
     sodConflicts: 0,
     pendingApprovals: 0,
+    notClassifiedRoles: 0,
+    pendingExceptions: 0,
     departmentCoverage: [],
     riskDistribution: {},
     applicationDistribution: [],
@@ -405,6 +407,43 @@ INSERT INTO identities VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'S
         <DashboardCard title="SoD Violations" value={stats.sodConflicts} icon={AlertTriangle} color="red" trend="-3" loading={loading} />
       </div>
 
+      {/* Needs Your Attention - one click straight to the page that has
+          pending work, instead of the user having to go find it themselves
+          across Approval Workflow / Governance / Role Engineering. */}
+      <div className="visual-card">
+        <div className="card-header">
+          <h3>Needs Your Attention</h3>
+          <p>Jump straight to what's pending</p>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '12px', padding: '4px 20px 20px' }}>
+          {[
+            { label: 'Pending Approvals', value: stats.pendingApprovals, icon: Clock, color: 'var(--warning)', path: '/approval-workflow/business' },
+            { label: 'Open SoD Violations', value: stats.sodConflicts, icon: AlertTriangle, color: 'var(--danger)', path: '/governance/violations' },
+            { label: 'Roles Not Classified', value: stats.notClassifiedRoles, icon: FileText, color: 'var(--primary)', path: '/role-engineering/workbench' },
+            { label: 'Exceptions Awaiting Review', value: stats.pendingExceptions, icon: ShieldCheck, color: 'var(--success)', path: '/governance/exceptions' },
+          ].map((item) => (
+            <button
+              key={item.label}
+              onClick={() => navigate(item.path)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '12px', textAlign: 'left',
+                padding: '14px 16px', borderRadius: '8px', border: '1px solid var(--border-color)',
+                backgroundColor: 'var(--bg-card)', cursor: 'pointer', transition: 'border-color 0.15s ease'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = item.color; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--border-color)'; }}
+            >
+              <item.icon size={18} color={item.color} style={{ flexShrink: 0 }} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '20px', fontWeight: 700, lineHeight: 1.1 }}>{loading ? '—' : item.value}</div>
+                <div className="text-muted" style={{ fontSize: '12px', marginTop: '2px' }}>{item.label}</div>
+              </div>
+              <ArrowRight size={15} className="text-muted" style={{ flexShrink: 0 }} />
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Charts Grid */}
       <div className="dashboard-visuals-grid">
         <div className="visual-card">
@@ -413,7 +452,7 @@ INSERT INTO identities VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'S
               <h3>Role Coverage by Department</h3>
               <p>% of identities with an assigned published role</p>
             </div>
-            <a href="#" onClick={(e) => { e.preventDefault(); }} className="view-all-link">View All</a>
+            <a href="#" onClick={(e) => { e.preventDefault(); navigate('/analytics/coverage-reports'); }} className="view-all-link">View All</a>
           </div>
           <div className="card-body">
             {loading ? (
@@ -592,7 +631,7 @@ INSERT INTO identities VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'S
         <div className="visual-card activities-card">
           <div className="card-header">
             <h3>Recent Activity</h3>
-            <a href="#" onClick={(e) => { e.preventDefault(); }} className="view-all-link">
+            <a href="#" onClick={(e) => { e.preventDefault(); navigate('/administration/audit-logs'); }} className="view-all-link">
               View All <ArrowRight size={13} />
             </a>
           </div>
@@ -640,7 +679,7 @@ INSERT INTO identities VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'S
         <div className="visual-card approvals-card">
           <div className="card-header">
             <h3>Approval Queue</h3>
-            <button className="view-all-btn-blue">
+            <button className="view-all-btn-blue" onClick={() => navigate('/approval-workflow/business')}>
               View All <span className="badge-count-inner">{approvalQueue.length}</span>
             </button>
           </div>
@@ -700,15 +739,15 @@ INSERT INTO identities VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'S
                 <Upload size={16} className="tile-icon text-blue" />
                 <span>Upload Identity Data</span>
               </button>
-              <button className="action-tile-btn" onClick={fetchData}>
+              <button className="action-tile-btn" onClick={() => navigate('/role-discovery')}>
                 <Play size={16} className="tile-icon text-green" />
                 <span>Run Role Mining</span>
               </button>
-              <button className="action-tile-btn">
+              <button className="action-tile-btn" onClick={() => navigate('/role-engineering/workbench')}>
                 <CheckSquare size={16} className="tile-icon text-yellow" />
                 <span>Review Candidates</span>
               </button>
-              <button className="action-tile-btn">
+              <button className="action-tile-btn" onClick={() => navigate('/analytics/executive')}>
                 <FileText size={16} className="tile-icon text-red" />
                 <span>Generate Reports</span>
               </button>

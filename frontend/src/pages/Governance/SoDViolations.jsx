@@ -226,7 +226,7 @@ const SoDViolations = () => {
       {/* Header Panel */}
       <div className="sod-page-header">
         <div className="header-titles">
-          <h1>SoD Violations Cockpit</h1>
+          <h1>SoD Violations</h1>
           <p className="subtitle">Audit and review segregation of duties conflicts. Resolve, assign, or approve exceptions.</p>
         </div>
         <div className="header-actions">

@@ -759,6 +759,21 @@ def get_connector_schema(
                 connect_timeout=connector.connection_timeout or 30
             )
             cursor = conn.cursor()
+
+            # table_name comes straight from a query parameter, and SQL
+            # doesn't support parameterizing identifiers (only values) - so
+            # instead of trusting it directly in an f-string (which let
+            # anyone inject arbitrary SQL into this connector's target
+            # database), validate it against the real, live table list for
+            # this exact connection first. Only a name that SHOW TABLES
+            # actually returned is ever allowed into the query below.
+            cursor.execute("SHOW TABLES")
+            real_tables = {row[0] for row in cursor.fetchall()}
+            if table_name not in real_tables:
+                cursor.close()
+                conn.close()
+                raise Exception(f"Table '{table_name}' does not exist on this connection.")
+
             cursor.execute(f"DESCRIBE `{table_name}`")
             rows = cursor.fetchall()
             cursor.execute(f"SELECT * FROM `{table_name}` LIMIT 1")

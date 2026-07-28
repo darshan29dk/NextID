@@ -163,7 +163,7 @@ const SoDViolationDetail = () => {
     return (
       <div className="table-empty-container">
         <h3>Violation Not Found</h3>
-        <button className="btn-secondary" onClick={() => navigate('/governance/violations')}>Back to Cockpit</button>
+        <button className="btn-secondary" onClick={() => navigate('/governance/violations')}>Back to Violations</button>
       </div>
     );
   }
@@ -187,7 +187,7 @@ const SoDViolationDetail = () => {
       ]} />
 
       <button className="btn-back" onClick={() => navigate('/governance/violations')}>
-        <ChevronLeft size={14} /> Back to Cockpit
+        <ChevronLeft size={14} /> Back to Violations
       </button>
 
       {/* Banners */}

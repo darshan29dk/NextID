@@ -50,10 +50,10 @@ const BusinessApproval = ({ hideHeader }) => {
         status: 'Business Review'
       };
       const res = await getApprovalRequests(params);
-      
+
       // Everyone with view access sees every request here - ownership only
       // gates who can ACT on a row (see canUserAction), not who can see it.
-      setRequests(list);
+      setRequests(res.requests || []);
     } catch (err) {
       console.error("Failed to load business approvals:", err);
       setError("Failed to load pending business approvals.");

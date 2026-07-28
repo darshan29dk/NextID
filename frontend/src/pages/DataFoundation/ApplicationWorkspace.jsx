@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Plus,
   Search,
@@ -30,7 +30,8 @@ import {
   Key,
   ArrowRightLeft,
   Save,
-  History
+  History,
+  ChevronDown
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
@@ -79,6 +80,19 @@ const TARGET_ATTRIBUTE_OPTIONS = {
     { value: 'description', label: 'Description' }
   ]
 };
+// Step 1 "Choose Application Ingestion Type" options - same dropdown
+// pattern used on the Data Source wizard's connector-type step.
+const APPLICATION_TYPE_OPTIONS = [
+  {
+    value: 'CSV', label: 'CSV Flat File', icon: FileText, color: '#2563eb',
+    description: 'Upload comma or character separated values files directly from application exports.'
+  },
+  {
+    value: 'Excel', label: 'Excel Workbook', icon: FileSpreadsheet, color: '#16a34a',
+    description: 'Import sheets from Microsoft Excel xlsx files with multi-sheet parsing capabilities.'
+  },
+];
+
 const INITIAL_FORM_STATE = {
   application_name: '',
   application_type: 'CSV',
@@ -130,6 +144,19 @@ const ApplicationWorkspace = () => {
   const [editApplicationId, setEditApplicationId] = useState(null);
   const [formData, setFormData] = useState(INITIAL_FORM_STATE);
   const [formErrors, setFormErrors] = useState({});
+
+  const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
+  const typeDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (typeDropdownRef.current && !typeDropdownRef.current.contains(e.target)) {
+        setTypeDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
   const [formBannerError, setFormBannerError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -985,23 +1012,86 @@ const ApplicationWorkspace = () => {
                     <div className="wizard-type-selection">
                       <h4>Choose Application Ingestion Type</h4>
                       <p className="subtitle">Select the source format for this application's account, entitlement, and role data.</p>
-                      <div className="type-options-grid">
-                        <div className={`type-option-card ${formData.application_type === 'CSV' ? 'selected' : ''}`} onClick={() => setFormData((prev) => ({ ...prev, application_type: 'CSV' }))}>
-                          <div className="option-icon-wrapper csv"><FileText size={24} /></div>
-                          <div className="option-text-wrapper">
-                            <h5>CSV Flat File</h5>
-                            <p>Upload comma or character separated values files directly from application exports.</p>
+
+                      <div ref={typeDropdownRef} style={{ position: 'relative', maxWidth: '560px' }}>
+                        <button
+                          type="button"
+                          onClick={() => setTypeDropdownOpen((o) => !o)}
+                          style={{
+                            width: '100%', display: 'flex', alignItems: 'center', gap: '14px',
+                            padding: '14px 16px', borderRadius: '10px',
+                            border: `1px solid ${typeDropdownOpen ? 'var(--primary)' : 'var(--border-color)'}`,
+                            backgroundColor: 'var(--bg-card)', cursor: 'pointer', textAlign: 'left'
+                          }}
+                        >
+                          {(() => {
+                            const selected = APPLICATION_TYPE_OPTIONS.find((o) => o.value === formData.application_type) || APPLICATION_TYPE_OPTIONS[0];
+                            const SelectedIcon = selected.icon;
+                            return (
+                              <>
+                                <div style={{
+                                  width: '38px', height: '38px', borderRadius: '8px', flexShrink: 0,
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  backgroundColor: `${selected.color}1a`, color: selected.color
+                                }}>
+                                  <SelectedIcon size={19} />
+                                </div>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontWeight: 600, fontSize: '14px' }}>{selected.label}</div>
+                                  <div className="text-muted" style={{ fontSize: '12px', marginTop: '2px' }}>{selected.description}</div>
+                                </div>
+                              </>
+                            );
+                          })()}
+                          <ChevronDown
+                            size={16}
+                            className="text-muted"
+                            style={{ flexShrink: 0, transition: 'transform 0.15s ease', transform: typeDropdownOpen ? 'rotate(180deg)' : 'none' }}
+                          />
+                        </button>
+
+                        {typeDropdownOpen && (
+                          <div style={{
+                            marginTop: '6px',
+                            backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)',
+                            borderRadius: '10px', overflow: 'hidden'
+                          }}>
+                            {APPLICATION_TYPE_OPTIONS.map((opt, idx) => {
+                              const OptIcon = opt.icon;
+                              const isSelected = formData.application_type === opt.value;
+                              return (
+                                <div
+                                  key={opt.value}
+                                  onClick={() => {
+                                    setFormData((prev) => ({ ...prev, application_type: opt.value }));
+                                    setTypeDropdownOpen(false);
+                                  }}
+                                  style={{
+                                    display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px',
+                                    cursor: 'pointer',
+                                    backgroundColor: isSelected ? 'rgba(37,99,235,0.08)' : 'transparent',
+                                    borderBottom: idx < APPLICATION_TYPE_OPTIONS.length - 1 ? '1px solid var(--border-color)' : 'none'
+                                  }}
+                                  onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--bg-hover, rgba(0,0,0,0.03))'; }}
+                                  onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                >
+                                  <div style={{
+                                    width: '34px', height: '34px', borderRadius: '8px', flexShrink: 0,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    backgroundColor: `${opt.color}1a`, color: opt.color
+                                  }}>
+                                    <OptIcon size={17} />
+                                  </div>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <div style={{ fontWeight: 600, fontSize: '13.5px' }}>{opt.label}</div>
+                                    <div className="text-muted" style={{ fontSize: '11.5px', marginTop: '1px' }}>{opt.description}</div>
+                                  </div>
+                                  {isSelected && <Check size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />}
+                                </div>
+                              );
+                            })}
                           </div>
-                          {formData.application_type === 'CSV' && <div className="option-badge"><Check size={12} /></div>}
-                        </div>
-                        <div className={`type-option-card ${formData.application_type === 'Excel' ? 'selected' : ''}`} onClick={() => setFormData((prev) => ({ ...prev, application_type: 'Excel' }))}>
-                          <div className="option-icon-wrapper excel"><FileSpreadsheet size={24} /></div>
-                          <div className="option-text-wrapper">
-                            <h5>Excel Workbook</h5>
-                            <p>Import sheets from Microsoft Excel xlsx files with multi-sheet parsing capabilities.</p>
-                          </div>
-                          {formData.application_type === 'Excel' && <div className="option-badge"><Check size={12} /></div>}
-                        </div>
+                        )}
                       </div>
                     </div>
                   )}

@@ -35,6 +35,24 @@ const DashboardLayout = ({ children }) => {
     setIsCollapsed(!isCollapsed);
   };
 
+  // Below the same 768px breakpoint DashboardLayout.css already uses for
+  // its mobile padding tweak, auto-collapse the sidebar to its icon-only
+  // width instead of leaving it full-width and fixed on top of the page
+  // content (which was hiding the breadcrumb/heading/search bar behind it
+  // on narrow screens - the CSS margin-left:0 override alone didn't help
+  // because nothing was actually shrinking the sidebar itself). The user
+  // can still tap the collapse toggle to expand it back open manually.
+  useEffect(() => {
+    const collapseIfNarrow = () => {
+      if (window.innerWidth <= 768) {
+        setIsCollapsed(true);
+      }
+    };
+    collapseIfNarrow();
+    window.addEventListener('resize', collapseIfNarrow);
+    return () => window.removeEventListener('resize', collapseIfNarrow);
+  }, []);
+
   useEffect(() => {
     const loadAppData = async () => {
       const localTheme = localStorage.getItem('theme');

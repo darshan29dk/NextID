@@ -26,9 +26,11 @@
 }
 
 @media (max-width: 768px) {
-  .main-container {
-    margin-left: 0 !important;
-  }
+  /* No margin-left override here anymore - the sidebar auto-collapses to
+     its icon-only width on these screens (see DashboardLayout.jsx), so the
+     normal .sidebar-collapsed margin-left rule above already gives the
+     content the right offset. Forcing it to 0 previously left the content
+     sitting directly underneath the still-fixed, still full-width sidebar. */
   .content-wrapper {
     padding: 20px 16px;
   }

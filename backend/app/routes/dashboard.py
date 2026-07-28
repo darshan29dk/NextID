@@ -1,13 +1,24 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Header
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import List
 from app.database import get_db
 from app.models.dashboard import DashboardStats, RecentActivity, IdentityRecord, ApprovalQueueItem, RoleMiningTrendPoint
 from app.models.notification import Notification
 from app.models.audit_log import AuditLog
+from app.models.identity import Identity
+from app.models.application import Application
+from app.models.application_account import ApplicationAccount
+from app.models.application_account_entitlement import ApplicationAccountEntitlement
+from app.models.candidate_role import CandidateRole
+from app.models.candidate_role_member import CandidateRoleMember
+from app.models.approval_request import ApprovalRequest
+from app.models.sod_violation import SodViolation
+from app.models.sod_exception import SodException
+from sqlalchemy import or_
 from app.schemas.dashboard import (
     DashboardStatsResponse, RecentActivityResponse, ApprovalQueueResponse, SyncApiRequest,
-    DepartmentCoverageData, ApplicationDistributionData, RoleLifecycleData
+    DepartmentCoverageData, ApplicationDistributionData, RoleLifecycleData, MiningTrendPoint
 )
 from datetime import datetime, timedelta
 import csv
@@ -20,92 +31,116 @@ router = APIRouter()
 
 @router.get("/dashboard", response_model=DashboardStatsResponse)
 def get_dashboard_stats(db: Session = Depends(get_db)):
-    records = db.query(
-        IdentityRecord.applications,
-        IdentityRecord.entitlements_count,
-        IdentityRecord.sod_conflict,
-        IdentityRecord.department
-    ).all()
-    
-    # Calculate base KPI statistics dynamically from the Identity records
-    total_users = len(records)
-    
-    accounts = 0
-    apps_set = set()
-    entitlements = 0
-    sod_conflicts = 0
-    
-    app_counts = {}
-    
-    for r in records:
-        # Accounts (sum of applications assigned to users)
-        if r.applications:
-            user_apps = [a.strip() for a in r.applications.split(",") if a.strip()]
-            accounts += len(user_apps)
-            for app in user_apps:
-                apps_set.add(app)
-                app_counts[app] = app_counts.get(app, 0) + 1
-        
-        # Entitlements sum
-        entitlements += r.entitlements_count
-        
-        # SoD Conflicts count
-        if r.sod_conflict == 1:
-            sod_conflicts += 1
-            
-    applications = len(apps_set)
-    
-    # Scaling factor for administrative/discovered roles based on user count
-    candidate_roles = max(5, int(total_users * 0.064))
-    published_roles = max(3, int(total_users * 0.036))
-    birthright_roles = max(1, int(total_users * 0.006))
-    pending_approvals = db.query(ApprovalQueueItem).count()
-    
-    # 1. Department Coverage (target vs covered)
-    depts = ["Engineering", "Finance", "Sales", "HR", "Operations", "IT", "Security", "Marketing"]
-    department_coverage = []
-    for dept in depts:
-        dept_users = [r for r in records if r.department == dept]
-        total = len(dept_users)
-        
-        # Coverage target vs dynamic ratio
-        if dept == "Engineering": covered = int(total * 0.75)
-        elif dept == "Finance": covered = int(total * 0.7)
-        elif dept == "Sales": covered = int(total * 0.85)
-        elif dept == "HR": covered = int(total * 0.8)
-        elif dept == "Operations": covered = int(total * 0.65)
-        elif dept == "IT": covered = int(total * 0.85)
-        elif dept == "Security": covered = int(total * 0.95)
-        else: covered = int(total * 0.6)  # Marketing
-        
-        department_coverage.append(DepartmentCoverageData(
-            department=dept,
-            coverage=max(covered, 1) if total > 0 else 0,
-            target=total if total > 0 else 10
-        ))
-        
-    # 2. Risk Distribution (counts by low/medium/high/critical)
-    # We count them dynamically, scaling down to represent distinct roles by risk level
-    low_val = max(1, int(total_users * 0.018))
-    med_val = max(1, int(total_users * 0.010))
-    high_val = max(1, int(total_users * 0.006))
-    crit_val = max(1, int(total_users * 0.002))
-    
-    risk_distribution = {
-        "Low": low_val,
-        "Medium": med_val,
-        "High": high_val,
-        "Critical": crit_val
-    }
-    
-    # 3. Application Distribution (top 6 apps by account count)
-    sorted_apps = sorted(app_counts.items(), key=lambda x: x[1], reverse=True)[:6]
+    """
+    Real, live platform KPIs - reads the same tables (Identity,
+    ApplicationAccount, Application, ApplicationAccountEntitlement,
+    CandidateRole, ApprovalRequest, SodViolation) that Role Discovery, Role
+    Engineering, Approval Workflow, and Governance already use, so these
+    numbers agree with the rest of the app instead of a separate synthetic
+    "identity_records" demo table scaled by arbitrary formulas.
+    """
+    total_users = db.query(Identity).filter(Identity.is_deleted == False).count()
+    accounts = db.query(ApplicationAccount).filter(ApplicationAccount.is_deleted == False).count()
+    applications = db.query(Application).filter(Application.is_deleted == False).count()
 
-    if not sorted_apps:
+    # Only count entitlement links whose parent Application/account still
+    # exist and which actually matched a catalog entitlement - mirrors
+    # analytics_service.get_executive_kpis so this tile agrees with the
+    # Analytics module.
+    entitlements = db.query(ApplicationAccountEntitlement).join(
+        Application, ApplicationAccountEntitlement.application_id == Application.id
+    ).join(
+        ApplicationAccount, ApplicationAccountEntitlement.account_id == ApplicationAccount.id
+    ).filter(
+        ApplicationAccountEntitlement.matched == True,
+        Application.is_deleted == False,
+        ApplicationAccount.is_deleted == False
+    ).count()
+
+    role_base = db.query(CandidateRole).filter(CandidateRole.is_deleted == False)
+    candidate_roles = role_base.count()
+    published_roles = role_base.filter(CandidateRole.status == "Published").count()
+    birthright_roles = role_base.filter(CandidateRole.classification == "Birthright").count()
+
+    sod_conflicts = db.query(SodViolation).join(
+        Identity, SodViolation.user_id == Identity.id
+    ).filter(
+        SodViolation.status.in_(["OPEN", "UNDER_REVIEW"]),
+        Identity.is_deleted == False
+    ).count()
+
+    # In-flight anywhere in the approval pipeline - matches the status set
+    # BusinessApproval/SecurityApproval treat as "still pending".
+    pending_approvals = db.query(ApprovalRequest).filter(
+        ApprovalRequest.status.in_(["Submitted", "Business Review", "Security Review"])
+    ).count()
+
+    # Quick-action counts: roles sitting in Role Engineering with no
+    # classification yet, and SoD exceptions still waiting on a decision -
+    # both feed the "Needs Your Attention" links on the Dashboard so a user
+    # can jump straight to the page that needs work instead of hunting for it.
+    not_classified_roles = role_base.filter(
+        or_(CandidateRole.classification.is_(None), CandidateRole.classification == "")
+    ).count()
+    pending_exceptions = db.query(SodException).filter(
+        SodException.status.in_(["PENDING", "UNDER_REVIEW"])
+    ).count()
+
+    # 1. Department Coverage: real headcount per department (from Identity)
+    # vs. how many of those identities are a member of at least one
+    # Published role, grouped off CandidateRoleMember's own department
+    # snapshot.
+    identities_by_dept = dict(
+        db.query(Identity.department, func.count(Identity.id))
+        .filter(Identity.is_deleted == False)
+        .group_by(Identity.department).all()
+    )
+    covered_by_dept = dict(
+        db.query(CandidateRoleMember.department, func.count(func.distinct(CandidateRoleMember.identity_id)))
+        .join(CandidateRole, CandidateRoleMember.candidate_role_id == CandidateRole.id)
+        .filter(CandidateRole.is_deleted == False, CandidateRole.status == "Published")
+        .group_by(CandidateRoleMember.department).all()
+    )
+    department_coverage = [
+        DepartmentCoverageData(
+            department=dept,
+            coverage=covered_by_dept.get(dept, 0),
+            target=total
+        )
+        for dept, total in sorted(identities_by_dept.items()) if dept
+    ]
+
+    # 2. Risk Distribution: real Published roles grouped by their actual
+    # risk_level, not a synthetic split.
+    risk_counts = dict(
+        role_base.filter(CandidateRole.status == "Published")
+        .with_entities(CandidateRole.risk_level, func.count(CandidateRole.id))
+        .group_by(CandidateRole.risk_level).all()
+    )
+    risk_distribution = {
+        "Low": risk_counts.get("Low", 0),
+        "Medium": risk_counts.get("Medium", 0),
+        "High": risk_counts.get("High", 0),
+        "Critical": risk_counts.get("Critical", 0),
+    }
+
+    # 3. Application Distribution: top 6 real applications by real account
+    # count (ApplicationAccount rows), not a count of comma-separated names
+    # typed into an upload file.
+    app_counts_q = (
+        db.query(Application.application_name, func.count(ApplicationAccount.id))
+        .join(ApplicationAccount, ApplicationAccount.application_id == Application.id)
+        .filter(Application.is_deleted == False, ApplicationAccount.is_deleted == False)
+        .group_by(Application.application_name)
+        .order_by(func.count(ApplicationAccount.id).desc())
+        .limit(6)
+        .all()
+    )
+    if not app_counts_q:
         application_distribution = []
     else:
         colors = ['#3b82f6', '#38bdf8', '#0ea5e9', '#0284c7', '#0369a1', '#1e3a8a']
-        max_val = max(count for name, count in sorted_apps)
+        max_val = max(count for name, count in app_counts_q) or 1
         application_distribution = [
             ApplicationDistributionData(
                 name=name,
@@ -113,25 +148,57 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
                 max=int(max_val * 1.25),
                 color=colors[i % len(colors)]
             )
-            for i, (name, count) in enumerate(sorted_apps)
+            for i, (name, count) in enumerate(app_counts_q)
         ]
-        
-    # 4. Role Lifecycle (Draft, Under Review, Active, Deprecated)
-    draft_val = max(1, int(total_users * 0.004))
-    review_val = max(1, int(total_users * 0.006))
-    active_val = max(1, int(total_users * 0.036))
-    deprecated_val = max(1, int(total_users * 0.002))
+
+    # 4. Role Lifecycle: real CandidateRole.status breakdown, rolled up onto
+    # the widget's existing 4-bucket legend (Draft / Under Review / Active /
+    # Deprecated) rather than growing the legend for every workflow status.
+    status_counts = dict(
+        role_base.with_entities(CandidateRole.status, func.count(CandidateRole.id))
+        .group_by(CandidateRole.status).all()
+    )
+    draft_val = status_counts.get("Draft", 0)
+    review_val = (
+        status_counts.get("Under Review", 0)
+        + status_counts.get("Reviewed", 0)
+        + status_counts.get("Ready For Publish", 0)
+    )
+    active_val = status_counts.get("Published", 0) + status_counts.get("Approved", 0)
+    deprecated_val = status_counts.get("Rejected", 0) + status_counts.get("Security Rejected", 0)
     total_roles = draft_val + review_val + active_val + deprecated_val
-    
+
     role_lifecycle = [
         RoleLifecycleData(label="Draft", count=draft_val, total=total_roles, color="#64748b"),
         RoleLifecycleData(label="Under Review", count=review_val, total=total_roles, color="#f59e0b"),
         RoleLifecycleData(label="Active", count=active_val, total=total_roles, color="#10b981"),
         RoleLifecycleData(label="Deprecated", count=deprecated_val, total=total_roles, color="#ef4444")
     ]
-    
-    trend_points = db.query(RoleMiningTrendPoint).order_by(RoleMiningTrendPoint.id.asc()).all()
-    
+
+    # 5. Mining Trend: last 6 real calendar months, counted straight from
+    # CandidateRole.generated_on / published_at instead of a separate
+    # role_mining_trend table nothing else in the app writes to.
+    now = datetime.utcnow()
+    year, month = now.year, now.month
+    trend_points = []
+    for i in range(5, -1, -1):
+        y, m = year, month - i
+        while m <= 0:
+            m += 12
+            y -= 1
+        start = datetime(y, m, 1)
+        end = datetime(y + 1, 1, 1) if m == 12 else datetime(y, m + 1, 1)
+        candidates_count = role_base.filter(
+            CandidateRole.generated_on >= start, CandidateRole.generated_on < end
+        ).count()
+        published_count = role_base.filter(
+            CandidateRole.published_at.isnot(None),
+            CandidateRole.published_at >= start, CandidateRole.published_at < end
+        ).count()
+        trend_points.append(MiningTrendPoint(
+            month=start.strftime("%b"), candidates=candidates_count, published=published_count
+        ))
+
     return DashboardStatsResponse(
         totalUsers=total_users,
         accounts=accounts,
@@ -142,6 +209,8 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         birthrightRoles=birthright_roles,
         sodConflicts=sod_conflicts,
         pendingApprovals=pending_approvals,
+        notClassifiedRoles=not_classified_roles,
+        pendingExceptions=pending_exceptions,
         departmentCoverage=department_coverage,
         riskDistribution=risk_distribution,
         applicationDistribution=application_distribution,
@@ -151,12 +220,44 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
 
 @router.get("/recent-activities", response_model=List[RecentActivityResponse])
 def get_recent_activities(db: Session = Depends(get_db)):
-    activities = db.query(RecentActivity).order_by(RecentActivity.id.desc()).limit(15).all()
-    return activities
+    # Real audit trail (the same table Audit Logs reads) instead of the
+    # separate "recent_activity" table that only the legacy upload endpoint
+    # below ever wrote to.
+    logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).limit(15).all()
+    return [
+        RecentActivityResponse(
+            id=log.id,
+            user=log.performed_by,
+            action=f"{log.module} - {log.action}" if log.module else log.action,
+            status="success",
+            created_at=log.timestamp
+        )
+        for log in logs
+    ]
 
 @router.get("/approval-queue", response_model=List[ApprovalQueueResponse])
 def get_approval_queue(db: Session = Depends(get_db)):
-    queue = db.query(ApprovalQueueItem).order_by(ApprovalQueueItem.due_in_days.asc()).all()
+    # Real, in-flight approval requests (same pipeline Business/Security
+    # Approval act on) instead of the separate "approval_queue" table that
+    # nothing in the actual workflow ever populates.
+    now = datetime.utcnow()
+    rows = db.query(ApprovalRequest, CandidateRole).join(
+        CandidateRole, ApprovalRequest.candidate_role_id == CandidateRole.id
+    ).filter(
+        ApprovalRequest.status.in_(["Submitted", "Business Review", "Security Review"])
+    ).all()
+
+    queue = [
+        ApprovalQueueResponse(
+            id=req.id,
+            role_name=role.role_name,
+            requester=req.submitted_by,
+            due_in_days=(req.due_date - now).days if req.due_date else 0,
+            risk_level=(role.risk_level or "Low").lower()
+        )
+        for req, role in rows
+    ]
+    queue.sort(key=lambda item: item.due_in_days)
     return queue
 
 @router.post("/upload-data", response_model=DashboardStatsResponse)

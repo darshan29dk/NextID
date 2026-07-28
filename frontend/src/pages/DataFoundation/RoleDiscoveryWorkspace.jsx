@@ -3,7 +3,7 @@ import {
   Search, Plus, Trash2, X, AlertTriangle, ArrowLeft, RotateCcw,
   CheckCircle2, XCircle, Info, Users, Layers, Target, PieChart,
   GitCompare, ShieldAlert, Boxes, KeyRound, Gauge, ChevronLeft, ChevronRight,
-  LayoutDashboard
+  LayoutDashboard, ArrowUp, ArrowDown, ArrowUpDown
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
@@ -78,6 +78,21 @@ const RoleDiscoveryWorkspace = () => {
   // Pagination for Candidate Roles and Outliers in Campaign Detail view
   const ROLES_PER_PAGE = 10;
   const [rolesPage, setRolesPage] = useState(1);
+  const [rolesSortBy, setRolesSortBy] = useState(null);
+  const [rolesSortDir, setRolesSortDir] = useState('asc');
+
+  // Numeric columns default to highest-first on their first click (most
+  // useful for Members/Confidence); text columns default to A-Z.
+  const NUMERIC_ROLE_SORT_KEYS = ['member_count', 'confidence_score'];
+  const handleRolesSort = (key) => {
+    if (rolesSortBy === key) {
+      setRolesSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setRolesSortBy(key);
+      setRolesSortDir(NUMERIC_ROLE_SORT_KEYS.includes(key) ? 'desc' : 'asc');
+    }
+    setRolesPage(1);
+  };
 
   const OUTLIERS_PER_PAGE = 10;
   const [outliersPage, setOutliersPage] = useState(1);
@@ -480,8 +495,26 @@ const RoleDiscoveryWorkspace = () => {
         </div>
 
         {detailTab === 'roles' && (() => {
-          const totalRolesPages = Math.ceil(candidateRoles.length / ROLES_PER_PAGE) || 1;
-          const paginatedRoles = candidateRoles.slice((rolesPage - 1) * ROLES_PER_PAGE, rolesPage * ROLES_PER_PAGE);
+          const sortedRoles = !rolesSortBy ? candidateRoles : [...candidateRoles].sort((a, b) => {
+            let av = a[rolesSortBy];
+            let bv = b[rolesSortBy];
+            if (typeof av === 'string') av = av.toLowerCase();
+            if (typeof bv === 'string') bv = bv.toLowerCase();
+            if (av == null) av = '';
+            if (bv == null) bv = '';
+            if (av < bv) return rolesSortDir === 'asc' ? -1 : 1;
+            if (av > bv) return rolesSortDir === 'asc' ? 1 : -1;
+            return 0;
+          });
+          const totalRolesPages = Math.ceil(sortedRoles.length / ROLES_PER_PAGE) || 1;
+          const paginatedRoles = sortedRoles.slice((rolesPage - 1) * ROLES_PER_PAGE, rolesPage * ROLES_PER_PAGE);
+          const sortIcon = (key) => {
+            if (rolesSortBy !== key) return <ArrowUpDown size={11} style={{ opacity: 0.4, marginLeft: '4px', verticalAlign: 'middle' }} />;
+            return rolesSortDir === 'asc'
+              ? <ArrowUp size={11} style={{ marginLeft: '4px', verticalAlign: 'middle' }} />
+              : <ArrowDown size={11} style={{ marginLeft: '4px', verticalAlign: 'middle' }} />;
+          };
+          const sortableThStyle = { cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' };
 
           return (
             <>
@@ -530,11 +563,11 @@ const RoleDiscoveryWorkspace = () => {
                     <tr>
                       <th style={{ width: '40px', textAlign: 'center' }}>#</th>
                       <th></th>
-                      <th style={{ textAlign: 'left' }}>Role Name</th>
-                      <th style={{ textAlign: 'left' }}>Job Function</th>
-                      <th style={{ textAlign: 'left' }}>Department</th>
-                      <th style={{ textAlign: 'center' }}>Members</th>
-                      <th style={{ textAlign: 'center' }}>Confidence</th>
+                      <th style={{ textAlign: 'left', ...sortableThStyle }} onClick={() => handleRolesSort('role_name')}>Role Name{sortIcon('role_name')}</th>
+                      <th style={{ textAlign: 'left', ...sortableThStyle }} onClick={() => handleRolesSort('job_function')}>Job Function{sortIcon('job_function')}</th>
+                      <th style={{ textAlign: 'left', ...sortableThStyle }} onClick={() => handleRolesSort('department')}>Department{sortIcon('department')}</th>
+                      <th style={{ textAlign: 'center', ...sortableThStyle }} onClick={() => handleRolesSort('member_count')}>Members{sortIcon('member_count')}</th>
+                      <th style={{ textAlign: 'center', ...sortableThStyle }} onClick={() => handleRolesSort('confidence_score')}>Confidence{sortIcon('confidence_score')}</th>
                     </tr>
                   </thead>
                   <tbody>

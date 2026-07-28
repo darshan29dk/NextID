@@ -37,6 +37,8 @@ class DashboardStatsResponse(BaseModel):
     birthrightRoles: int
     sodConflicts: int
     pendingApprovals: int
+    notClassifiedRoles: int
+    pendingExceptions: int
     departmentCoverage: List[DepartmentCoverageData]
     riskDistribution: Dict[str, int]
     applicationDistribution: List[ApplicationDistributionData]
