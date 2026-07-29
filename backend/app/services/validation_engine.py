@@ -131,20 +131,40 @@ class ValidationEngine:
 
             # 12. Custom Expression
             elif val_type_lower == "custom expression":
-                # Evaluate expression locally on parameters (e.g. check string properties)
+                # Only ever supports a length check like "len(value) > 5" -
+                # matched and evaluated directly here instead of via eval().
+                # eval() was reachable two ways even with __builtins__
+                # stripped: (1) the "__builtins__": None restriction is a
+                # well-known incomplete sandbox - object introspection
+                # gadgets (e.g. ().__class__.__base__.__subclasses__()) can
+                # still reach dangerous functionality without builtins, and
+                # (2) val_str (the actual imported data value, not the rule
+                # itself) was spliced into the expression as a raw quoted
+                # string with no escaping - a single quote in imported data
+                # would break out of that string and inject into the eval.
+                # A regex match against the one supported shape closes both
+                # without needing to execute anything.
                 expr = params.get("expression", "")
-                # Simple check helper: length or match checks
-                if "len(" in expr:
-                    # Safe basic length evaluation
-                    try:
-                        # Extract logic (e.g. len(value) > 5)
-                        local_expr = expr.replace("value", f"'{val_str}'")
-                        # Basic eval constraint sandbox
-                        res = eval(local_expr, {"__builtins__": None}, {"len": len})
-                        if not res:
-                            return fail("Value fails custom logic constraints.")
-                    except Exception:
-                        return fail("Custom validation expression evaluation error.")
+                match = re.fullmatch(
+                    r"\s*len\(\s*value\s*\)\s*(==|!=|>=|<=|>|<)\s*(\d+)\s*",
+                    expr
+                )
+                if match:
+                    op, num_str = match.group(1), match.group(2)
+                    length = len(val_str)
+                    num = int(num_str)
+                    ops = {
+                        "==": length == num, "!=": length != num,
+                        ">=": length >= num, "<=": length <= num,
+                        ">": length > num, "<": length < num,
+                    }
+                    if not ops[op]:
+                        return fail("Value fails custom logic constraints.")
+                elif "len(" in expr:
+                    # Doesn't match the one supported shape - fail closed
+                    # (reject the value) rather than silently letting it
+                    # through or trying to execute arbitrary text.
+                    return fail("Custom validation expression is not in a supported format (expected e.g. \"len(value) > 5\").")
 
             return success_res
 

@@ -230,8 +230,18 @@ class PreviewEngine:
             )
             try:
                 with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-                    # Basic SQL validation escaping backticks safely
-                    limit_sql = f" LIMIT {limit}" if limit is not None else ""
+                    # table_name is a caller-supplied query parameter and SQL
+                    # can't parameterize identifiers - validate it against
+                    # this connection's real, live table list before it ever
+                    # reaches an f-string (same fix as the schema-discovery
+                    # endpoint in routes/connectors.py, which had the same
+                    # unvalidated-identifier SQL injection).
+                    cursor.execute("SHOW TABLES")
+                    real_tables = {list(row.values())[0] for row in cursor.fetchall()}
+                    if table_name not in real_tables:
+                        raise Exception(f"Table '{table_name}' does not exist on this connection.")
+
+                    limit_sql = f" LIMIT {int(limit)}" if limit is not None else ""
                     cursor.execute(f"SELECT * FROM `{table_name}`{limit_sql}")
                     raw_rows = cursor.fetchall()
             finally:
