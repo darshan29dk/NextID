@@ -1,0 +1,13 @@
+{
+  "name": "ranalyzer-dev",
+  "private": true,
+  "description": "Root helper to run the rAnalyzer backend and frontend together in local development with one command.",
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"npm:dev:backend\" \"npm:dev:frontend\"",
+    "dev:backend": "cd backend && python -m uvicorn app.main:app --reload --port 8000",
+    "dev:frontend": "cd frontend && npm run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
