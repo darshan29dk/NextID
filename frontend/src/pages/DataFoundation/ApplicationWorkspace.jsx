@@ -1018,33 +1018,18 @@ const ApplicationWorkspace = () => {
                           type="button"
                           onClick={() => setTypeDropdownOpen((o) => !o)}
                           style={{
-                            width: '100%', display: 'flex', alignItems: 'center', gap: '14px',
-                            padding: '14px 16px', borderRadius: '10px',
+                            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px',
+                            padding: '9px 12px', borderRadius: '6px', height: '38px',
                             border: `1px solid ${typeDropdownOpen ? 'var(--primary)' : 'var(--border-color)'}`,
                             backgroundColor: 'var(--bg-card)', cursor: 'pointer', textAlign: 'left'
                           }}
                         >
                           {(() => {
                             const selected = APPLICATION_TYPE_OPTIONS.find((o) => o.value === formData.application_type) || APPLICATION_TYPE_OPTIONS[0];
-                            const SelectedIcon = selected.icon;
-                            return (
-                              <>
-                                <div style={{
-                                  width: '38px', height: '38px', borderRadius: '8px', flexShrink: 0,
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  backgroundColor: `${selected.color}1a`, color: selected.color
-                                }}>
-                                  <SelectedIcon size={19} />
-                                </div>
-                                <div style={{ flex: 1, minWidth: 0 }}>
-                                  <div style={{ fontWeight: 600, fontSize: '14px' }}>{selected.label}</div>
-                                  <div className="text-muted" style={{ fontSize: '12px', marginTop: '2px' }}>{selected.description}</div>
-                                </div>
-                              </>
-                            );
+                            return <span style={{ fontWeight: 500, fontSize: '13.5px' }}>{selected.label}</span>;
                           })()}
                           <ChevronDown
-                            size={16}
+                            size={15}
                             className="text-muted"
                             style={{ flexShrink: 0, transition: 'transform 0.15s ease', transform: typeDropdownOpen ? 'rotate(180deg)' : 'none' }}
                           />
@@ -1057,7 +1042,6 @@ const ApplicationWorkspace = () => {
                             borderRadius: '10px', overflow: 'hidden'
                           }}>
                             {APPLICATION_TYPE_OPTIONS.map((opt, idx) => {
-                              const OptIcon = opt.icon;
                               const isSelected = formData.application_type === opt.value;
                               return (
                                 <div
@@ -1067,7 +1051,7 @@ const ApplicationWorkspace = () => {
                                     setTypeDropdownOpen(false);
                                   }}
                                   style={{
-                                    display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px',
+                                    display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 16px',
                                     cursor: 'pointer',
                                     backgroundColor: isSelected ? 'rgba(37,99,235,0.08)' : 'transparent',
                                     borderBottom: idx < APPLICATION_TYPE_OPTIONS.length - 1 ? '1px solid var(--border-color)' : 'none'
@@ -1075,18 +1059,17 @@ const ApplicationWorkspace = () => {
                                   onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = 'var(--bg-hover, rgba(0,0,0,0.03))'; }}
                                   onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.backgroundColor = 'transparent'; }}
                                 >
-                                  <div style={{
-                                    width: '34px', height: '34px', borderRadius: '8px', flexShrink: 0,
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    backgroundColor: `${opt.color}1a`, color: opt.color
+                                  <span style={{
+                                    marginTop: '3px', width: '14px', height: '14px', borderRadius: '50%', flexShrink: 0,
+                                    border: `2px solid ${isSelected ? 'var(--primary)' : 'var(--border-color)'}`,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
                                   }}>
-                                    <OptIcon size={17} />
-                                  </div>
+                                    {isSelected && <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: 'var(--primary)' }} />}
+                                  </span>
                                   <div style={{ flex: 1, minWidth: 0 }}>
                                     <div style={{ fontWeight: 600, fontSize: '13.5px' }}>{opt.label}</div>
                                     <div className="text-muted" style={{ fontSize: '11.5px', marginTop: '1px' }}>{opt.description}</div>
                                   </div>
-                                  {isSelected && <Check size={15} style={{ color: 'var(--primary)', flexShrink: 0 }} />}
                                 </div>
                               );
                             })}

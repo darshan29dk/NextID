@@ -23,10 +23,10 @@ const SEARCHABLE_PAGES = [
   { name: 'My Profile', route: '/profile', keywords: ['profile', 'account', 'me'] },
 ];
 
-const Header = ({ 
-  theme, 
-  toggleTheme, 
-  profile, 
+const Header = ({
+  theme,
+  toggleTheme,
+  profile,
   notifications = []
 }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);

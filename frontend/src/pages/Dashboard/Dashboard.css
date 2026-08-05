@@ -663,7 +663,7 @@
 /* Redesigned 8-Card Premium KPI Grid */
 .kpi-grid-premium {
   display: grid;
-  grid-template-columns: repeat(8, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
 }
 
@@ -774,7 +774,7 @@
 
 /* Secondary Charts Grid */
 .secondary-charts-grid {
-  grid-template-columns: 3fr 2fr !important;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)) !important;
 }
 
 @media (max-width: 968px) {

@@ -1081,6 +1081,13 @@ const RoleDiscoveryWorkspace = () => {
             <form onSubmit={handleFormSubmit}>
               <div className="modal-scrollable-body">
                 {formError && <div className="error-banner" style={{ marginBottom: '12px' }}>{formError}</div>}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px',
+                  borderRadius: '6px', backgroundColor: 'rgba(37,99,235,0.08)', marginBottom: '14px'
+                }}>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--primary)', textTransform: 'uppercase', letterSpacing: '0.03em' }}>Algorithm</span>
+                  <span style={{ fontSize: '12.5px' }}>DBSCAN clustering using Jaccard similarity, to group accounts with overlapping access into candidate roles.</span>
+                </div>
                 <div className="input-group-custom">
                   <label>Campaign Name *</label>
                   <input type="text" name="campaign_name" value={formData.campaign_name} onChange={handleFormChange} required placeholder="e.g. Q3 Finance Role Mining" />

@@ -103,17 +103,17 @@ const DashboardLayout = ({ children }) => {
 
   return (
     <div className={`app-layout ${isCollapsed ? 'sidebar-collapsed' : ''}`}>
-      <Sidebar 
-        isCollapsed={isCollapsed} 
-        toggleCollapse={toggleSidebar} 
+      <Sidebar
+        isCollapsed={isCollapsed}
+        toggleCollapse={toggleSidebar}
       />
 
       <div className="main-container">
-        <Header 
-          theme={theme} 
-          toggleTheme={toggleTheme} 
-          profile={profile} 
-          notifications={notifications} 
+        <Header
+          theme={theme}
+          toggleTheme={toggleTheme}
+          profile={profile}
+          notifications={notifications}
         />
         <main className="content-wrapper">
           {children}

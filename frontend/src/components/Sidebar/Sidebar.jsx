@@ -11,8 +11,7 @@ import {
   History, 
   BarChart3, 
   Settings as SettingsIcon, 
-  ChevronRight, 
-  ChevronLeft,
+  ChevronRight,
   ChevronDown,
   Server,
   Users,
@@ -31,7 +30,8 @@ import {
   Link2,
   Briefcase,
   Cpu,
-  Target
+  Target,
+  Menu
 } from 'lucide-react';
 import './Sidebar.css';
 
@@ -155,6 +155,14 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   return (
     <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
       <div className="brand">
+        <button
+          className="sidebar-toggle-brand-btn"
+          onClick={toggleCollapse}
+          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label="Toggle Sidebar"
+        >
+          <Menu size={16} />
+        </button>
         <div className="logo-container">
           {!isCollapsed && (
             <div className="logo-text">
@@ -310,9 +318,9 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
         )}
 
         {/* Direct link for "Analytics" */}
-        <div 
+        <div
           className={`nav-item ${activePath.startsWith('analytics') ? 'active' : ''}`}
-          onClick={() => navigate('/analytics/executive')}
+          onClick={() => navigate('/analytics/role-analytics')}
         >
           <BarChart3 className="nav-icon" size={18} />
           {!isCollapsed && <span className="nav-label">Analytics</span>}
@@ -332,9 +340,6 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
         )}
       </div>
 
-      <button className="sidebar-toggle-btn" onClick={toggleCollapse} aria-label="Toggle Sidebar">
-        {isCollapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-      </button>
     </aside>
   );
 };

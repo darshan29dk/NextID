@@ -143,8 +143,8 @@ function App() {
                   <Route path="/governance/exceptions" element={<SoDExceptions />} />
                   <Route path="/governance/exceptions/:id" element={<SoDExceptionDetail />} />
                   <Route path="/governance/scan-history" element={<SoDScanHistory />} />
-                  <Route path="/analytics" element={<Navigate to="/analytics/executive" replace />} />
-                  <Route path="/analytics/executive" element={<ExecutiveDashboard />} />
+                  <Route path="/analytics" element={<Navigate to="/analytics/role-analytics" replace />} />
+                  <Route path="/analytics/executive" element={<Navigate to="/analytics/role-analytics" replace />} />
                   <Route path="/analytics/role-analytics" element={<ExecutiveDashboard />} />
                   <Route path="/analytics/coverage-reports" element={<ExecutiveDashboard />} />
 

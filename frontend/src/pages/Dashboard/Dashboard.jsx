@@ -21,21 +21,28 @@ import {
   PieChart,
   Clock,
   CheckCircle,
-  XCircle
+  XCircle,
+  CheckCircle2,
+  RotateCw,
+  Download,
+  FileSpreadsheet
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useInactivityTimer } from '../../hooks/useInactivityTimer';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import DashboardCard from '../../components/DashboardCard/DashboardCard';
-import { 
-  getDashboardStats, 
-  getRecentActivities, 
-  getApprovalQueue, 
-  uploadIdentityData, 
+import { DepartmentBarChart } from '../Governance/RiskCharts';
+import {
+  getDashboardStats,
+  getRecentActivities,
+  getApprovalQueue,
+  uploadIdentityData,
   syncApiKey,
-  getSettings
+  getSettings,
+  apiClient
 } from '../../services/dashboardService';
+import { getExecutiveDashboard } from '../../services/analyticsService';
 import './Dashboard.css';
 
 const Dashboard = () => {
@@ -96,6 +103,11 @@ const getGreeting = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Extra platform-wide KPIs/charts absorbed from the old Executive Dashboard
+  // (that page duplicated this one, so it was folded in here instead of kept separate).
+  const [analyticsData, setAnalyticsData] = useState({ kpis: {}, charts: {} });
+  const [lastUpdated, setLastUpdated] = useState(null);
+
   const [status, setStatus] = useState({
     database: 'Checking...',
     backend: 'Checking...',
@@ -113,18 +125,24 @@ const getGreeting = () => {
   const fetchData = async () => {
     try {
       setLoading(true);
-      // These three calls don't depend on each other - fire them together
+      // These calls don't depend on each other - fire them together
       // instead of one at a time, which was tripling the wait on every
       // dashboard load (right after signing in, this is the page you land on).
-      const [statsResult, activitiesResult, approvalResult] = await Promise.allSettled([
+      // getExecutiveDashboard() feeds the extra KPIs/charts that used to live
+      // on the separate Executive Dashboard page, now merged into this one.
+      const [statsResult, activitiesResult, approvalResult, execResult] = await Promise.allSettled([
         getDashboardStats(),
         getRecentActivities(),
-        getApprovalQueue()
+        getApprovalQueue(),
+        getExecutiveDashboard()
       ]);
 
       if (statsResult.status === 'fulfilled') setStats(statsResult.value);
       if (activitiesResult.status === 'fulfilled') setActivities(activitiesResult.value);
       if (approvalResult.status === 'fulfilled') setApprovalQueue(approvalResult.value);
+      if (execResult.status === 'fulfilled') {
+        setAnalyticsData({ kpis: execResult.value?.kpis || {}, charts: execResult.value?.charts || {} });
+      }
 
       const anyFailed = [statsResult, activitiesResult, approvalResult].some(r => r.status === 'rejected');
       if (anyFailed) {
@@ -135,6 +153,7 @@ const getGreeting = () => {
         setError(null);
         setStatus({ database: 'Ready', backend: 'Running', api: 'Connected' });
       }
+      setLastUpdated(new Date());
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
       setError('Failed to load dashboard data. Please verify connection.');
@@ -387,15 +406,45 @@ INSERT INTO identities VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'S
           <p className="welcome-sub">Welcome back to rAnalyzer Role Governance dashboard.</p>
         </div>
         <div className="welcome-banner-actions">
-          <button className="sync-banner-btn" onClick={() => { setModalTab('upload'); setShowSyncModal(true); }}>
-            <Upload size={14} />
-            <span>Sync Data / Upload</span>
-          </button>
-
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                className="sync-banner-btn"
+                onClick={() => window.open(`${apiClient.defaults.baseURL}/analytics/executive/export/csv`, '_blank')}
+                title="Export platform-wide metrics as CSV"
+              >
+                <Download size={14} />
+                <span>CSV</span>
+              </button>
+              <button
+                className="sync-banner-btn"
+                onClick={() => window.open(`${apiClient.defaults.baseURL}/analytics/executive/export/excel`, '_blank')}
+                title="Export platform-wide metrics as Excel"
+              >
+                <FileSpreadsheet size={14} />
+                <span>Excel</span>
+              </button>
+              <button className="sync-banner-btn" onClick={fetchData} title="Refresh dashboard data">
+                <RotateCw size={14} />
+                <span>Refresh</span>
+              </button>
+              <button className="sync-banner-btn" onClick={() => { setModalTab('upload'); setShowSyncModal(true); }}>
+                <Upload size={14} />
+                <span>Sync Data / Upload</span>
+              </button>
+            </div>
+            {lastUpdated && (
+              <span className="text-muted" style={{ fontSize: '11px' }}>
+                Last updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* 8 Card Metric Grid */}
+      {/* 10 Card Metric Grid — includes the two platform-wide KPIs (Active
+          Exceptions, Overall Role Coverage) that used to only live on the
+          separate Executive Dashboard page. */}
       <div className="kpi-grid-premium">
         <DashboardCard title="Identities" value={stats.totalUsers} icon={Users} color="blue" trend="+12" loading={loading} />
         <DashboardCard title="Accounts" value={stats.accounts} icon={Monitor} color="teal" trend="+34" loading={loading} />
@@ -405,6 +454,8 @@ INSERT INTO identities VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'S
         <DashboardCard title="Published Roles" value={stats.publishedRoles} icon={BookOpen} color="green" trend="+2" loading={loading} />
         <DashboardCard title="Birthright Roles" value={stats.birthrightRoles} icon={Shield} color="cyan" trend="" loading={loading} />
         <DashboardCard title="SoD Violations" value={stats.sodConflicts} icon={AlertTriangle} color="red" trend="-3" loading={loading} />
+        <DashboardCard title="Active Exceptions" value={analyticsData.kpis.active_exceptions ?? 0} icon={CheckCircle2} color="yellow" trend="" loading={loading} />
+        <DashboardCard title="Role Coverage" value={`${analyticsData.kpis.overall_coverage_pct ?? 0}%`} icon={Target} color="blue" trend="" loading={loading} />
       </div>
 
       {/* Needs Your Attention - one click straight to the page that has
@@ -615,13 +666,32 @@ INSERT INTO identities VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'S
               </div>
               <div className="summary-stat">
                 <span className="summary-number text-success">
-                  {stats.roleLifecycle.length > 0 
-                    ? Math.round((stats.roleLifecycle.find(r => r.label === 'Active')?.count / stats.roleLifecycle.reduce((sum, item) => sum + item.count, 0)) * 100) 
+                  {stats.roleLifecycle.length > 0
+                    ? Math.round((stats.roleLifecycle.find(r => r.label === 'Active')?.count / stats.roleLifecycle.reduce((sum, item) => sum + item.count, 0)) * 100)
                     : 75}%
                 </span>
                 <span className="summary-lbl">Active</span>
               </div>
             </div>
+          </div>
+        </div>
+
+        <div className="visual-card">
+          <div className="card-header">
+            <div>
+              <h3>Roles by Classification</h3>
+              <p>Birthright / Request-Based breakdown</p>
+            </div>
+            <Shield size={15} className="text-muted" />
+          </div>
+          <div className="card-body">
+            {loading ? (
+              <div className="shimmer-list">
+                {[1, 2].map(n => <div key={n} className="shimmer-text" style={{ height: '14px', marginBottom: '8px' }}></div>)}
+              </div>
+            ) : (
+              <DepartmentBarChart data={analyticsData.charts.roles_by_classification || {}} onDrilldown={() => {}} emptyLabel="No candidate roles yet." />
+            )}
           </div>
         </div>
       </div>
@@ -747,7 +817,7 @@ INSERT INTO identities VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'S
                 <CheckSquare size={16} className="tile-icon text-yellow" />
                 <span>Review Candidates</span>
               </button>
-              <button className="action-tile-btn" onClick={() => navigate('/analytics/executive')}>
+              <button className="action-tile-btn" onClick={() => navigate('/analytics/role-analytics')}>
                 <FileText size={16} className="tile-icon text-red" />
                 <span>Generate Reports</span>
               </button>
