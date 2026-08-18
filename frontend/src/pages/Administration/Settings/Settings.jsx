@@ -15,7 +15,7 @@ const TIMEZONES = [
   'Asia/Tokyo',
 ];
 
-const APP_NAME = 'rAnalyzer';
+const APP_NAME = 'NextID';
 
 const CATEGORIES = [
   { value: 'general', label: 'General Settings' },

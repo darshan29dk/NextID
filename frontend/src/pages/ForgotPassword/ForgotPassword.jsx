@@ -211,7 +211,7 @@ function ForgotPassword() {
               <Network size={26} color="#ffffff" />
             </div>
             <div className="forgot-brand-text">
-              <h2>rAnalyzer</h2>
+              <h2>NextID</h2>
               <p>ROLE INTELLIGENCE PLATFORM</p>
             </div>
           </div>

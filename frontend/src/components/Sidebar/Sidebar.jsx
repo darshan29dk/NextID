@@ -166,7 +166,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
         <div className="logo-container">
           {!isCollapsed && (
             <div className="logo-text">
-              <span className="brand-name">rAnalyzer</span>
+              <span className="brand-name">NextID</span>
               <span className="brand-sub">ROLE INTELLIGENCE PLATFORM</span>
             </div>
           )}

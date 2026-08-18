@@ -738,8 +738,8 @@ try:
         from app.models.platform_settings import PlatformSettings
         if db.query(PlatformSettings).count() == 0:
             default_settings = PlatformSettings(
-                app_name="rAnalyzer",
-                support_email="support@ranalyzer.com",
+                app_name="NextID",
+                support_email="support@nextid.com",
                 default_timezone="Asia/Kolkata",
                 session_timeout_minutes=15,
                 otp_expiry_minutes=10,

@@ -403,7 +403,7 @@ INSERT INTO identities VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'S
         <div className="welcome-content">
           <span className="welcome-greet">{getGreeting()},</span>
           <h2 className="welcome-name">{currentUser?.name || 'User'}</h2>
-          <p className="welcome-sub">Welcome back to rAnalyzer Role Governance dashboard.</p>
+          <p className="welcome-sub">Welcome back to NextID Role Governance dashboard.</p>
         </div>
         <div className="welcome-banner-actions">
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>

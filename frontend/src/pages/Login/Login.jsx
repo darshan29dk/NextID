@@ -67,7 +67,7 @@ function Login() {
               />
             )}
             <div className="login-brand-text">
-              <h2>rAnalyzer</h2>
+              <h2>NextID</h2>
               <p>ROLE INTELLIGENCE PLATFORM</p>
             </div>
           </div>
@@ -95,7 +95,7 @@ function Login() {
                 alt="Company logo"
               />
             )}
-            <span className="login-form-brand-name">rAnalyzer</span>
+            <span className="login-form-brand-name">NextID</span>
           </div>
           <h1>Welcome Back</h1>
           <p className="login-subtitle">Sign in to the Role Intelligence Platform</p>
