@@ -86,6 +86,9 @@ Base.metadata.create_all(bind=engine)
 from sqlalchemy import text
 
 def check_and_add_columns():
+    if engine.dialect.name != "mysql":
+        print("Connected to non-MySQL database (PostgreSQL/Supabase). Skipping MySQL column migrations.")
+        return
     with engine.begin() as connection:
         try:
             result = connection.execute(text("SHOW COLUMNS FROM connector_files LIKE 'file_content'")).fetchone()
