@@ -60,3 +60,19 @@ def find_orphaned_delegations(db: Session) -> List[Dict[str, Any]]:
             })
 
     return results
+
+def notify_if_orphaned_found(db: Session, orphaned_list: List[Dict[str, Any]]) -> bool:
+    """
+    Helper to create an 'Orphaned Authority Alert' notification if the orphaned list is non-empty.
+    """
+    count = len(orphaned_list)
+    if count > 0:
+        from app.models.notification import Notification
+        db.add(Notification(
+            title="Orphaned Authority Alert",
+            message=f"{count} orphaned AI agent/authority link(s) detected — review required.",
+            status="unread"
+        ))
+        db.commit()
+        return True
+    return False

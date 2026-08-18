@@ -58,8 +58,14 @@ from app.models.approval_comment import ApprovalComment
 from app.models.role_version_history import RoleVersionHistory
 from app.models.revocation import RevocationJob
 from app.models.cascade_revocation import RevocationEvent, CascadeAction
+from app.models.provider_credential import ProviderCredential
 from app.services.scheduler import start_scheduler, restore_active_schedules
-from app.routes import transformations, validations, preview, revocation as revocation_routes, cascade_revocation as cascade_revocation_routes
+from app.routes import (
+    transformations, validations, preview, 
+    revocation as revocation_routes, 
+    cascade_revocation as cascade_revocation_routes,
+    provider_credential as provider_credential_routes
+)
 from app.utils.crypto import encrypt_password
 from datetime import datetime
 from app.routes import application as application_routes
@@ -1360,6 +1366,7 @@ app.include_router(analytics_routes.router, prefix="/api")
 app.include_router(approval_workflow_config_routes.router, prefix="/api")
 app.include_router(revocation_routes.router)
 app.include_router(cascade_revocation_routes.router)
+app.include_router(provider_credential_routes.router)
 
 @app.get("/")
 def read_root():

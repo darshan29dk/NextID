@@ -26,7 +26,7 @@ from app.services.revocation_hooks import (
     revoke_agent_session,
     disable_human_account
 )
-from app.services.orphaned_authority_report import find_orphaned_delegations
+from app.services.orphaned_authority_report import find_orphaned_delegations, notify_if_orphaned_found
 from app.services.audit_chain import append_audit_log
 from app.utils.permissions import require_permission
 
@@ -196,14 +196,15 @@ def run_cascade(event_id: int) -> None:
                     db.commit()
                     db.refresh(action)
 
+                    attrs = curr_identity.attributes or {}
                     if target_type == "SERVICE_ACCOUNT":
-                        res = revoke_service_account(identifier)
+                        res = revoke_service_account(identifier, attrs, db)
                     elif target_type == "API_KEY":
-                        res = revoke_api_key(identifier)
+                        res = revoke_api_key(identifier, attrs, db)
                     elif target_type == "AGENT_SESSION":
-                        res = revoke_agent_session(identifier)
+                        res = revoke_agent_session(identifier, attrs, db)
                     else:
-                        res = disable_human_account(identifier)
+                        res = disable_human_account(identifier, attrs, db)
 
                     if res.get("success"):
                         action.status = "Confirmed"
@@ -496,18 +497,10 @@ def get_orphaned_authority_report(
     db: Session = Depends(get_db)
 ):
     orphaned_list = find_orphaned_delegations(db)
-    count = len(orphaned_list)
-
-    if count > 0:
-        db.add(Notification(
-            title="Orphaned Authority Alert",
-            message=f"{count} orphaned AI agent/authority link(s) detected — review required.",
-            status="unread"
-        ))
-        db.commit()
+    notify_if_orphaned_found(db, orphaned_list)
 
     return {
-        "count": count,
+        "count": len(orphaned_list),
         "orphaned": orphaned_list
     }
 
@@ -574,3 +567,39 @@ def get_revocation_event_status(
             detail=f"RevocationEvent with ID {event_id} not found."
         )
     return event
+
+# --- STEP 5: MANUAL SCHEDULER OVERRIDE ENDPOINTS ---
+
+@router.post("/api/revocation-events/jobs/run-retry-now")
+def run_cascade_retry_now(
+    _perm: bool = Depends(require_permission("Cascade Revocation", "approve")),
+    db: Session = Depends(get_db)
+):
+    """
+    Manual trigger override to immediately execute failed cascade action retry sweep.
+    """
+    from app.services.revocation_retry import retry_failed_cascade_actions
+    summary = retry_failed_cascade_actions(db)
+    return {
+        "status": "Success",
+        "message": "Manual cascade retry job executed successfully.",
+        "summary": summary
+    }
+
+@router.post("/api/revocation-events/jobs/run-orphaned-sweep-now")
+def run_orphaned_sweep_now(
+    _perm: bool = Depends(require_permission("Cascade Revocation", "approve")),
+    db: Session = Depends(get_db)
+):
+    """
+    Manual trigger override to immediately execute orphaned authority safety net sweep.
+    """
+    orphaned_list = find_orphaned_delegations(db)
+    notified = notify_if_orphaned_found(db, orphaned_list)
+    return {
+        "status": "Success",
+        "message": f"Manual orphaned authority sweep completed ({len(orphaned_list)} orphaned links found).",
+        "count": len(orphaned_list),
+        "notification_created": notified,
+        "orphaned": orphaned_list
+    }

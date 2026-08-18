@@ -134,12 +134,48 @@ def unregister_connector_schedule(connector_id: int):
         scheduler.remove_job(job_id)
 
 
+def run_cascade_retry_job():
+    """
+    Scheduled job to retry failed cascade actions across all active revocation events.
+    """
+    from app.database import SessionLocal
+    from app.services.revocation_retry import retry_failed_cascade_actions
+
+    db = SessionLocal()
+    try:
+        result = retry_failed_cascade_actions(db)
+        print(f"Scheduled cascade retry job completed: {result}")
+    except Exception as e:
+        print(f"Scheduled cascade retry job failed: {e}")
+    finally:
+        db.close()
+
+
+def run_orphaned_authority_sweep():
+    """
+    Scheduled job for weekly orphaned-authority safety net sweep.
+    """
+    from app.database import SessionLocal
+    from app.services.orphaned_authority_report import find_orphaned_delegations, notify_if_orphaned_found
+
+    db = SessionLocal()
+    try:
+        orphaned_list = find_orphaned_delegations(db)
+        notify_if_orphaned_found(db, orphaned_list)
+        print(f"Scheduled orphaned authority sweep completed: {len(orphaned_list)} orphaned links found.")
+    except Exception as e:
+        print(f"Scheduled orphaned authority sweep failed: {e}")
+    finally:
+        db.close()
+
+
 def start_scheduler():
     if not scheduler.running:
         scheduler.start()
         # Register SoD exceptions expiry checker
         from app.services.sod_exception_service import check_and_expire_exceptions
         from app.database import SessionLocal
+        from app.config import CASCADE_RETRY_INTERVAL_MINUTES, ORPHANED_SWEEP_INTERVAL_DAYS
         
         def run_expiry_checker():
             db = SessionLocal()
@@ -154,6 +190,20 @@ def start_scheduler():
             hour=0,
             minute=0,
             id='sod_exceptions_expiry_job',
+            replace_existing=True
+        )
+
+        scheduler.add_job(
+            run_cascade_retry_job,
+            IntervalTrigger(minutes=CASCADE_RETRY_INTERVAL_MINUTES),
+            id="cascade_retry_job",
+            replace_existing=True
+        )
+
+        scheduler.add_job(
+            run_orphaned_authority_sweep,
+            IntervalTrigger(days=ORPHANED_SWEEP_INTERVAL_DAYS),
+            id="orphaned_authority_sweep_job",
             replace_existing=True
         )
 
