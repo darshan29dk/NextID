@@ -60,6 +60,7 @@ const GOVERNANCE_GROUP_CHILDREN = [
   { label: 'Violations', icon: ShieldAlert, path: 'governance/violations' },
   { label: 'Exceptions', icon: ShieldCheck, path: 'governance/exceptions' },
   { label: 'Scan History', icon: History, path: 'governance/scan-history' },
+  { label: 'Revocation Engine', icon: Zap, path: 'governance/revocation' },
 ];
 
 

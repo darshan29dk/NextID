@@ -56,8 +56,9 @@ from app.models.approval_request import ApprovalRequest
 from app.models.approval_step import ApprovalStep
 from app.models.approval_comment import ApprovalComment
 from app.models.role_version_history import RoleVersionHistory
+from app.models.revocation import RevocationJob
 from app.services.scheduler import start_scheduler, restore_active_schedules
-from app.routes import transformations, validations, preview
+from app.routes import transformations, validations, preview, revocation as revocation_routes
 from app.utils.crypto import encrypt_password
 from datetime import datetime
 from app.routes import application as application_routes
@@ -1356,6 +1357,7 @@ app.include_router(sod_exception_routes.router, prefix="/api")
 app.include_router(sod_dashboard_routes.router, prefix="/api")
 app.include_router(analytics_routes.router, prefix="/api")
 app.include_router(approval_workflow_config_routes.router, prefix="/api")
+app.include_router(revocation_routes.router)
 
 @app.get("/")
 def read_root():

@@ -35,6 +35,7 @@ import SoDScanHistory from './pages/Governance/SoDScanHistory';
 import SoDExceptions from './pages/Governance/SoDExceptions';
 import SoDExceptionDetail from './pages/Governance/SoDExceptionDetail';
 import GovernanceDashboard from './pages/Governance/GovernanceDashboard';
+import RevocationWorkspace from './pages/Governance/RevocationWorkspace';
 import PublishedRoles from './pages/RoleCatalog/PublishedRoles';
 import BusinessRoles from './pages/RoleCatalog/BusinessRoles';
 import TechnicalRoles from './pages/RoleCatalog/TechnicalRoles';
@@ -143,6 +144,7 @@ function App() {
                   <Route path="/governance/exceptions" element={<SoDExceptions />} />
                   <Route path="/governance/exceptions/:id" element={<SoDExceptionDetail />} />
                   <Route path="/governance/scan-history" element={<SoDScanHistory />} />
+                  <Route path="/governance/revocation" element={<RevocationWorkspace />} />
                   <Route path="/analytics" element={<Navigate to="/analytics/role-analytics" replace />} />
                   <Route path="/analytics/executive" element={<Navigate to="/analytics/role-analytics" replace />} />
                   <Route path="/analytics/role-analytics" element={<ExecutiveDashboard />} />

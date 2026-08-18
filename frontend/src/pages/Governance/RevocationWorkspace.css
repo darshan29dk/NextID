@@ -1,0 +1,289 @@
+.revocation-workspace-page {
+  padding: 24px;
+}
+
+.revocation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.revocation-header h2 {
+  font-size: 24px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.revocation-header p {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.revocation-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s ease;
+}
+
+.revocation-btn.primary {
+  background-color: var(--primary);
+  color: #ffffff;
+}
+
+.revocation-btn.primary:hover {
+  opacity: 0.9;
+}
+
+.revocation-btn.secondary {
+  background-color: var(--bg-card);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+}
+
+.revocation-btn.secondary:hover {
+  border-color: var(--primary);
+}
+
+/* KPI Cards */
+.revocation-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.kpi-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.kpi-card.confirmed { border-left: 4px solid #10b981; }
+.kpi-card.in-progress { border-left: 4px solid #f59e0b; }
+.kpi-card.escalated { border-left: 4px solid #ef4444; }
+
+.kpi-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.kpi-value {
+  font-size: 26px;
+  font-weight: 800;
+}
+
+/* Filters */
+.revocation-filters-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+}
+
+.revocation-select {
+  background: var(--bg-subtle, #1e293b);
+  color: var(--text-main, #ffffff);
+  border: 1px solid var(--border-color, #334155);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 13px;
+  outline: none;
+}
+
+.revocation-select.full {
+  width: 100%;
+}
+
+.revocation-input {
+  width: 100%;
+  background: var(--bg-subtle, #1e293b);
+  color: var(--text-main, #ffffff);
+  border: 1px solid var(--border-color, #334155);
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+/* Table */
+.revocation-table-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.revocation-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 13px;
+}
+
+.revocation-table th {
+  background: var(--bg-subtle, #0f172a);
+  padding: 12px 16px;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.revocation-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.mono {
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.time-col {
+  font-size: 12px;
+}
+
+/* Badges */
+.revocation-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.revocation-badge.confirmed {
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+}
+
+.revocation-badge.escalated {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.revocation-badge.failed {
+  background: rgba(249, 115, 22, 0.15);
+  color: #f97316;
+}
+
+.revocation-badge.in-progress {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.retry-count-badge {
+  padding: 3px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.retry-count-badge.max {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+}
+
+.table-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.table-action-btn.retry {
+  background: rgba(37, 99, 235, 0.2);
+  color: #3b82f6;
+}
+
+.table-action-btn.force-confirm {
+  background: rgba(16, 185, 129, 0.2);
+  color: #10b981;
+}
+
+/* Modal */
+.revocation-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.revocation-modal {
+  background: var(--bg-card, #1e293b);
+  border: 1px solid var(--border-color, #334155);
+  border-radius: 12px;
+  width: 480px;
+  max-width: 90%;
+  padding: 24px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+.revocation-modal h3 {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+}
+
+.modal-sub {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin-bottom: 18px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text-muted);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.modal-error {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  padding: 10px;
+  border-radius: 6px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
