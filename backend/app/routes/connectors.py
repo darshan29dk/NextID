@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Header, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, Header, UploadFile, File, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, asc, desc
 from sqlalchemy.exc import IntegrityError
@@ -918,6 +918,7 @@ def update_connector_schedule(
 def import_connector_data(
     id: int,
     table_name: Optional[str] = None,
+    background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db),
     x_user_name: str = Header(default="System"),
     x_user_role: str = Header(default="Read Only User")
@@ -1104,6 +1105,8 @@ def import_connector_data(
         identity_by_emp_id = {i.employee_id: i for i in existing_identities if i.employee_id}
         identity_by_email = {i.email.lower(): i for i in existing_identities if i.email}
 
+        offboarding_transitions = []
+
         for item in parsed_identities:
             existing_identity = None
             if item["employee_id"] and item["employee_id"] in identity_by_emp_id:
@@ -1112,6 +1115,7 @@ def import_connector_data(
                 existing_identity = identity_by_email[item["email"].lower()]
 
             if existing_identity:
+                old_status = existing_identity.status
                 # Update existing identity
                 existing_identity.first_name = item["first_name"]
                 existing_identity.last_name = item["last_name"]
@@ -1126,6 +1130,9 @@ def import_connector_data(
                 existing_identity.source_connector_name = connector.connector_name
                 existing_identity.modified_by = x_user_name
                 existing_identity.updated_at = datetime.utcnow()
+
+                if old_status != existing_identity.status:
+                    offboarding_transitions.append((existing_identity.id, old_status, existing_identity.status))
             else:
                 # Add new identity
                 rec = Identity(
@@ -1147,6 +1154,19 @@ def import_connector_data(
                 )
                 db.add(rec)
         db.commit()
+
+        if offboarding_transitions:
+            from app.services.offboarding_trigger import maybe_trigger_offboarding_cascade
+            bg = background_tasks or BackgroundTasks()
+            for ident_id, old_st, new_st in offboarding_transitions:
+                maybe_trigger_offboarding_cascade(
+                    identity_id=ident_id,
+                    old_status=old_st,
+                    new_status=new_st,
+                    initiated_by=x_user_name,
+                    background_tasks=bg,
+                    db=db
+                )
 
     duration_ms = int((time.time() - start_time) * 1000)
 

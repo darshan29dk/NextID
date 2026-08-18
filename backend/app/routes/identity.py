@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Header, UploadFile, File, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, asc, desc
 from typing import Optional, List
@@ -16,6 +16,7 @@ from app.models.application_entitlement import ApplicationEntitlement
 from app.models.audit_log import AuditLog
 from app.schemas.identity import IdentityResponse, IdentityPaginatedResponse, IdentityCreate
 from app.utils.permissions import require_permission
+from app.services.offboarding_trigger import maybe_trigger_offboarding_cascade
 
 router = APIRouter()
 
@@ -379,6 +380,7 @@ def get_identity(
 def update_identity(
     id: int,
     payload: IdentityCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     x_user_name: str = Header(default="System"),
     _perm: bool = Depends(require_permission("Identity Repository", "edit"))
@@ -412,6 +414,16 @@ def update_identity(
     identity.modified_by = x_user_name
     db.commit()
     db.refresh(identity)
+
+    # Step 3 & 5: Check and auto-trigger cascade revocation on offboarding transition
+    maybe_trigger_offboarding_cascade(
+        identity_id=identity.id,
+        old_status=old_state["status"],
+        new_status=identity.status,
+        initiated_by=x_user_name,
+        background_tasks=background_tasks,
+        db=db
+    )
 
     new_state = {
         "employee_id": identity.employee_id, "first_name": identity.first_name, "last_name": identity.last_name,
