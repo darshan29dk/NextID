@@ -12,3 +12,4 @@ class AuditLog(Base):
     old_value = Column(Text, nullable=True) # Storing JSON representation of old state
     new_value = Column(Text, nullable=True) # Storing JSON representation of new state
     timestamp = Column(DateTime, default=datetime.utcnow, nullable=False)
+    record_hash = Column(String(128), nullable=True)

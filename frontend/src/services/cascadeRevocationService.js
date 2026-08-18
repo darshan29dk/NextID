@@ -49,3 +49,8 @@ export const createDelegationLink = async (payload) => {
   const response = await apiClient.post('/delegation-links', payload);
   return response.data;
 };
+
+export const exportComplianceReport = async (params) => {
+  const response = await apiClient.get('/revocation-events/compliance-export', { params });
+  return response.data;
+};

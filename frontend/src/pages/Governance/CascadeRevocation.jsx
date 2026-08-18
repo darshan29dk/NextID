@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Zap, ShieldAlert, AlertTriangle, CheckCircle, Clock, 
-  RotateCw, Play, Search, Eye, Filter, RefreshCw, FileText, ChevronDown, ChevronRight
+  RotateCw, Play, Search, Eye, Filter, RefreshCw, FileText, Download, ChevronDown, ChevronRight
 } from 'lucide-react';
 import Breadcrumb from '../../components/Breadcrumb/Breadcrumb';
 import Toast from '../../components/Toast/Toast';
@@ -14,12 +14,16 @@ import {
   triggerRevocation, 
   simulateRevocation, 
   getOrphanedAuthorityReport,
-  retryFailedActions 
+  exportComplianceReport
 } from '../../services/cascadeRevocationService';
 import { getIdentities } from '../../services/identityService';
 import './CascadeRevocation.css';
 
 const CascadeRevocation = () => {
+  // Role & Permissions
+  const userRole = localStorage.getItem('user_role') || 'Platform Administrator';
+  const canApproveRevocation = userRole === 'Platform Administrator' || userRole === 'Security Officer' || userRole === 'Compliance Officer';
+
   // Stats
   const [stats, setStats] = useState(null);
   
@@ -34,7 +38,7 @@ const CascadeRevocation = () => {
   const [simulationResult, setSimulationResult] = useState(null);
   const [simulating, setSimulating] = useState(false);
   const [triggering, setTriggering] = useState(false);
-  const [activeJobId, setActiveJobId] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   // History & Detail State
   const [events, setEvents] = useState([]);
@@ -53,18 +57,16 @@ const CascadeRevocation = () => {
     setTimeout(() => setToast((prev) => ({ ...prev, visible: false })), 4000);
   };
 
-  // Load identities for selector
   const loadIdentities = useCallback(async () => {
     try {
       const data = await getIdentities({ limit: 50, search: identitySearch });
       const items = data.identities || data.items || data || [];
       setIdentities(items);
     } catch (err) {
-      console.error('Failed to load identities for selector:', err);
+      console.error('Failed to load identities:', err);
     }
   }, [identitySearch]);
 
-  // Load stats
   const loadStats = useCallback(async () => {
     try {
       const data = await getRevocationStats();
@@ -74,7 +76,6 @@ const CascadeRevocation = () => {
     }
   }, []);
 
-  // Load event history
   const loadEvents = useCallback(async () => {
     setLoadingEvents(true);
     try {
@@ -88,7 +89,6 @@ const CascadeRevocation = () => {
     }
   }, []);
 
-  // Load orphaned authority report
   const loadOrphanedReport = useCallback(async () => {
     try {
       const data = await getOrphanedAuthorityReport();
@@ -105,7 +105,6 @@ const CascadeRevocation = () => {
     loadIdentities();
   }, [loadStats, loadEvents, loadOrphanedReport, loadIdentities]);
 
-  // Handle Simulation
   const handleSimulate = async () => {
     if (!selectedIdentityId) {
       showToast('Please select a target identity first.', 'error');
@@ -127,8 +126,11 @@ const CascadeRevocation = () => {
     }
   };
 
-  // Handle Trigger Real Revocation & Polling
   const handleTrigger = async () => {
+    if (!canApproveRevocation) {
+      showToast('Permission denied: your role does not have "approve" rights for Cascade Revocation.', 'error');
+      return;
+    }
     if (!selectedIdentityId) {
       showToast('Please select a target identity.', 'error');
       return;
@@ -143,10 +145,8 @@ const CascadeRevocation = () => {
         reason: reason || `Cascade revocation initiated via UI (${triggerType})`
       });
 
-      setActiveJobId(job.id);
       showToast(`Revocation Event #${job.id} dispatched! Polling status...`, 'success');
 
-      // Poll every 2 seconds until terminal status
       const pollInterval = setInterval(async () => {
         try {
           const statusRes = await getRevocationEventStatus(job.id);
@@ -155,7 +155,6 @@ const CascadeRevocation = () => {
           if (currStatus !== 'in progress' && currStatus !== 'pending') {
             clearInterval(pollInterval);
             setTriggering(false);
-            setActiveJobId(null);
             showToast(`Cascade Event #${job.id} completed with status '${statusRes.status}' in ${statusRes.duration_seconds || 0}s!`, 'success');
             loadStats();
             loadEvents();
@@ -164,7 +163,6 @@ const CascadeRevocation = () => {
         } catch (pollErr) {
           clearInterval(pollInterval);
           setTriggering(false);
-          setActiveJobId(null);
           showToast('Status polling error.', 'error');
         }
       }, 2000);
@@ -175,7 +173,25 @@ const CascadeRevocation = () => {
     }
   };
 
-  // Toggle detail view for history row
+  const handleExportComplianceReport = async () => {
+    setExporting(true);
+    try {
+      const data = await exportComplianceReport();
+      const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', jsonString);
+      downloadAnchor.setAttribute('download', `soc2-cascade-revocation-report-${new Date().toISOString().slice(0, 10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+      showToast('SOC2 / ISO compliance package downloaded successfully!', 'success');
+    } catch (err) {
+      showToast('Failed to download compliance report.', 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const toggleRowDetail = async (eventId) => {
     if (expandedEventId === eventId) {
       setExpandedEventId(null);
@@ -205,9 +221,14 @@ const CascadeRevocation = () => {
             Autonomous multi-hop delegation graph revocation, cross-org boundary tracking & propagation lag analytics
           </p>
         </div>
-        <button className="btn-secondary" onClick={() => { loadStats(); loadEvents(); loadOrphanedReport(); }}>
-          <RefreshCw size={16} /> Refresh
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button className="btn-secondary" onClick={handleExportComplianceReport} disabled={exporting}>
+            {exporting ? <RotateCw className="spin-icon" size={16} /> : <Download size={16} />} Export Compliance Package
+          </button>
+          <button className="btn-secondary" onClick={() => { loadStats(); loadEvents(); loadOrphanedReport(); }}>
+            <RefreshCw size={16} /> Refresh
+          </button>
+        </div>
       </div>
 
       {/* Stats Cards Row */}
@@ -253,7 +274,7 @@ const CascadeRevocation = () => {
         </div>
       </div>
 
-      {/* Orphaned Authority Section (Rendered if count > 0) */}
+      {/* Orphaned Authority Section */}
       {orphanedData && orphanedData.count > 0 && (
         <div className="orphaned-section">
           <div className="orphaned-header">
@@ -387,7 +408,8 @@ const CascadeRevocation = () => {
             <button
               className="btn-danger"
               onClick={handleTrigger}
-              disabled={triggering || !selectedIdentityId}
+              disabled={triggering || !selectedIdentityId || !canApproveRevocation}
+              title={!canApproveRevocation ? "Requires 'approve' permission for Cascade Revocation" : "Trigger real revocation"}
             >
               {triggering ? <RotateCw className="spin-icon" size={16} /> : <Play size={16} />} Trigger Revocation
             </button>
@@ -399,6 +421,9 @@ const CascadeRevocation = () => {
       <div className="panel-card">
         <div className="panel-header">
           <h2><Clock size={18} /> Revocation History</h2>
+          <button className="btn-secondary" onClick={handleExportComplianceReport} disabled={exporting}>
+            <Download size={14} /> Export Report
+          </button>
         </div>
         <div className="panel-body">
           {loadingEvents ? (
@@ -448,7 +473,6 @@ const CascadeRevocation = () => {
                           </td>
                         </tr>
 
-                        {/* Expanded Per-Hop Cascade Actions Detail */}
                         {isExpanded && (
                           <tr className="detail-expansion-row">
                             <td colSpan={8}>

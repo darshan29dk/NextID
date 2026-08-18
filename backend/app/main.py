@@ -346,7 +346,7 @@ try:
         "Analytics", "Reports", "Identity Attributes", "Account Attributes", "Entitlement Attributes",
         "Role Attributes", "Attribute Categories", "License Management",
         "Connector Workspace", "Application Workspace", "Identity Repository",
-        "Correlation Workspace"
+        "Correlation Workspace", "Cascade Revocation"
     ]
 
     roles = db.query(PlatformRole).all()

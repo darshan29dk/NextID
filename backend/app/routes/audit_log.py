@@ -85,3 +85,43 @@ def get_audit_log_modules(db: Session = Depends(get_db)):
 def get_audit_log_actions(db: Session = Depends(get_db)):
     rows = db.query(AuditLog.action).distinct().all()
     return {"actions": [r[0] for r in rows]}
+
+
+@router.get("/audit-logs/verify-chain")
+def verify_audit_chain(db: Session = Depends(get_db)):
+    """
+    STEP 2 — Walks all AuditLog rows ordered by ID asc, recomputes each record_hash from the
+    previous row's hash, and verifies tamper-evident integrity.
+    """
+    from app.services.audit_chain import compute_record_hash
+    logs = db.query(AuditLog).order_by(AuditLog.id.asc()).all()
+
+    previous_hash = "GENESIS"
+    for log in logs:
+        if not log.record_hash:
+            # Unhashed legacy entry prior to tamper-evident audit chain
+            previous_hash = "GENESIS"
+            continue
+
+        expected_hash = compute_record_hash(
+            previous_hash=previous_hash,
+            module=log.module,
+            action=log.action,
+            performed_by=log.performed_by,
+            old_value=log.old_value,
+            new_value=log.new_value,
+            timestamp=log.timestamp
+        )
+
+        if log.record_hash != expected_hash:
+            return {
+                "valid": False,
+                "first_broken_record_id": log.id
+            }
+
+        previous_hash = log.record_hash
+
+    return {
+        "valid": True,
+        "first_broken_record_id": None
+    }

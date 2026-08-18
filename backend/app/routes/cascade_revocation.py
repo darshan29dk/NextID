@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from app.database import SessionLocal, get_db
 from app.models.identity import Identity
 from app.models.notification import Notification
-from app.models.audit_log import AuditLog
 from app.models.cascade_revocation import RevocationEvent, CascadeAction, DelegationLink
 from app.schemas.cascade_revocation import (
     RevocationEventCreate,
@@ -28,12 +27,14 @@ from app.services.revocation_hooks import (
     disable_human_account
 )
 from app.services.orphaned_authority_report import find_orphaned_delegations
+from app.services.audit_chain import append_audit_log
+from app.utils.permissions import require_permission
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["Cascade Revocation Engine"])
 
-# --- STEP 2: SHARED GRAPH TRAVERSAL HELPER FOR SIMULATION & RUN_CASCADE ---
+# --- SHARED GRAPH TRAVERSAL HELPER FOR SIMULATION & RUN_CASCADE ---
 
 def walk_delegation_graph(source_identity_id: int, db: Session) -> Dict[str, Any]:
     """
@@ -80,7 +81,6 @@ def walk_delegation_graph(source_identity_id: int, db: Session) -> Dict[str, Any
                 "hop_depth": depth
             })
 
-            # Check for outgoing delegation links
             child_links = db.query(DelegationLink).filter(
                 DelegationLink.parent_identity_id == current_id,
                 DelegationLink.status == "Active"
@@ -88,8 +88,6 @@ def walk_delegation_graph(source_identity_id: int, db: Session) -> Dict[str, Any
 
             for link in child_links:
                 child_id = link.child_identity_id
-                
-                # Step 2 & 4: Flag cross-org delegation warning if origin_org differs from source org
                 if link.origin_org and link.origin_org.strip().lower() != source_org.strip().lower():
                     warnings.append(f"Cross-org delegation detected at hop {depth}: Origin Org '{link.origin_org}' vs Source Org '{source_org}'")
 
@@ -106,12 +104,12 @@ def walk_delegation_graph(source_identity_id: int, db: Session) -> Dict[str, Any
         "warnings": warnings
     }
 
-# --- BACKGROUND RUN_CASCADE WORKER ---
+# --- BACKGROUND RUN_CASCADE WORKER WITH TAMPER-EVIDENT AUDIT LOGGING ---
 
 def run_cascade(event_id: int) -> None:
     """
     Background worker function executing cascade revocation off the request thread.
-    Handles cross-org boundary tracking, per-hop timeouts, explicit depth/cycle action logs.
+    Uses append_audit_log() for tamper-evident SHA-256 record hashing.
     """
     db: Session = SessionLocal()
     start_time = datetime.utcnow()
@@ -130,13 +128,14 @@ def run_cascade(event_id: int) -> None:
             event.status = "Failed"
             event.completed_at = datetime.utcnow()
             db.commit()
-            db.add(AuditLog(
-                performed_by="Cascade Engine",
-                action="Cascade Execution Error",
+            
+            append_audit_log(
+                db=db,
                 module="Cascade Revocation",
+                action="Cascade Execution Error",
+                performed_by="Cascade Engine",
                 new_value=f"Source identity {event.source_identity_id} not found."
-            ))
-            db.commit()
+            )
             return
 
         total_targets = 0
@@ -145,7 +144,6 @@ def run_cascade(event_id: int) -> None:
 
         source_org = (source_identity.org or "Default").strip().lower()
 
-        # BFS state initialization
         frontier: List[int] = [source_identity.id]
         visited: Set[int] = set()
         depth = 0
@@ -165,7 +163,6 @@ def run_cascade(event_id: int) -> None:
                 if not curr_identity:
                     continue
 
-                # Target hooks for current identity in chain
                 targets = [
                     ("HUMAN_ACCOUNT", curr_identity.email or curr_identity.employee_id or f"user_{curr_identity.id}"),
                     ("SERVICE_ACCOUNT", f"sa-{curr_identity.department or 'default'}-{curr_identity.id}"),
@@ -173,7 +170,6 @@ def run_cascade(event_id: int) -> None:
                     ("AGENT_SESSION", f"mcp-session-{curr_identity.id}")
                 ]
 
-                # Check if current identity was reached via a cross-org delegation link
                 incoming_link = db.query(DelegationLink).filter(
                     DelegationLink.child_identity_id == current_id,
                     DelegationLink.status == "Active"
@@ -186,8 +182,6 @@ def run_cascade(event_id: int) -> None:
 
                 for target_type, identifier in targets:
                     total_targets += 1
-                    
-                    # Step 4: Cross-Org Boundary Tracking
                     action_type_val = "Token Invalidated (Cross-Org — Not Confirmed)" if is_cross_org else "REVOCATION"
                     
                     action = CascadeAction(
@@ -224,7 +218,6 @@ def run_cascade(event_id: int) -> None:
 
                     db.commit()
 
-                # Expand child delegation links
                 child_links = db.query(DelegationLink).filter(
                     DelegationLink.parent_identity_id == current_id,
                     DelegationLink.status == "Active"
@@ -249,7 +242,6 @@ def run_cascade(event_id: int) -> None:
                     else:
                         frontier.append(child_id)
 
-        # Max Depth Exceeded handling
         if depth >= max_depth_limit and frontier:
             for cutoff_id in frontier:
                 total_targets += 1
@@ -266,7 +258,6 @@ def run_cascade(event_id: int) -> None:
                 db.add(depth_action)
                 db.commit()
 
-        # Update event terminal state
         event.total_targets = total_targets
         event.revoked_count = revoked_count
         event.failed_count = failed_count
@@ -275,14 +266,14 @@ def run_cascade(event_id: int) -> None:
         event.status = "Completed" if failed_count == 0 else "Completed With Failures"
         db.commit()
 
-        # Audit log completion
-        db.add(AuditLog(
-            performed_by="Cascade Engine",
-            action="Cascade Execution Completed",
+        # Step 2: Tamper-Evident SHA-256 Audit Log Entry
+        append_audit_log(
+            db=db,
             module="Cascade Revocation",
+            action="Cascade Execution Completed",
+            performed_by="Cascade Engine",
             new_value=f"Event {event.id}: {revoked_count}/{total_targets} targets revoked, {failed_count} failures in {event.duration_seconds:.2f}s."
-        ))
-        db.commit()
+        )
 
     except Exception as exc:
         logger.exception(f"Unhandled exception during cascade execution for event {event_id}: {exc}")
@@ -294,13 +285,13 @@ def run_cascade(event_id: int) -> None:
                 event.duration_seconds = (datetime.utcnow() - start_time).total_seconds()
                 db.commit()
                 
-            db.add(AuditLog(
-                performed_by="Cascade Engine",
-                action="Cascade Execution Error",
+            append_audit_log(
+                db=db,
                 module="Cascade Revocation",
+                action="Cascade Execution Error",
+                performed_by="Cascade Engine",
                 new_value=f"Event {event_id} failed with exception: {str(exc)}"
-            ))
-            db.commit()
+            )
         except Exception as audit_exc:
             logger.error(f"Failed to record error state for event {event_id}: {audit_exc}")
     finally:
@@ -312,12 +303,9 @@ def run_cascade(event_id: int) -> None:
 def get_revocation_stats(
     date_from: Optional[datetime] = None,
     date_to: Optional[datetime] = None,
+    _perm: bool = Depends(require_permission("Cascade Revocation", "view")),
     db: Session = Depends(get_db)
 ):
-    """
-    STEP 1 — Returns revocation propagation lag statistics for audit evidence.
-    Computes total_events, avg_seconds, p95_seconds, worst_case_seconds, and events_with_failures.
-    """
     query = db.query(RevocationEvent).filter(RevocationEvent.duration_seconds.isnot(None))
     
     if date_from:
@@ -341,7 +329,6 @@ def get_revocation_stats(
     avg_seconds = float(sum(durations) / len(durations)) if durations else 0.0
     worst_case_seconds = float(max(durations)) if durations else 0.0
 
-    # 95th Percentile calculation in Python
     s_dur = sorted(durations)
     k = math.ceil(0.95 * len(s_dur)) - 1
     p95_seconds = float(s_dur[max(0, k)]) if s_dur else 0.0
@@ -356,31 +343,98 @@ def get_revocation_stats(
         events_with_failures=events_with_failures
     )
 
-# --- STEP 2: PRE-REVOKE SIMULATION ENDPOINT ---
+# --- STEP 3: COMPLIANCE EXPORT ENDPOINT ---
+
+@router.get("/api/revocation-events/compliance-export")
+def export_compliance_report(
+    date_from: Optional[datetime] = None,
+    date_to: Optional[datetime] = None,
+    _perm: bool = Depends(require_permission("Cascade Revocation", "export")),
+    db: Session = Depends(get_db)
+):
+    """
+    STEP 3 — Returns a structured JSON compliance package for SOC2 / ISO audit evidence.
+    Combines summary stats, full events list with per-hop actions, and orphaned authority report.
+    """
+    stats_data = get_revocation_stats(date_from=date_from, date_to=date_to, _perm=True, db=db)
+
+    events_query = db.query(RevocationEvent)
+    if date_from:
+        events_query = events_query.filter(RevocationEvent.created_at >= date_from)
+    if date_to:
+        events_query = events_query.filter(RevocationEvent.created_at <= date_to)
+    
+    events = events_query.all()
+    events_list = []
+    for evt in events:
+        events_list.append({
+            "id": evt.id,
+            "source_identity_id": evt.source_identity_id,
+            "reason": evt.reason,
+            "status": evt.status,
+            "total_targets": evt.total_targets,
+            "revoked_count": evt.revoked_count,
+            "failed_count": evt.failed_count,
+            "duration_seconds": evt.duration_seconds,
+            "created_at": evt.created_at.isoformat() if evt.created_at else None,
+            "completed_at": evt.completed_at.isoformat() if evt.completed_at else None,
+            "actions": [
+                {
+                    "id": act.id,
+                    "target_type": act.target_type,
+                    "target_identifier": act.target_identifier,
+                    "action_type": act.action_type,
+                    "status": act.status,
+                    "hop_depth": act.hop_depth,
+                    "error_message": act.error_message,
+                    "confirmed_at": act.confirmed_at.isoformat() if act.confirmed_at else None,
+                    "created_at": act.created_at.isoformat() if act.created_at else None,
+                }
+                for act in evt.actions
+            ]
+        })
+
+    orphaned_report = find_orphaned_delegations(db)
+
+    return {
+        "export_metadata": {
+            "title": "SOC2 / ISO Cascade Revocation Evidence Package",
+            "generated_at": datetime.utcnow().isoformat(),
+            "scope_date_from": date_from.isoformat() if date_from else None,
+            "scope_date_to": date_to.isoformat() if date_to else None,
+        },
+        "summary_stats": stats_data.dict(),
+        "events": events_list,
+        "orphaned_authority": {
+            "count": len(orphaned_report),
+            "orphaned": orphaned_report
+        }
+    }
+
+# --- PRE-REVOKE SIMULATION ENDPOINT ---
 
 @router.post("/api/revocation-events/simulate", response_model=RevocationSimulationResponse)
-def simulate_revocation(payload: RevocationEventCreate, db: Session = Depends(get_db)):
-    """
-    STEP 2 — Read-only simulation previewing affected identities, max hop depth, and cross-org warnings.
-    Does NOT write any database records.
-    """
+def simulate_revocation(
+    payload: RevocationEventCreate,
+    _perm: bool = Depends(require_permission("Cascade Revocation", "view")),
+    db: Session = Depends(get_db)
+):
     result = walk_delegation_graph(payload.source_identity_id, db)
     return result
 
-# --- STEP 3: CREATE DELEGATION LINK WITH MAX DELEGATION DEPTH POLICY ENFORCEMENT ---
+# --- STEP 1: CREATE DELEGATION LINK (REQUIRING EDIT PERMISSION) ---
 
 @router.post("/api/delegation-links", response_model=DelegationLinkResponse, status_code=status.HTTP_201_CREATED)
-def create_delegation_link(payload: DelegationLinkCreate, db: Session = Depends(get_db)):
-    """
-    STEP 3 — Creates a DelegationLink while enforcing root identity max_delegation_depth policy
-    and blocking new links during active cascade revocations.
-    """
+def create_delegation_link(
+    payload: DelegationLinkCreate,
+    _perm: bool = Depends(require_permission("Cascade Revocation", "edit")),
+    db: Session = Depends(get_db)
+):
     parent_ident = db.query(Identity).filter(Identity.id == payload.parent_identity_id).first()
     child_ident = db.query(Identity).filter(Identity.id == payload.child_identity_id).first()
     if not parent_ident or not child_ident:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Parent or child identity not found.")
 
-    # 1. Walk UP from parent_identity_id to find root ancestor and measure depth
     current_parent_id = payload.parent_identity_id
     current_depth_from_root = 1
     root_identity = parent_ident
@@ -388,7 +442,6 @@ def create_delegation_link(payload: DelegationLinkCreate, db: Session = Depends(
     max_walk = 25
 
     while current_parent_id:
-        # Check for in-progress cascade on current ancestor
         in_progress_event = db.query(RevocationEvent).filter(
             RevocationEvent.source_identity_id == current_parent_id,
             RevocationEvent.status.in_(["Pending", "In Progress"])
@@ -416,7 +469,6 @@ def create_delegation_link(payload: DelegationLinkCreate, db: Session = Depends(
         if next_parent_ident:
             root_identity = next_parent_ident
 
-    # Step 3: Enforce root max_delegation_depth policy
     if root_identity and root_identity.max_delegation_depth is not None:
         if current_depth_from_root > root_identity.max_delegation_depth:
             raise HTTPException(
@@ -439,11 +491,10 @@ def create_delegation_link(payload: DelegationLinkCreate, db: Session = Depends(
 # --- ORPHANED AUTHORITY REPORT ENDPOINT ---
 
 @router.get("/api/revocation-events/orphaned-authority-report")
-def get_orphaned_authority_report(db: Session = Depends(get_db)):
-    """
-    Read-only safety net report querying for active delegations where root ancestor is Inactive.
-    Sends a system Notification if orphaned links are found.
-    """
+def get_orphaned_authority_report(
+    _perm: bool = Depends(require_permission("Cascade Revocation", "view")),
+    db: Session = Depends(get_db)
+):
     orphaned_list = find_orphaned_delegations(db)
     count = len(orphaned_list)
 
@@ -460,7 +511,7 @@ def get_orphaned_authority_report(db: Session = Depends(get_db)):
         "orphaned": orphaned_list
     }
 
-# --- REVOCATION EVENTS ENDPOINTS ---
+# --- STEP 1: TRIGGER REVOCATION (REQUIRING APPROVE PERMISSION) ---
 
 @router.post("/api/revocation-events", response_model=RevocationEventResponse, status_code=status.HTTP_202_ACCEPTED)
 @router.post("/api/revocation-events/", response_model=RevocationEventResponse, status_code=status.HTTP_202_ACCEPTED)
@@ -468,10 +519,11 @@ def trigger_revocation(
     payload: RevocationEventCreate,
     background_tasks: BackgroundTasks,
     response: Response,
+    _perm: bool = Depends(require_permission("Cascade Revocation", "approve")),
     db: Session = Depends(get_db)
 ):
     """
-    POST /api/revocation-events
+    STEP 1 — Requires 'approve' permission for 'Cascade Revocation' menu.
     Validates identity, creates event with status="Pending", dispatches run_cascade in background,
     and returns 202 Accepted response.
     """
@@ -496,10 +548,11 @@ def trigger_revocation(
     return event
 
 @router.get("/api/revocation-events/{event_id}", response_model=RevocationEventResponse)
-def get_revocation_event_detail(event_id: int, db: Session = Depends(get_db)):
-    """
-    Full detail endpoint returning event metadata and full cascade actions list.
-    """
+def get_revocation_event_detail(
+    event_id: int,
+    _perm: bool = Depends(require_permission("Cascade Revocation", "view")),
+    db: Session = Depends(get_db)
+):
     event = db.query(RevocationEvent).filter(RevocationEvent.id == event_id).first()
     if not event:
         raise HTTPException(
@@ -509,10 +562,11 @@ def get_revocation_event_detail(event_id: int, db: Session = Depends(get_db)):
     return event
 
 @router.get("/api/revocation-events/{event_id}/status", response_model=RevocationEventStatusResponse)
-def get_revocation_event_status(event_id: int, db: Session = Depends(get_db)):
-    """
-    Lightweight status endpoint returning minimal payload for client polling.
-    """
+def get_revocation_event_status(
+    event_id: int,
+    _perm: bool = Depends(require_permission("Cascade Revocation", "view")),
+    db: Session = Depends(get_db)
+):
     event = db.query(RevocationEvent).filter(RevocationEvent.id == event_id).first()
     if not event:
         raise HTTPException(
