@@ -15,9 +15,11 @@ class Identity(Base):
     display_name = Column(String(150), nullable=True)
     email = Column(String(150), index=True, nullable=True)
     department = Column(String(100), index=True, nullable=True)
+    org = Column(String(150), index=True, nullable=True)
     job_title = Column(String(100), nullable=True)
     manager = Column(String(150), nullable=True)
     status = Column(String(50), default="Active", index=True, nullable=False)
+    max_delegation_depth = Column(Integer, nullable=True)
 
     # Full set of configured Identity Attribute values (including any custom
     # attributes added later via the Identity Attributes admin page), keyed

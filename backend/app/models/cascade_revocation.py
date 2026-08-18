@@ -47,6 +47,7 @@ class DelegationLink(Base):
     parent_identity_id = Column(Integer, ForeignKey("identities.id"), nullable=False, index=True)
     child_identity_id = Column(Integer, ForeignKey("identities.id"), nullable=False, index=True)
     delegation_type = Column(String(50), nullable=False, default="DELEGATE")  # DELEGATE, AGENT, DEPUTY
+    origin_org = Column(String(150), nullable=True)
     status = Column(String(30), nullable=False, default="Active", index=True)  # Active, Inactive, Revoked
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 

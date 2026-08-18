@@ -10,9 +10,11 @@ class IdentityResponse(BaseModel):
     display_name: Optional[str] = None
     email: Optional[str] = None
     department: Optional[str] = None
+    org: Optional[str] = None
     job_title: Optional[str] = None
     manager: Optional[str] = None
     status: str
+    max_delegation_depth: Optional[int] = None
     attributes: Optional[Dict[str, Any]] = None
     source_connector_id: Optional[int] = None
     source_connector_name: Optional[str] = None
@@ -37,6 +39,8 @@ class IdentityCreate(BaseModel):
     display_name: Optional[str] = None
     email: Optional[str] = None
     department: Optional[str] = None
+    org: Optional[str] = None
     job_title: Optional[str] = None
     manager: Optional[str] = None
     status: Optional[str] = "Active"
+    max_delegation_depth: Optional[int] = None

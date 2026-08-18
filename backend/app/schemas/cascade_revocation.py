@@ -4,6 +4,7 @@ from datetime import datetime
 
 class RevocationEventCreate(BaseModel):
     source_identity_id: int
+    trigger_type: Optional[str] = "MANUAL"
     reason: Optional[str] = None
 
 class CascadeActionResponse(BaseModel):
@@ -49,16 +50,38 @@ class RevocationEventStatusResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class RevocationStatsResponse(BaseModel):
+    total_events: int
+    avg_seconds: float
+    p95_seconds: float
+    worst_case_seconds: float
+    events_with_failures: int
+
+class SimulationAffectedIdentity(BaseModel):
+    identity_id: int
+    display_name: str
+    identity_type: str
+    hop_depth: int
+
+class RevocationSimulationResponse(BaseModel):
+    source_identity_id: int
+    would_affect_count: int
+    max_hop_depth: int
+    affected_identities: List[SimulationAffectedIdentity]
+    warnings: List[str]
+
 class DelegationLinkCreate(BaseModel):
     parent_identity_id: int
     child_identity_id: int
     delegation_type: Optional[str] = "DELEGATE"
+    origin_org: Optional[str] = None
 
 class DelegationLinkResponse(BaseModel):
     id: int
     parent_identity_id: int
     child_identity_id: int
     delegation_type: str
+    origin_org: Optional[str] = None
     status: str
     created_at: datetime
 
