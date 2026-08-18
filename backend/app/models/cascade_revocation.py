@@ -9,7 +9,7 @@ class RevocationEvent(Base):
     id = Column(Integer, primary_key=True, index=True)
     source_identity_id = Column(Integer, ForeignKey("identities.id"), nullable=False, index=True)
     reason = Column(Text, nullable=True)
-    status = Column(String(30), nullable=False, default="Pending", index=True)  # Pending, In Progress, Completed, Failed
+    status = Column(String(30), nullable=False, default="Pending", index=True)  # Pending, In Progress, Completed, Completed With Errors, Failed
     
     total_targets = Column(Integer, default=0, nullable=False)
     revoked_count = Column(Integer, default=0, nullable=False)
@@ -27,13 +27,28 @@ class CascadeAction(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     event_id = Column(Integer, ForeignKey("revocation_events.id", ondelete="CASCADE"), nullable=False)
-    target_type = Column(String(50), nullable=False)  # SERVICE_ACCOUNT, API_KEY, AGENT_SESSION, HUMAN_ACCOUNT
+    target_type = Column(String(50), nullable=False)  # SERVICE_ACCOUNT, API_KEY, AGENT_SESSION, HUMAN_ACCOUNT, DELEGATION
     target_identifier = Column(String(200), nullable=False)
+    action_type = Column(String(50), nullable=True, default="REVOCATION")  # REVOCATION, Max Depth Exceeded, Cycle Detected
     status = Column(String(30), nullable=False, default="Pending")  # Pending, Confirmed, Failed
     
+    hop_depth = Column(Integer, default=0, nullable=False)
     confirmed_at = Column(DateTime, nullable=True)
     retry_count = Column(Integer, default=0, nullable=False)
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     event = relationship("RevocationEvent", back_populates="actions")
+
+class DelegationLink(Base):
+    __tablename__ = "delegation_links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    parent_identity_id = Column(Integer, ForeignKey("identities.id"), nullable=False, index=True)
+    child_identity_id = Column(Integer, ForeignKey("identities.id"), nullable=False, index=True)
+    delegation_type = Column(String(50), nullable=False, default="DELEGATE")  # DELEGATE, AGENT, DEPUTY
+    status = Column(String(30), nullable=False, default="Active", index=True)  # Active, Inactive, Revoked
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    parent_identity = relationship("Identity", foreign_keys=[parent_identity_id], backref="outgoing_delegations")
+    child_identity = relationship("Identity", foreign_keys=[child_identity_id], backref="incoming_delegations")
