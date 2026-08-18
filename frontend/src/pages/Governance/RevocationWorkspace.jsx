@@ -9,7 +9,7 @@ import {
   Terminal, 
   Plus, 
   RefreshCw,
-  Github,
+  GitBranch,
   Cloud,
   Cpu,
   Server,
@@ -104,7 +104,7 @@ const RevocationWorkspace = () => {
 
   const getTypeIcon = (type) => {
     switch ((type || '').toUpperCase()) {
-      case 'GITHUB': return <Github size={16} className="type-icon github" />;
+      case 'GITHUB': return <GitBranch size={16} className="type-icon github" />;
       case 'AWS_IAM': return <Cloud size={16} className="type-icon aws" />;
       case 'MCP_SESSION': return <Cpu size={16} className="type-icon mcp" />;
       default: return <Server size={16} className="type-icon generic" />;

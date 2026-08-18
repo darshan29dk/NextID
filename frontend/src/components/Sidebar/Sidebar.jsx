@@ -61,6 +61,7 @@ const GOVERNANCE_GROUP_CHILDREN = [
   { label: 'Exceptions', icon: ShieldCheck, path: 'governance/exceptions' },
   { label: 'Scan History', icon: History, path: 'governance/scan-history' },
   { label: 'Revocation Engine', icon: Zap, path: 'governance/revocation' },
+  { label: 'Cascade Revocation', icon: Zap, path: 'governance/cascade-revocation' },
 ];
 
 
