@@ -23,9 +23,7 @@ import {
   CheckCircle,
   XCircle,
   CheckCircle2,
-  RotateCw,
-  Download,
-  FileSpreadsheet
+  RotateCw
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -408,22 +406,6 @@ INSERT INTO identities VALUES ('jane.doe', 'jane.doe@corp.io', 'Engineering', 'S
         <div className="welcome-banner-actions">
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                className="sync-banner-btn"
-                onClick={() => window.open(`${apiClient.defaults.baseURL}/analytics/executive/export/csv`, '_blank')}
-                title="Export platform-wide metrics as CSV"
-              >
-                <Download size={14} />
-                <span>CSV</span>
-              </button>
-              <button
-                className="sync-banner-btn"
-                onClick={() => window.open(`${apiClient.defaults.baseURL}/analytics/executive/export/excel`, '_blank')}
-                title="Export platform-wide metrics as Excel"
-              >
-                <FileSpreadsheet size={14} />
-                <span>Excel</span>
-              </button>
               <button className="sync-banner-btn" onClick={fetchData} title="Refresh dashboard data">
                 <RotateCw size={14} />
                 <span>Refresh</span>

@@ -10,6 +10,8 @@ from app.database import SessionLocal, get_db
 from app.models.identity import Identity
 from app.models.notification import Notification
 from app.models.cascade_revocation import RevocationEvent, CascadeAction, DelegationLink
+from app.models.revocation import RevocationJob
+from app.services.revocation_service import process_revocation_job
 from app.schemas.cascade_revocation import (
     RevocationEventCreate,
     RevocationEventResponse,
@@ -183,40 +185,60 @@ def run_cascade(event_id: int) -> None:
                 for target_type, identifier in targets:
                     total_targets += 1
                     action_type_val = "Token Invalidated (Cross-Org — Not Confirmed)" if is_cross_org else "REVOCATION"
-                    
+                    attrs = curr_identity.attributes or {}
+
+                    # Map CascadeAction target_type to RevocationJob target_type
+                    if target_type == "SERVICE_ACCOUNT":
+                        job_target_type = "GITHUB" if (attrs.get("github_token") or attrs.get("provider") == "GitHub") else "AWS_IAM"
+                    elif target_type == "API_KEY":
+                        job_target_type = "GITHUB"
+                    elif target_type == "AGENT_SESSION":
+                        job_target_type = "MCP_SESSION"
+                    else:
+                        job_target_type = "GENERIC"
+
+                    # 1. Create RevocationJob row (system 1 primitive)
+                    job = RevocationJob(
+                        target_type=job_target_type,
+                        target_identity=identifier,
+                        target_entitlement=f"CascadeHop#{depth}:{action_type_val}",
+                        status="PENDING",
+                        retry_count=0,
+                        max_retries=3,
+                        created_by="Cascade Engine"
+                    )
+                    db.add(job)
+                    db.commit()
+                    db.refresh(job)
+
+                    # 2. Execute process_revocation_job (system 1 retry & escalation logic)
+                    processed_job = process_revocation_job(db, job)
+
+                    # 3. Create CascadeAction row linked via revocation_job_id
+                    if processed_job.status == "CONFIRMED":
+                        action_status = "Confirmed"
+                        revoked_count += 1
+                    else:
+                        action_status = "Failed"
+                        failed_count += 1
+
+                    err_msg = processed_job.error_log
+                    if is_cross_org and action_status == "Confirmed":
+                        err_msg = "Local revocation recorded. Downstream vendor/org system not confirmed."
+
                     action = CascadeAction(
                         event_id=event.id,
                         target_type=target_type,
                         target_identifier=identifier,
                         action_type=action_type_val,
-                        status="Pending",
-                        hop_depth=depth
+                        status=action_status,
+                        hop_depth=depth,
+                        confirmed_at=processed_job.confirmed_at,
+                        retry_count=processed_job.retry_count,
+                        error_message=err_msg,
+                        revocation_job_id=processed_job.id
                     )
                     db.add(action)
-                    db.commit()
-                    db.refresh(action)
-
-                    attrs = curr_identity.attributes or {}
-                    if target_type == "SERVICE_ACCOUNT":
-                        res = revoke_service_account(identifier, attrs, db)
-                    elif target_type == "API_KEY":
-                        res = revoke_api_key(identifier, attrs, db)
-                    elif target_type == "AGENT_SESSION":
-                        res = revoke_agent_session(identifier, attrs, db)
-                    else:
-                        res = disable_human_account(identifier, attrs, db)
-
-                    if res.get("success"):
-                        action.status = "Confirmed"
-                        action.confirmed_at = datetime.utcnow()
-                        if is_cross_org:
-                            action.error_message = "Local revocation recorded. Downstream vendor/org system not confirmed."
-                        revoked_count += 1
-                    else:
-                        action.status = "Failed"
-                        action.error_message = res.get("message", "Revocation hook failed")
-                        failed_count += 1
-
                     db.commit()
 
                 child_links = db.query(DelegationLink).filter(
@@ -603,3 +625,103 @@ def run_orphaned_sweep_now(
         "notification_created": notified,
         "orphaned": orphaned_list
     }
+
+# --- BACKTRACKING DELEGATION GRAPH ENDPOINT ---
+
+def get_full_delegation_graph(identity_id: int, db: Session) -> Dict[str, Any]:
+    """
+    Bidirectional delegation graph helper with ancestor backtracking:
+    1. Backtracks UP from identity_id to find the top-level root ancestor identity.
+    2. Traverses DOWN from the root ancestor to build the complete hierarchical tree.
+    """
+    target = db.query(Identity).filter(Identity.id == identity_id).first()
+    if not target:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Identity #{identity_id} not found."
+        )
+
+    # 1. Backtrack UP to find top-level root ancestor
+    root_id = identity_id
+    curr = target
+    visited_up = {identity_id}
+
+    while curr:
+        parent_link = db.query(DelegationLink).filter(
+            DelegationLink.child_identity_id == curr.id,
+            DelegationLink.status == "Active"
+        ).first()
+
+        if not parent_link or parent_link.parent_identity_id in visited_up:
+            break
+
+        parent = db.query(Identity).filter(Identity.id == parent_link.parent_identity_id).first()
+        if not parent:
+            break
+
+        visited_up.add(parent.id)
+        root_id = parent.id
+        curr = parent
+
+    # 2. Traverse DOWN from root_id to build complete structural graph
+    frontier = [root_id]
+    visited_down = set()
+    nodes = []
+    depth_map = {root_id: 1}
+
+    while frontier:
+        current_level = list(frontier)
+        frontier = []
+
+        for curr_id in current_level:
+            if curr_id in visited_down:
+                continue
+            visited_down.add(curr_id)
+
+            ident = db.query(Identity).filter(Identity.id == curr_id).first()
+            if not ident:
+                continue
+
+            hop_depth = depth_map.get(curr_id, 1)
+            display_name = ident.display_name or ident.email or f"Identity #{ident.id}"
+            identity_type = "Human Account" if ident.email else "System / Agent"
+
+            nodes.append({
+                "id": ident.id,
+                "identity_id": ident.id,
+                "display_name": display_name,
+                "identity_type": identity_type,
+                "hop_depth": hop_depth,
+                "status": ident.status or "Active",
+                "org": ident.org or "Default",
+                "is_target": (ident.id == identity_id)
+            })
+
+            child_links = db.query(DelegationLink).filter(
+                DelegationLink.parent_identity_id == curr_id,
+                DelegationLink.status == "Active"
+            ).all()
+
+            for link in child_links:
+                child_id = link.child_identity_id
+                if child_id not in visited_down:
+                    depth_map[child_id] = hop_depth + 1
+                    frontier.append(child_id)
+
+    return {
+        "target_identity_id": identity_id,
+        "root_identity_id": root_id,
+        "total_nodes": len(nodes),
+        "nodes": nodes
+    }
+
+@router.get("/api/delegation-links/graph/{identity_id}")
+def get_delegation_link_graph(
+    identity_id: int,
+    _perm: bool = Depends(require_permission("Cascade Revocation", "view")),
+    db: Session = Depends(get_db)
+):
+    """
+    Returns the complete backtracked delegation hierarchy graph for an identity.
+    """
+    return get_full_delegation_graph(identity_id, db)

@@ -9,7 +9,9 @@ from app.config import PROVIDER_SECRET_KEY
 logger = logging.getLogger(__name__)
 
 def _get_fernet() -> Fernet:
-    key_str = PROVIDER_SECRET_KEY or "default_secret_key_fallback_salt_9988"
+    key_str = os.environ.get("PROVIDER_SECRET_KEY") or PROVIDER_SECRET_KEY
+    if not key_str:
+        raise ValueError("PROVIDER_SECRET_KEY environment variable is not configured.")
     # Derive a valid 32-byte URL-safe base64 key using PBKDF2HMAC
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),

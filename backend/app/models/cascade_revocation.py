@@ -2,6 +2,8 @@ from sqlalchemy import Column, Integer, String, Text, Float, DateTime, ForeignKe
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from app.database import Base
+from app.models.identity import Identity
+from app.models.revocation import RevocationJob
 
 class RevocationEvent(Base):
     __tablename__ = "revocation_events"
@@ -19,7 +21,7 @@ class RevocationEvent(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     completed_at = Column(DateTime, nullable=True)
 
-    source_identity = relationship("Identity", backref="revocation_events")
+    source_identity = relationship(Identity, foreign_keys=[source_identity_id], backref="revocation_events")
     actions = relationship("CascadeAction", back_populates="event", cascade="all, delete-orphan")
 
 class CascadeAction(Base):
@@ -38,7 +40,10 @@ class CascadeAction(Base):
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+    revocation_job_id = Column(String(36), ForeignKey("revocation_jobs.id"), nullable=True)
+
     event = relationship("RevocationEvent", back_populates="actions")
+    revocation_job = relationship(RevocationJob, backref="cascade_actions")
 
 class DelegationLink(Base):
     __tablename__ = "delegation_links"
@@ -51,5 +56,5 @@ class DelegationLink(Base):
     status = Column(String(30), nullable=False, default="Active", index=True)  # Active, Inactive, Revoked
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    parent_identity = relationship("Identity", foreign_keys=[parent_identity_id], backref="outgoing_delegations")
-    child_identity = relationship("Identity", foreign_keys=[child_identity_id], backref="incoming_delegations")
+    parent_identity = relationship(Identity, foreign_keys=[parent_identity_id], backref="outgoing_delegations")
+    child_identity = relationship(Identity, foreign_keys=[child_identity_id], backref="incoming_delegations")

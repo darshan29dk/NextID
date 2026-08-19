@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   History, 
   BarChart3, 
+  Zap,
   Settings as SettingsIcon, 
   ChevronRight,
   ChevronDown,
