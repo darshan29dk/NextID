@@ -45,6 +45,8 @@ const CascadeRevocation = () => {
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [expandedEventId, setExpandedEventId] = useState(null);
   const [eventDetailMap, setEventDetailMap] = useState({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 10;
 
   // Orphaned Authority State
   const [orphanedData, setOrphanedData] = useState(null);
@@ -446,7 +448,7 @@ const CascadeRevocation = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {events.map((evt) => {
+                  {events.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage).map((evt) => {
                     const isExpanded = expandedEventId === evt.id;
                     const detail = eventDetailMap[evt.id];
 
@@ -523,6 +525,32 @@ const CascadeRevocation = () => {
                   })}
                 </tbody>
               </table>
+
+              {/* Pagination Controls */}
+              {events.length > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', paddingTop: '12px', borderTop: '1px solid var(--border-color)' }}>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
+                    Showing {Math.min((currentPage - 1) * rowsPerPage + 1, events.length)} to {Math.min(currentPage * rowsPerPage, events.length)} of {events.length} events
+                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <button 
+                      className="btn-secondary"
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    >
+                      Previous
+                    </button>
+                    <span style={{ fontWeight: 600, fontSize: '13px' }}>Page {currentPage} of {Math.ceil(events.length / rowsPerPage) || 1}</span>
+                    <button 
+                      className="btn-secondary"
+                      disabled={currentPage >= (Math.ceil(events.length / rowsPerPage) || 1)}
+                      onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(events.length / rowsPerPage) || 1))}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

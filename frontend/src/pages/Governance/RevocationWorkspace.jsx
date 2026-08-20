@@ -24,15 +24,8 @@ const RevocationWorkspace = () => {
   const [loading, setLoading] = useState(true);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterType, setFilterType] = useState('');
-  
-  // Modal state for triggering new real revocation job
-  const [showTriggerModal, setShowTriggerModal] = useState(false);
-  const [targetType, setTargetType] = useState('GITHUB');
-  const [targetIdentity, setTargetIdentity] = useState('');
-  const [targetEntitlement, setTargetEntitlement] = useState('');
-  const [simulateFailure, setSimulateFailure] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [actionError, setActionError] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const rowsPerPage = 10;
 
   const fetchJobs = async () => {
     try {
@@ -43,6 +36,7 @@ const RevocationWorkspace = () => {
       
       const res = await apiClient.get('/revocation/jobs', { params });
       setJobs(res.data || []);
+      setCurrentPage(1);
     } catch (err) {
       console.error('Failed to fetch revocation jobs:', err);
     } finally {
@@ -211,74 +205,102 @@ const RevocationWorkspace = () => {
             No revocation jobs found. Click "Trigger Revocation Hook" to start a job.
           </div>
         ) : (
-          <table className="revocation-table">
-            <thead>
-              <tr>
-                <th>Target Type</th>
-                <th>Target Identity</th>
-                <th>Target Entitlement</th>
-                <th>Status</th>
-                <th>Attempted At</th>
-                <th>Confirmed At</th>
-                <th>Retries</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.map((job) => (
-                <tr key={job.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {getTypeIcon(job.target_type)}
-                      <span style={{ fontWeight: 600 }}>{job.target_type}</span>
-                    </div>
-                  </td>
-                  <td className="mono">{job.target_identity}</td>
-                  <td>{job.target_entitlement}</td>
-                  <td>{getStatusBadge(job)}</td>
-                  <td className="time-col">
-                    {job.attempted_at ? new Date(job.attempted_at).toLocaleString() : '—'}
-                  </td>
-                  <td className="time-col confirmed-time">
-                    {job.confirmed_at ? (
-                      <span style={{ color: '#10b981', fontWeight: 600 }}>
-                        {new Date(job.confirmed_at).toLocaleString()}
-                      </span>
-                    ) : (
-                      <span style={{ color: 'var(--text-muted)' }}>Not Confirmed</span>
-                    )}
-                  </td>
-                  <td>
-                    <span className={`retry-count-badge ${job.retry_count >= job.max_retries ? 'max' : ''}`}>
-                      {job.retry_count} / {job.max_retries}
-                    </span>
-                  </td>
-                  <td>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      {job.status !== 'CONFIRMED' && (
-                        <button
-                          className="table-action-btn retry"
-                          onClick={() => handleRetryJob(job.id, false)}
-                          title="Retry Revocation Hook"
-                        >
-                          <RotateCw size={12} /> Retry
-                        </button>
-                      )}
-                      {job.status === 'ESCALATED' && (
-                        <button
-                          className="table-action-btn force-confirm"
-                          onClick={() => handleRetryJob(job.id, true)}
-                          title="Manually Confirm Access Removal"
-                        >
-                          <CheckCircle2 size={12} /> Confirm
-                        </button>
-                      )}
-                    </div>
-                  </td>
+          <>
+            <table className="revocation-table">
+              <thead>
+                <tr>
+                  <th>Target Type</th>
+                  <th>Target Identity</th>
+                  <th>Target Entitlement</th>
+                  <th>Status</th>
+                  <th>Attempted At</th>
+                  <th>Confirmed At</th>
+                  <th>Retries</th>
+                  <th>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {jobs.slice((currentPage - 1) * rowsPerPage, currentPage * rowsPerPage).map((job) => (
+                  <tr key={job.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {getTypeIcon(job.target_type)}
+                        <span style={{ fontWeight: 600 }}>{job.target_type}</span>
+                      </div>
+                    </td>
+                    <td className="mono">{job.target_identity}</td>
+                    <td>{job.target_entitlement}</td>
+                    <td>{getStatusBadge(job)}</td>
+                    <td className="time-col">
+                      {job.attempted_at ? new Date(job.attempted_at).toLocaleString() : '—'}
+                    </td>
+                    <td className="time-col confirmed-time">
+                      {job.confirmed_at ? (
+                        <span style={{ color: '#10b981', fontWeight: 600 }}>
+                          {new Date(job.confirmed_at).toLocaleString()}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)' }}>Not Confirmed</span>
+                      )}
+                    </td>
+                    <td>
+                      <span className={`retry-count-badge ${job.retry_count >= job.max_retries ? 'max' : ''}`}>
+                        {job.retry_count} / {job.max_retries}
+                      </span>
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        {job.status !== 'CONFIRMED' && (
+                          <button
+                            className="table-action-btn retry"
+                            onClick={() => handleRetryJob(job.id, false)}
+                            title="Retry Revocation Hook"
+                          >
+                            <RotateCw size={12} /> Retry
+                          </button>
+                        )}
+                        {job.status === 'ESCALATED' && (
+                          <button
+                            className="table-action-btn force-confirm"
+                            onClick={() => handleRetryJob(job.id, true)}
+                            title="Manually Confirm Access Removal"
+                          >
+                            <CheckCircle2 size={12} /> Confirm
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Pagination Controls Footer */}
+            {jobs.length > 0 && (
+              <div className="revocation-pagination">
+                <span className="pagination-info">
+                  Showing {Math.min((currentPage - 1) * rowsPerPage + 1, jobs.length)} to {Math.min(currentPage * rowsPerPage, jobs.length)} of {jobs.length} jobs
+                </span>
+                <div className="pagination-buttons">
+                  <button 
+                    className="revocation-btn secondary"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                  >
+                    Previous
+                  </button>
+                  <span className="page-number">Page {currentPage} of {Math.ceil(jobs.length / rowsPerPage) || 1}</span>
+                  <button 
+                    className="revocation-btn secondary"
+                    disabled={currentPage >= (Math.ceil(jobs.length / rowsPerPage) || 1)}
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(jobs.length / rowsPerPage) || 1))}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
 

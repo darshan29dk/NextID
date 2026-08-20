@@ -287,3 +287,30 @@
   font-size: 13px;
   margin-bottom: 16px;
 }
+
+/* Pagination Controls */
+.revocation-pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border-color);
+  font-size: 13px;
+}
+
+.pagination-info {
+  color: var(--text-muted);
+}
+
+.pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-number {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
