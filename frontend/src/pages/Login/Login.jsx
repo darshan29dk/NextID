@@ -59,13 +59,11 @@ function Login() {
 
         <div className="login-left-content">
           <div className="login-brand">
-            {logoPath && (
-              <img
-                className="login-brand-icon"
-                src={`${FILES_BASE_URL}/${logoPath}`}
-                alt="Company logo"
-              />
-            )}
+            <img
+              className="login-brand-icon"
+              src={logoPath ? `${FILES_BASE_URL}/${logoPath}` : '/nextid_3d_logo.png'}
+              alt="NextID logo"
+            />
             <div className="login-brand-text">
               <h2>NextID</h2>
               <p>ROLE INTELLIGENCE PLATFORM</p>
@@ -73,14 +71,14 @@ function Login() {
           </div>
 
           <div className="login-heading">
-            <span className="white">Discover<br /></span>
-            <span className="blue">Engineer<br /></span>
-            <span className="white">Govern<br /></span>
-            <span className="muted">Optimize</span>
+            <span className="white">Map<br /></span>
+            <span className="blue">Mine<br /></span>
+            <span className="white">Cascade<br /></span>
+            <span className="muted">Revoke</span>
           </div>
 
           <blockquote className="login-quote">
-            "Build an enterprise RBAC model from existing identity and access data."
+            "Graph-based role intelligence and multi-hop delegation cascade for modern workforce and AI agents."
           </blockquote>
         </div>
       </div>
@@ -88,13 +86,11 @@ function Login() {
       <div className="login-right">
         <div className="login-form-box">
           <div className="login-form-brand">
-            {logoPath && (
-              <img
-                className="login-form-brand-icon"
-                src={`${FILES_BASE_URL}/${logoPath}`}
-                alt="Company logo"
-              />
-            )}
+            <img
+              className="login-form-brand-icon"
+              src={logoPath ? `${FILES_BASE_URL}/${logoPath}` : '/nextid_3d_logo.png'}
+              alt="NextID logo"
+            />
             <span className="login-form-brand-name">NextID</span>
           </div>
           <h1>Welcome Back</h1>

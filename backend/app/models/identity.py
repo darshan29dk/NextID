@@ -6,6 +6,7 @@ class Identity(Base):
     __tablename__ = "identities"
 
     id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String(50), nullable=False, default="default_tenant", index=True)
 
     # Core indexed fields — mirror the default IdentityAttribute definitions
     # so the schema stays consistent with the configurable attribute system.
@@ -20,6 +21,8 @@ class Identity(Base):
     manager = Column(String(150), nullable=True)
     status = Column(String(50), default="Active", index=True, nullable=False)
     max_delegation_depth = Column(Integer, nullable=True)
+    authority_epoch = Column(Integer, default=1, nullable=False)
+    is_frozen = Column(Boolean, default=False, nullable=False)
 
     # Full set of configured Identity Attribute values (including any custom
     # attributes added later via the Identity Attributes admin page), keyed

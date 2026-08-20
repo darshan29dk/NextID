@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine, Base, SessionLocal
+from sqlalchemy import text
 import bcrypt
 if not hasattr(bcrypt, "__about__"):
     class _BcryptAbout:
@@ -87,16 +88,13 @@ from app.models.sod_exception import SodException, SodExceptionApproval, SodExce
 from app.models.sod_dashboard import GovernanceDashboardPreferences
 from app.models.approval_workflow_config import ApprovalWorkflowConfig, ApprovalWorkflowLevel
 from app.routes import approval_workflow_config as approval_workflow_config_routes
+from app.models.jit_lease import JitLease
 
-# Create database tables if they do not exist
-Base.metadata.create_all(bind=engine)
-
-from sqlalchemy import text
-
-def check_and_add_columns():
-    if engine.dialect.name != "mysql":
-        print("Connected to non-MySQL database (PostgreSQL/Supabase). Skipping MySQL column migrations.")
-        return
+# Database table creation managed via Alembic migrations (alembic upgrade head)
+try:
+    Base.metadata.create_all(bind=engine)
+except Exception as err:
+    print(f"Database table initialization warning: {err}")
     with engine.begin() as connection:
         try:
             result = connection.execute(text("SHOW COLUMNS FROM connector_files LIKE 'file_content'")).fetchone()
@@ -278,8 +276,7 @@ def check_and_add_columns():
             except Exception as e:
                 print(f"Error checking/altering mining_campaigns column {col}: {e}")
 
-check_and_add_columns()
-
+# check_and_add_columns managed via Alembic
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -1027,8 +1024,8 @@ try:
                         policy_code=policy.policy_code,
                         policy_name=policy.policy_name,
                         user_id=user.id,
-                        username=user.email or f"seeded_user_{idx}@gmail.com",
-                        display_name=user.display_name or f"Seeded User {idx}",
+                        username=user.email or "unassigned@nextid.internal",
+                        display_name=user.display_name or "Unassigned User",
                         department=dept,
                         manager=mngr,
                         application_name=app,
@@ -1368,6 +1365,34 @@ app.include_router(revocation_routes.router)
 app.include_router(cascade_revocation_routes.router)
 app.include_router(provider_credential_routes.router)
 
+from app.models.jit_lease import JitLease
+from app.models.certification_run import ConnectorCertificationRun
+from app.routes import graph_explain, kill_switch, cascade_restore, ttfr_metrics, investigation_mode, compliance_evidence, runtime_auth_route, jit_credentials_route, certification_route, unresolved_authority_route, authority_provenance_route
+app.include_router(graph_explain.router)
+app.include_router(kill_switch.router)
+app.include_router(cascade_restore.router)
+app.include_router(ttfr_metrics.router)
+app.include_router(investigation_mode.router)
+app.include_router(compliance_evidence.router)
+app.include_router(runtime_auth_route.router)
+app.include_router(jit_credentials_route.router)
+app.include_router(certification_route.router)
+app.include_router(unresolved_authority_route.router)
+app.include_router(authority_provenance_route.router)
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to rAnalyzer backend API"}
+
+@app.get("/health/live")
+def health_live():
+    return {"status": "UP", "liveness": "ALIVE"}
+
+@app.get("/health/ready")
+def health_ready():
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {"status": "UP", "database": "CONNECTED", "readiness": "READY"}
+    except Exception as err:
+        return {"status": "DOWN", "database": str(err), "readiness": "NOT_READY"}

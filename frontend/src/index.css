@@ -166,9 +166,28 @@ button {
   cursor: not-allowed;
 }
 
+/* Light mode secondary button - crisp border, white background, dark text */
+.theme-light .btn-secondary {
+  border-color: #cbd5e1 !important;
+  background-color: #ffffff !important;
+  color: #1e293b !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.theme-light .btn-secondary svg {
+  color: #334155 !important;
+}
+
+.theme-light .btn-secondary:hover:not(:disabled) {
+  background-color: #f1f5f9 !important;
+  border-color: #94a3b8 !important;
+  color: #0f172a !important;
+}
+
 /* Dark mode secondary button - explicitly visible */
 .theme-dark .btn-secondary {
-  border-color: #4b5563;
+  border-color: #4b5563 !important;
+  background-color: #1f2937 !important;
   color: #f3f4f6 !important;
 }
 
@@ -177,8 +196,8 @@ button {
 }
 
 .theme-dark .btn-secondary:hover:not(:disabled) {
-  background-color: #374151;
-  border-color: #6b7280;
+  background-color: #374151 !important;
+  border-color: #6b7280 !important;
 }
 
 /* Small size modifier */

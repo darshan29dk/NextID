@@ -12,7 +12,7 @@ except ImportError:
     boto3 = None
 
 from app.models.provider_credential import ProviderCredential
-from app.utils.secret_encryption import decrypt_secret
+from app.services.kms_secret_manager import KMSSecretManagerService
 
 logger = logging.getLogger(__name__)
 
@@ -20,24 +20,25 @@ logger = logging.getLogger(__name__)
 
 def _get_credential(db: Session, provider: str) -> Optional[Dict[str, Any]]:
     """
-    Fetches the Active ProviderCredential row for a given provider, decrypts its secret,
-    and returns a dictionary containing {'secret': str, 'config': dict}.
-    Never logs or exposes the decrypted secret.
+    Fetches the Active ProviderCredential row for a given provider via Vault reference,
+    and returns metadata containing {'vault_reference_uri': str, 'credential_fingerprint_sha256': str, 'config': dict}.
+    Zero raw plaintext secrets are handled or exposed.
     """
     if not db:
         return None
     try:
         cred = db.query(ProviderCredential).filter(
             ProviderCredential.provider == provider,
-            ProviderCredential.status == "Active"
+            ProviderCredential.status == "ACTIVE"
         ).first()
 
         if not cred:
             return None
 
-        plain_secret = decrypt_secret(cred.encrypted_secret)
+        _ = KMSSecretManagerService.get_vault_reference(cred.vault_reference_uri)
         return {
-            "secret": plain_secret,
+            "vault_reference_uri": cred.vault_reference_uri,
+            "credential_fingerprint_sha256": cred.credential_fingerprint_sha256,
             "config": cred.config or {}
         }
     except Exception as exc:
@@ -53,7 +54,7 @@ def _raw_revoke_service_account(identifier: str, identity_attributes: Optional[d
     if db:
         cred_info = _get_credential(db, "AWS")
         if cred_info:
-            secret_key = cred_info.get("secret")
+            vault_uri = cred_info.get("vault_reference_uri")
             config = cred_info.get("config", {})
             aws_access_key = config.get("aws_access_key_id")
             region = config.get("region", "us-east-1")
@@ -62,12 +63,12 @@ def _raw_revoke_service_account(identifier: str, identity_attributes: Optional[d
             target_key_id = attrs.get("aws_access_key_id") or attrs.get("access_key_id")
             username = attrs.get("aws_username") or attrs.get("username") or identifier
 
-            if boto3 and secret_key and aws_access_key:
+            if boto3 and vault_uri and aws_access_key:
                 try:
                     iam_client = boto3.client(
                         "iam",
                         aws_access_key_id=aws_access_key,
-                        aws_secret_access_key=secret_key,
+                        aws_secret_access_key=vault_uri,
                         region_name=region
                     )
                     
@@ -112,16 +113,16 @@ def _raw_revoke_api_key(identifier: str, identity_attributes: Optional[dict] = N
     if db:
         cred_info = _get_credential(db, "GitHub")
         if cred_info:
-            token = cred_info.get("secret")
+            vault_uri = cred_info.get("vault_reference_uri")
             config = cred_info.get("config", {})
             client_id = config.get("client_id")
 
             attrs = identity_attributes or {}
             target_token_id = attrs.get("github_token_id") or attrs.get("token_id")
 
-            if token:
+            if vault_uri:
                 headers = {
-                    "Authorization": f"Bearer {token}",
+                    "Authorization": f"Bearer {vault_uri}",
                     "Accept": "application/vnd.github+json"
                 }
 
@@ -175,7 +176,7 @@ def _raw_revoke_agent_session(identifier: str, identity_attributes: Optional[dic
     if db:
         cred_info = _get_credential(db, "MCP")
         if cred_info:
-            secret = cred_info.get("secret")
+            vault_uri = cred_info.get("vault_reference_uri")
             config = cred_info.get("config", {})
             base_url = config.get("base_url", "http://localhost:8000/api/mcp")
             path_template = config.get("path_template", "/sessions/{session_id}/terminate")
@@ -187,7 +188,7 @@ def _raw_revoke_agent_session(identifier: str, identity_attributes: Optional[dic
             url = f"{base_url.rstrip('/')}{target_path}"
 
             headers = {
-                "Authorization": f"Bearer {secret}" if secret else "",
+                "Authorization": f"Bearer {vault_uri}" if vault_uri else "",
                 "Content-Type": "application/json"
             }
 

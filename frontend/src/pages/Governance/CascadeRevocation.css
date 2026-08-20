@@ -239,10 +239,10 @@
   align-items: center;
   gap: 6px;
   padding: 8px 16px;
-  background-color: var(--bg-surface, #0f172a);
-  border: 1px solid var(--border-color, #334155);
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  color: var(--text-primary, #f8fafc);
+  color: var(--text-main);
   font-weight: 500;
   cursor: pointer;
 }
@@ -260,7 +260,7 @@
   cursor: pointer;
 }
 
-.btn-secondary:hover { background-color: var(--border-color, #334155); }
+.btn-secondary:hover { background-color: var(--bg-hover); }
 .btn-danger:hover { background-color: #dc2626; }
 
 .btn-secondary:disabled, .btn-danger:disabled {

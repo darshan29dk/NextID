@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <defs>
+    <!-- Vibrant NextID Identity Gradients -->
+    <linearGradient id="nid-shield-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#2563eb" />
+      <stop offset="100%" stop-color="#7c3aed" />
+    </linearGradient>
+
+    <linearGradient id="nid-cascade-left" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+
+    <linearGradient id="nid-cascade-diagonal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="60%" stop-color="#60a5fa" />
+      <stop offset="100%" stop-color="#a855f7" />
+    </linearGradient>
+
+    <linearGradient id="nid-cascade-right" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#a855f7" />
+      <stop offset="100%" stop-color="#ec4899" />
+    </linearGradient>
+
+    <!-- Neon Glow Filter -->
+    <filter id="nid-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3.5" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- 1. Outer Security Shield (Role Governance Boundary) -->
+  <path d="M60 10 L100 28 V58 C100 82 82 102 60 108 C38 102 20 82 20 58 V28 L60 10 Z" 
+        fill="url(#nid-shield-grad)" 
+        fill-opacity="0.08"
+        stroke="url(#nid-shield-grad)" 
+        stroke-width="3" 
+        stroke-linejoin="round" 
+        filter="url(#nid-glow)" />
+
+  <!-- 2. Delegation Cascade Graph forming the "N" Lettermark -->
+  <!-- Left Identity Trunk (Parent Identity Path) -->
+  <path d="M38 34 V82" stroke="url(#nid-cascade-left)" stroke-width="7" stroke-linecap="round" />
+
+  <!-- Diagonal Cascade Link (Delegation Flow / Hop Traversal) -->
+  <path d="M38 36 L82 80" stroke="url(#nid-cascade-diagonal)" stroke-width="7" stroke-linecap="round" />
+
+  <!-- Right Trunk (Delegated Agents & Sub-agent Hop) -->
+  <path d="M82 34 V84" stroke="url(#nid-cascade-right)" stroke-width="7" stroke-linecap="round" />
+
+  <!-- 3. Identity Nodes & Delegation Junction Points -->
+  <!-- Root Parent Identity Node -->
+  <circle cx="38" cy="34" r="6" fill="#38bdf8" filter="url(#nid-glow)" />
+  <circle cx="38" cy="34" r="2.5" fill="#ffffff" />
+
+  <!-- Delegation Cascade Pulse Node (Middle Hop) -->
+  <circle cx="60" cy="58" r="5" fill="#60a5fa" filter="url(#nid-glow)" />
+
+  <!-- Child / Agent Session Node (Top Right) -->
+  <circle cx="82" cy="34" r="5" fill="#a855f7" filter="url(#nid-glow)" />
+
+  <!-- Sub-Agent Termination Node (Bottom Right) -->
+  <circle cx="82" cy="84" r="5.5" fill="#ec4899" filter="url(#nid-glow)" />
+  <circle cx="82" cy="84" r="2" fill="#ffffff" />
+
+  <!-- Bottom Left Base Node -->
+  <circle cx="38" cy="82" r="5" fill="#2563eb" filter="url(#nid-glow)" />
+</svg>

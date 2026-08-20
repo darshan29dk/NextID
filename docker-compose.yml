@@ -1,23 +1,40 @@
+version: '3.8'
+
 services:
+  redis:
+    image: redis:7-alpine
+    container_name: nextid-redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   backend:
     build: ./backend
-    container_name: ranalyzer-backend
+    container_name: nextid-backend
     ports:
       - "8000:8000"
+    environment:
+      - NEXTID_PROVIDER_MODE=mock
+      - REDIS_URL=redis://redis:6379/0
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/nextid
     env_file:
       - ./backend/.env
+    depends_on:
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
       args:
-        # Set to http://localhost:8000/api for local Docker testing (this machine).
-        # Set to http://4.240.74.5:8000/api instead when actually deploying this
-        # compose file on the Azure VM, so the browser can reach the backend
-        # over the network rather than through the container's own loopback.
-        VITE_API_BASE_URL: http://4.240.74.5:8000/api
-    container_name: ranalyzer-frontend
+        VITE_API_BASE_URL: http://localhost:8000/api
+    container_name: nextid-frontend
     ports:
       - "8081:80"
     depends_on:

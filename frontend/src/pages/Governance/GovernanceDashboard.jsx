@@ -170,8 +170,9 @@ const GovernanceDashboard = () => {
           >
             {REFRESH_INTERVALS.map(x => <option key={x.value} value={x.value}>{x.label}</option>)}
           </select>
-          <button className="btn-secondary btn-icon-only" onClick={() => fetchDashboard()} title="Refresh now">
-            <RefreshCw size={14} />
+          <button className="btn-secondary" onClick={() => fetchDashboard()} disabled={loading} title="Refresh now">
+            <RefreshCw size={14} className={loading ? "spin-animation" : ""} />
+            <span>{loading ? "Refreshing..." : "Refresh"}</span>
           </button>
           <button className="btn-secondary" onClick={handleExportCSV} title="Export CSV Summary">
             <Download size={14} />

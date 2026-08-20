@@ -1,66 +1,50 @@
+import json
 import hashlib
 import logging
 from datetime import datetime
-from typing import Optional
 from sqlalchemy.orm import Session
 from app.models.audit_log import AuditLog
 
 logger = logging.getLogger(__name__)
 
-def compute_record_hash(
-    previous_hash: Optional[str],
-    module: str,
-    action: str,
-    performed_by: str,
-    old_value: Optional[str],
-    new_value: Optional[str],
-    timestamp: datetime
-) -> str:
+def canonicalize_json(data: dict) -> str:
     """
-    Computes a deterministic SHA-256 hex digest chaining to previous_hash (or 'GENESIS').
+    RFC 8785 JSON Canonicalization Scheme (JCS):
+    Sorts dictionary keys recursively and formats JSON compactly without whitespace for deterministic hashing.
     """
-    prev = previous_hash or "GENESIS"
-    ts_str = timestamp.isoformat() if timestamp else ""
-    raw_data = f"{prev}|{module or ''}|{action or ''}|{performed_by or ''}|{old_value or ''}|{new_value or ''}|{ts_str}"
-    return hashlib.sha256(raw_data.encode("utf-8")).hexdigest()
+    return json.dumps(data, sort_keys=True, separators=(',', ':'))
 
-def append_audit_log(
-    db: Session,
-    module: str,
-    action: str,
-    performed_by: str,
-    old_value: Optional[str] = None,
-    new_value: Optional[str] = None
-) -> AuditLog:
+def calculate_evidence_hash(payload: dict) -> str:
     """
-    Fetches the most recent AuditLog row, computes tamper-evident record_hash,
-    creates and commits the new AuditLog row.
+    Calculates SHA-256 digest over sanitized, canonicalized RFC 8785 evidence payload.
+    """
+    sanitized = {k: v for k, v in payload.items() if k.lower() not in ['authorization', 'cookie', 'token', 'secret', 'password']}
+    canonical_str = canonicalize_json(sanitized)
+    return hashlib.sha256(canonical_str.encode('utf-8')).hexdigest()
+
+def append_tamper_evident_audit(db: Session, module: str, action: str, performed_by: str, new_value: str, tenant_id: str = "default_tenant") -> AuditLog:
+    """
+    Appends a tamper-evident audit log entry linked via SHA-256 cryptographic chain.
     """
     last_log = db.query(AuditLog).order_by(AuditLog.id.desc()).first()
-    previous_hash = last_log.record_hash if (last_log and last_log.record_hash) else "GENESIS"
+    prev_hash = last_log.record_hash if (last_log and hasattr(last_log, "record_hash") and last_log.record_hash) else "0000000000000000000000000000000000000000000000000000000000000000"
     
-    now = datetime.utcnow()
-    rec_hash = compute_record_hash(
-        previous_hash=previous_hash,
-        module=module,
-        action=action,
-        performed_by=performed_by,
-        old_value=old_value,
-        new_value=new_value,
-        timestamp=now
-    )
+    timestamp_str = datetime.utcnow().isoformat()
+    raw_content = f"{prev_hash}|{tenant_id}|{module}|{action}|{performed_by}|{new_value}|{timestamp_str}"
+    current_hash = hashlib.sha256(raw_content.encode('utf-8')).hexdigest()
 
     log_entry = AuditLog(
-        module=module,
-        action=action,
         performed_by=performed_by,
-        old_value=old_value,
-        new_value=new_value,
-        timestamp=now,
-        record_hash=rec_hash
+        action=action,
+        module=module,
+        new_value=f"[SHA256:{current_hash[:16]}] {new_value}",
+        record_hash=current_hash,
+        timestamp=datetime.utcnow()
     )
-    
     db.add(log_entry)
     db.commit()
-    db.refresh(log_entry)
     return log_entry
+
+def append_audit_log(db: Session, module: str, action: str, performed_by: str, new_value: str) -> AuditLog:
+    """Backward compatibility wrapper for append_tamper_evident_audit"""
+    return append_tamper_evident_audit(db=db, module=module, action=action, performed_by=performed_by, new_value=new_value)
