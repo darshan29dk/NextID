@@ -89,43 +89,6 @@
 
 ---
 
-## 🚀 Quickstart & Deployment
-
-### Option 1: Docker Compose (Recommended)
-
-Run the full production stack (Database, Backend API, and Frontend) with a single command:
-
-```bash
-docker compose up --build -d
-```
-
-Access points:
-- **Frontend Web App**: [http://localhost](http://localhost)
-- **Backend REST API**: [http://localhost:8000](http://localhost:8000)
-- **Interactive Swagger Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Postman Collection Download**: [http://localhost:8000/api/v1/export-postman](http://localhost:8000/api/v1/export-postman)
-
-### Option 2: Local Development Setup
-
-#### Backend Setup:
-```bash
-cd backend
-python -m venv .venv
-# On Windows: .venv\Scripts\activate
-# On Linux/macOS: source .venv/bin/activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-#### Frontend Setup:
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
----
-
 ## 🧪 Testing & Verification
 
 Execute the complete 32-test automated backend test suite:
