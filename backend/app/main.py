@@ -294,7 +294,7 @@ try:
                 email=email.strip().lower(),
                 role="Platform Administrator",
                 password_hash=pwd_context.hash(plain_pwd),
-                theme="light"
+                theme="dark"
             ))
             db.commit()
             print(f"Auto-seeded user {email}.")
@@ -748,7 +748,7 @@ try:
                 default_timezone="Asia/Kolkata",
                 session_timeout_minutes=15,
                 otp_expiry_minutes=10,
-                default_theme="light",
+                default_theme="dark",
                 maintenance_mode=False,
                 updated_at=datetime.utcnow(),
                 updated_by="System"

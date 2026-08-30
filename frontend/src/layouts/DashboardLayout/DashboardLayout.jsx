@@ -8,7 +8,7 @@ import './DashboardLayout.css';
 const DashboardLayout = ({ children }) => {
   const { currentUser } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [theme, setTheme] = useState('light');
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
   const [profile, setProfile] = useState(() => {
   const saved = localStorage.getItem('ranalyzer_user')
   return saved ? JSON.parse(saved) : { name: 'User', role: 'Platform Administrator', avatar: 'U', email: '' }

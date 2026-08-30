@@ -58,10 +58,13 @@ export function AuthProvider({ children }) {
               .map((part) => part[0])
               .join('')
               .toUpperCase(),
-        theme: backendUser.theme,
+        theme: backendUser.theme || 'dark',
         allowed_menus: backendUser.allowed_menus || []
       }
 
+      const activeTheme = user.theme || 'dark';
+      localStorage.setItem('theme', activeTheme);
+      document.body.className = `theme-${activeTheme}`;
       localStorage.setItem('ranalyzer_auth', 'true')
       localStorage.setItem('ranalyzer_user', JSON.stringify(user))
       setIsAuthenticated(true)
