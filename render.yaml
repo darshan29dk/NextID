@@ -2,7 +2,7 @@ services:
   # ── Backend FastAPI Web Service ──
   - type: web
     name: nextid-backend
-    env: python
+    runtime: python
     region: singapore
     plan: free
     buildCommand: "cd backend && pip install -r requirements.txt"
@@ -20,11 +20,11 @@ services:
   # ── Frontend React/Vite Static Web Service ──
   - type: web
     name: nextid-frontend
-    env: static
+    runtime: static
     region: singapore
     plan: free
     buildCommand: "cd frontend && npm install && npm run build"
-    staticPublishPath: "./frontend/dist"
+    publishPath: "./frontend/dist"
     routes:
       - type: rewrite
         source: "/*"
