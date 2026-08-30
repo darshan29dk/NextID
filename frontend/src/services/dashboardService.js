@@ -2,12 +2,18 @@ import axios from 'axios';
 
 // Configurable so the same build can talk to a local backend (dev) or a
 // deployed backend on a server (e.g. the Azure VM), without editing code.
-// Set VITE_API_BASE_URL in a .env file to override; falls back to localhost
-// for local development if it's not set.
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api';
-// Same host as the API, but without the /api prefix - used to build URLs for
-// statically-served files (uploaded logo, attachments) since those are
-// mounted at /uploads, not under /api.
+const getApiBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  if (envUrl && envUrl.trim()) {
+    const clean = envUrl.trim().replace(/\/$/, '');
+    return clean.endsWith('/api') ? clean : `${clean}/api`;
+  }
+  if (typeof window !== 'undefined' && window.location.hostname.includes('onrender.com')) {
+    return 'https://nextid-backend.onrender.com/api';
+  }
+  return 'http://localhost:8000/api';
+};
+export const API_BASE_URL = getApiBaseUrl();
 export const FILES_BASE_URL = API_BASE_URL.replace(/\/api\/?$/, '');
 
 export const apiClient = axios.create({

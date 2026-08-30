@@ -1301,16 +1301,14 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173", "http://localhost:5174",
         "http://127.0.0.1:5173", "http://127.0.0.1:5174",
-        # Local and remote Docker deployment origins
         "http://localhost", "http://127.0.0.1",
         "http://localhost:8081", "http://127.0.0.1:8081",
-        # Azure VM deployment — add whatever port the frontend actually gets served
-        # on here once that's decided (this covers the Vite default of 5173).
-        "http://4.240.74.5:5173", "http://4.240.74.5",
-        # Docker frontend on the VM is mapped to host port 8081 (port 80 was
-        # already taken by another service on this shared VM).
-        "http://4.240.74.5:8081",
+        "http://4.240.74.5:5173", "http://4.240.74.5", "http://4.240.74.5:8081",
+        "https://nextid.onrender.com",
+        "https://nextid-frontend.onrender.com",
+        "https://nextid-backend.onrender.com",
     ],
+    allow_origin_regex=r"https://.*\.onrender\.com",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1402,10 +1400,8 @@ def health_ready():
     except Exception as err:
         return {"status": "DOWN", "database": str(err), "readiness": "NOT_READY"}
 
-from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
-from fastapi import HTTPException
+from fastapi.responses import JSONResponse, StreamingResponse
 import asyncio
-import json
 
 @app.get("/api/v1/export-postman")
 def export_postman_collection():
@@ -1455,20 +1451,5 @@ async def notifications_stream():
             await asyncio.sleep(15)
             yield "data: " + json.dumps({"event": "HEARTBEAT", "status": "SYSTEM_HEALTHY", "timestamp": datetime.utcnow().isoformat()}) + "\n\n"
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
-
-import os as _os
-_frontend_dist = _os.path.join(_os.path.dirname(__file__), "..", "..", "frontend", "dist")
-if _os.path.exists(_frontend_dist):
-    app.mount("/assets", StaticFiles(directory=_os.path.join(_frontend_dist, "assets")), name="static_assets")
-
-    @app.get("/{full_path:path}")
-    async def serve_spa_frontend(full_path: str):
-        if full_path.startswith("api/") or full_path.startswith("docs") or full_path.startswith("openapi.json") or full_path.startswith("uploads/"):
-            raise HTTPException(status_code=404, detail="Not Found")
-        file_path = _os.path.join(_frontend_dist, full_path)
-        if _os.path.isfile(file_path):
-            return FileResponse(file_path)
-        return FileResponse(_os.path.join(_frontend_dist, "index.html"))
-
-
+    import json
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
