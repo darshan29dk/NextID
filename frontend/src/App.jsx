@@ -19,6 +19,7 @@ import RoleAttributes from './pages/Administration/RoleAttributes';
 import AttributeCategories from './pages/DataFoundation/AttributeCategories';
 import CloudDirectories from './pages/DataFoundation/CloudDirectories';
 import CustomAttributes from './pages/DataFoundation/CustomAttributes';
+import AttributeValidation from './pages/DataFoundation/AttributeValidation';
 import ConnectorWorkspace from './pages/DataFoundation/ConnectorWorkspace';
 import ApplicationWorkspace from './pages/DataFoundation/ApplicationWorkspace';
 import IdentityWorkspace from './pages/DataFoundation/IdentityWorkspace';
@@ -107,7 +108,7 @@ function App() {
                   <Route path="/data-foundation/correlation" element={<IdentityWorkspace />} />
                   <Route path="/data-foundation/sources/cloud" element={<CloudDirectories />} />
                   <Route path="/data-foundation/sources/api-gateways" element={<Navigate to="/data-foundation/sources/workspace" replace />} />
-                  <Route path="/data-foundation/validation" element={<UnderConstruction title="Attribute Validation" />} />
+                  <Route path="/data-foundation/validation" element={<AttributeValidation />} />
 
                   {/* ── Legacy redirects – preserve old bookmarks ── */}
                   <Route path="/attribute-management/identity"    element={<Navigate to="/data-foundation/identity"    replace />} />
