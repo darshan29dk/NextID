@@ -11,8 +11,6 @@ import json
 
 router = APIRouter(prefix="/api/v1/compliance-reports", tags=["Compliance Reports"])
 
-@app_router = router
-
 @router.get("/generate")
 def generate_compliance_report(
     framework: str = Query("SOX", description="Compliance Framework: SOX, SOC2, ISO27001, HIPAA"),

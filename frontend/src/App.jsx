@@ -40,6 +40,8 @@ import SoDExceptionDetail from './pages/Governance/SoDExceptionDetail';
 import GovernanceDashboard from './pages/Governance/GovernanceDashboard';
 import RevocationWorkspace from './pages/Governance/RevocationWorkspace';
 import CascadeRevocation from './pages/Governance/CascadeRevocation';
+import ComplianceReportWorkspace from './pages/Governance/ComplianceReportWorkspace';
+import IdentityLineageWorkspace from './pages/Governance/IdentityLineageWorkspace';
 import JMLWorkbench from './pages/JML/JMLWorkbench';
 import PublishedRoles from './pages/RoleCatalog/PublishedRoles';
 import BusinessRoles from './pages/RoleCatalog/BusinessRoles';
@@ -160,6 +162,8 @@ function App() {
                   <Route path="/governance/jml" element={<Navigate to="/jml/workbench" replace />} />
                   <Route path="/governance/revocation" element={<RevocationWorkspace />} />
                   <Route path="/governance/cascade-revocation" element={<CascadeRevocation />} />
+                  <Route path="/governance/compliance-reports" element={<ComplianceReportWorkspace />} />
+                  <Route path="/governance/identity-lineage" element={<IdentityLineageWorkspace />} />
                   <Route path="/analytics" element={<Navigate to="/analytics/role-analytics" replace />} />
                   <Route path="/analytics/executive" element={<Navigate to="/analytics/role-analytics" replace />} />
                   <Route path="/analytics/role-analytics" element={<ExecutiveDashboard />} />
