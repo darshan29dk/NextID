@@ -15,5 +15,7 @@ numpy
 passlib
 bcrypt==4.0.1
 httpx
+psycopg2-binary
 boto3
+
 

@@ -71,11 +71,15 @@ try:
 except Exception as e:
     print(f"Warning: Could not auto-create database using PyMySQL: {e}")
 
-connect_args = {
-    "connect_timeout": 10
-}
-if ssl_context:
-    connect_args["ssl"] = ssl_context
+connect_args = {}
+if DATABASE_URL.startswith("mysql"):
+    connect_args["connect_timeout"] = 10
+    if ssl_context:
+        connect_args["ssl"] = ssl_context
+elif DATABASE_URL.startswith("postgresql"):
+    connect_args["connect_timeout"] = 10
+    if db_ssl:
+        connect_args["sslmode"] = "require"
 
 engine = create_engine(
     DATABASE_URL,
@@ -85,6 +89,7 @@ engine = create_engine(
     max_overflow=5,
     pool_recycle=300,
 )
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
