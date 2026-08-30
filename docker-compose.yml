@@ -1,42 +1,53 @@
 version: '3.8'
 
 services:
-  redis:
-    image: redis:7-alpine
-    container_name: nextid-redis
+  db:
+    image: postgres:15-alpine
+    container_name: nextid-postgres
+    restart: always
+    environment:
+      POSTGRES_DB: ranalyzer
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
     ports:
-      - "6379:6379"
-    restart: unless-stopped
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ranalyzer"]
       interval: 5s
-      timeout: 3s
+      timeout: 5s
       retries: 5
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: nextid-backend
+    restart: always
     ports:
       - "8000:8000"
     environment:
-      - NEXTID_PROVIDER_MODE=mock
-      - REDIS_URL=redis://redis:6379/0
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/nextid
-    env_file:
-      - ./backend/.env
+      - DATABASE_URL=postgresql://postgres:postgrespassword@db:5432/ranalyzer
+      - DB_SSL=false
+      - ENCRYPTION_KEY=dGhlc2VjcmV0a2V5bXVzdGJlMzJieXRlc2xvbmcxMjM=
+      - PROVIDER_SECRET_KEY=uO1xR9k5mZgT6Vn3pL8wQ2yA4cB7dF0eH1jK3mP5sN8=
     depends_on:
-      redis:
+      db:
         condition: service_healthy
-    restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
+      dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: http://localhost:8000/api
+        VITE_API_BASE_URL: http://localhost:8000
     container_name: nextid-frontend
+    restart: always
     ports:
-      - "8081:80"
+      - "80:80"
     depends_on:
       - backend
-    restart: unless-stopped
+
+volumes:
+  postgres_data:

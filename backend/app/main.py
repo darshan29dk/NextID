@@ -1399,3 +1399,57 @@ def health_ready():
         return {"status": "UP", "database": "CONNECTED", "readiness": "READY"}
     except Exception as err:
         return {"status": "DOWN", "database": str(err), "readiness": "NOT_READY"}
+
+from fastapi.responses import JSONResponse, StreamingResponse
+import asyncio
+
+@app.get("/api/v1/export-postman")
+def export_postman_collection():
+    """Generates a Postman v2.1 Collection from the OpenAPI schema."""
+    openapi_spec = app.openapi()
+    postman_items = []
+    
+    paths = openapi_spec.get("paths", {})
+    for path, methods in paths.items():
+        for method, details in methods.items():
+            postman_items.append({
+                "name": details.get("summary") or f"{method.upper()} {path}",
+                "request": {
+                    "method": method.upper(),
+                    "header": [
+                        {"key": "Content-Type", "value": "application/json"},
+                        {"key": "X-Tenant-ID", "value": "default_tenant"}
+                    ],
+                    "url": {
+                        "raw": "{{baseUrl}}" + path,
+                        "host": ["{{baseUrl}}"],
+                        "path": [p for p in path.split("/") if p]
+                    },
+                    "description": details.get("description", "")
+                }
+            })
+
+    postman_collection = {
+        "info": {
+            "name": openapi_spec.get("info", {}).get("title", "NextID IGA API"),
+            "description": openapi_spec.get("info", {}).get("description", "Complete Identity Governance & Administration REST API"),
+            "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+        },
+        "variable": [
+            {"key": "baseUrl", "value": "http://localhost:8000"}
+        ],
+        "item": postman_items
+    }
+    return JSONResponse(content=postman_collection, headers={"Content-Disposition": "attachment; filename=NextID_Postman_Collection.json"})
+
+@app.get("/api/v1/notifications/stream")
+async def notifications_stream():
+    """Server-Sent Events (SSE) stream for real-time governance alerts."""
+    async def event_generator():
+        yield "data: " + json.dumps({"event": "CONNECTED", "message": "Real-time governance stream active", "timestamp": datetime.utcnow().isoformat()}) + "\n\n"
+        while True:
+            await asyncio.sleep(15)
+            yield "data: " + json.dumps({"event": "HEARTBEAT", "status": "SYSTEM_HEALTHY", "timestamp": datetime.utcnow().isoformat()}) + "\n\n"
+
+    import json
+    return StreamingResponse(event_generator(), media_type="text/event-stream")

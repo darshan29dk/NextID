@@ -1,0 +1,128 @@
+.cloud-directories-container {
+  padding: 24px;
+  background-color: var(--bg-main, #f8fafc);
+  min-height: 100vh;
+  color: var(--text-main, #0f172a);
+}
+
+.cloud-directories-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.cloud-directories-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--text-main, #0f172a);
+  margin: 0;
+}
+
+.cloud-directories-subtitle {
+  font-size: 14px;
+  color: var(--text-muted, #64748b);
+  margin-top: 4px;
+}
+
+.cloud-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 20px;
+}
+
+.cloud-card {
+  background: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-color, #e2e8f0);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.cloud-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.cloud-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.cloud-provider-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+.azure-icon { background: #e0f2fe; color: #0284c7; }
+.okta-icon { background: #e0e7ff; color: #4338ca; }
+.google-icon { background: #fee2e2; color: #dc2626; }
+.ping-icon { background: #fef3c7; color: #d97706; }
+
+.cloud-status-badge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge-connected { background: #dcfce7; color: #15803d; }
+.badge-syncing { background: #e0f2fe; color: #0369a1; }
+.badge-disabled { background: #f1f5f9; color: #64748b; }
+
+.cloud-card-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 6px 0;
+}
+
+.cloud-card-meta {
+  font-size: 13px;
+  color: var(--text-muted, #64748b);
+  margin-bottom: 16px;
+}
+
+.cloud-card-stats {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid var(--border-color, #e2e8f0);
+  padding-top: 12px;
+  font-size: 13px;
+}
+
+.cloud-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.btn-sync {
+  flex: 1;
+  padding: 8px 12px;
+  background: var(--primary-color, #2563eb);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.btn-config {
+  padding: 8px 12px;
+  background: transparent;
+  border: 1px solid var(--border-color, #cbd5e1);
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-main, #334155);
+  cursor: pointer;
+}
