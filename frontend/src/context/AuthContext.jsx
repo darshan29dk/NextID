@@ -35,7 +35,12 @@ export function AuthProvider({ children }) {
       })
 
       if (!response.ok) {
-        return false
+        let errText = 'Invalid email or password.';
+        try {
+          const errData = await response.json();
+          if (errData.detail) errText = errData.detail;
+        } catch (_) {}
+        return { success: false, error: errText };
       }
 
       const data = await response.json()
@@ -61,10 +66,13 @@ export function AuthProvider({ children }) {
       localStorage.setItem('ranalyzer_user', JSON.stringify(user))
       setIsAuthenticated(true)
       setCurrentUser(user)
-      return true
+      return { success: true }
     } catch (err) {
       console.error('Login request failed:', err)
-      return false
+      return { 
+        success: false, 
+        error: `Unable to connect to backend (${API_BASE}). If Render free tier server was sleeping, please wait 10-15 seconds and try again.` 
+      }
     }
   }
 

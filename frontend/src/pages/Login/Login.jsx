@@ -41,12 +41,12 @@ function Login() {
 
     setIsLoading(true)
 
-    const success = await login(email, password)
+    const res = await login(email, password)
 
-    if (success) {
+    if (res && res.success) {
       navigate('/dashboard')
     } else {
-      setError('Invalid email or password.')
+      setError(res?.error || 'Invalid email or password.')
       setIsLoading(false)
     }
   }
