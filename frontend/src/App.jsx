@@ -37,6 +37,7 @@ import SoDExceptionDetail from './pages/Governance/SoDExceptionDetail';
 import GovernanceDashboard from './pages/Governance/GovernanceDashboard';
 import RevocationWorkspace from './pages/Governance/RevocationWorkspace';
 import CascadeRevocation from './pages/Governance/CascadeRevocation';
+import JMLWorkbench from './pages/JML/JMLWorkbench';
 import PublishedRoles from './pages/RoleCatalog/PublishedRoles';
 import BusinessRoles from './pages/RoleCatalog/BusinessRoles';
 import TechnicalRoles from './pages/RoleCatalog/TechnicalRoles';
@@ -137,6 +138,14 @@ function App() {
                   <Route path="/role-catalog/business" element={<PublishedRoles />} />
                   <Route path="/role-catalog/technical" element={<PublishedRoles />} />
                   <Route path="/role-catalog/:id" element={<RoleCatalogDetail />} />
+                  {/* ── Identity Lifecycle (JML) ── */}
+                  <Route path="/jml" element={<Navigate to="/jml/workbench" replace />} />
+                  <Route path="/jml/workbench" element={<JMLWorkbench />} />
+                  <Route path="/jml/joiners" element={<JMLWorkbench />} />
+                  <Route path="/jml/movers" element={<JMLWorkbench />} />
+                  <Route path="/jml/leavers" element={<JMLWorkbench />} />
+                  <Route path="/jml/rehires" element={<JMLWorkbench />} />
+
                   <Route path="/governance" element={<Navigate to="/governance/dashboard" replace />} />
                   <Route path="/governance/dashboard" element={<GovernanceDashboard />} />
                   <Route path="/governance/sod-policies" element={<SoDPolicies />} />
@@ -145,6 +154,7 @@ function App() {
                   <Route path="/governance/exceptions" element={<SoDExceptions />} />
                   <Route path="/governance/exceptions/:id" element={<SoDExceptionDetail />} />
                   <Route path="/governance/scan-history" element={<SoDScanHistory />} />
+                  <Route path="/governance/jml" element={<Navigate to="/jml/workbench" replace />} />
                   <Route path="/governance/revocation" element={<RevocationWorkspace />} />
                   <Route path="/governance/cascade-revocation" element={<CascadeRevocation />} />
                   <Route path="/analytics" element={<Navigate to="/analytics/role-analytics" replace />} />

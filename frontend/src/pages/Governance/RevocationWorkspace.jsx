@@ -25,6 +25,13 @@ const RevocationWorkspace = () => {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterType, setFilterType] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [showTriggerModal, setShowTriggerModal] = useState(false);
+  const [targetType, setTargetType] = useState('human');
+  const [targetIdentity, setTargetIdentity] = useState('');
+  const [targetEntitlement, setTargetEntitlement] = useState('');
+  const [simulateFailure, setSimulateFailure] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [actionError, setActionError] = useState(null);
   const rowsPerPage = 10;
 
   const fetchJobs = async () => {

@@ -112,7 +112,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
             coverage=covered_by_dept.get(dept, 0),
             target=total
         )
-        for dept, total in sorted(identities_by_dept.items()) if dept
+        for dept, total in sorted(identities_by_dept.items(), key=lambda x: str(x[0] or '')) if dept
     ]
 
     # 2. Risk Distribution: real Published roles grouped by their actual

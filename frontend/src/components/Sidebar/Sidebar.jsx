@@ -27,6 +27,10 @@ import {
   Settings2,
   SlidersHorizontal,
   User,
+  UserCheck,
+  UserPlus,
+  UserX,
+  RefreshCw,
   Fingerprint,
   Link2,
   Briefcase,
@@ -53,8 +57,6 @@ const APPROVAL_WORKFLOW_GROUP_CHILDREN = [
   { label: 'Approval Workflows', icon: SlidersHorizontal, path: 'governance/approval-workflows' },
 ];
 
-
-
 const GOVERNANCE_GROUP_CHILDREN = [
   { label: 'Risk Dashboard', icon: LayoutDashboard, path: 'governance/dashboard' },
   { label: 'SoD Policies', icon: Shield, path: 'governance/sod-policies' },
@@ -65,20 +67,15 @@ const GOVERNANCE_GROUP_CHILDREN = [
   { label: 'Cascade Revocation', icon: Zap, path: 'governance/cascade-revocation' },
 ];
 
-
-
 const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const activePath = location.pathname.substring(1) || 'dashboard';
 
-  // Whether the "Attributes" group is expanded. Auto-expanded below if the
-  // current route is one of its children, so landing directly on e.g.
-  // Role Attributes doesn't hide that you're inside the group.
+  // Whether groups are expanded
   const [isAttributesOpen, setIsAttributesOpen] = useState(
     ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath)
   );
-
 
   const [isApprovalWorkflowOpen, setIsApprovalWorkflowOpen] = useState(
     APPROVAL_WORKFLOW_GROUP_CHILDREN.some((child) => child.path === activePath)
@@ -88,12 +85,10 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
     GOVERNANCE_GROUP_CHILDREN.some((child) => child.path === activePath)
   );
 
-
   useEffect(() => {
     if (ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath)) {
       setIsAttributesOpen(true);
     }
-
 
     if (APPROVAL_WORKFLOW_GROUP_CHILDREN.some((child) => child.path === activePath)) {
       setIsApprovalWorkflowOpen(true);
@@ -123,10 +118,7 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
   ];
 
   const isAttributesGroupActive = ATTRIBUTE_GROUP_CHILDREN.some((child) => child.path === activePath);
-
-
   const isApprovalWorkflowGroupActive = APPROVAL_WORKFLOW_GROUP_CHILDREN.some((child) => child.path === activePath);
-
   const isGovernanceGroupActive = GOVERNANCE_GROUP_CHILDREN.some((child) => child.path === activePath);
 
 
@@ -275,6 +267,16 @@ const Sidebar = ({ isCollapsed, toggleCollapse }) => {
         >
           <BookOpen className="nav-icon" size={18} />
           {!isCollapsed && <span className="nav-label">Role Catalog</span>}
+        </div>
+
+        {/* Direct link for "Identity Lifecycle (JML)" */}
+        {!isCollapsed && <div className="nav-heading">IDENTITY LIFECYCLE</div>}
+        <div 
+          className={`nav-item ${activePath.startsWith('jml') ? 'active' : ''}`}
+          onClick={() => navigate('/jml/workbench')}
+        >
+          <UserCheck className="nav-icon" size={18} />
+          {!isCollapsed && <span className="nav-label">JML Lifecycle</span>}
         </div>
 
         {/* Collapsible "Governance" group */}

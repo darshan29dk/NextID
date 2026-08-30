@@ -596,6 +596,20 @@ def trigger_revocation(
     response.status_code = status.HTTP_202_ACCEPTED
     return event
 
+@router.get("/api/revocation-events", response_model=List[RevocationEventResponse])
+@router.get("/api/revocation-events/", response_model=List[RevocationEventResponse])
+def list_revocation_events(
+    status: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
+    _perm: bool = Depends(require_permission("Cascade Revocation", "view")),
+    db: Session = Depends(get_db)
+):
+    query = db.query(RevocationEvent)
+    if status:
+        query = query.filter(RevocationEvent.status == status)
+    return query.order_by(RevocationEvent.id.desc()).offset(offset).limit(limit).all()
+
 @router.get("/api/revocation-events/{event_id}", response_model=RevocationEventResponse)
 def get_revocation_event_detail(
     event_id: int,

@@ -1367,7 +1367,7 @@ app.include_router(provider_credential_routes.router)
 
 from app.models.jit_lease import JitLease
 from app.models.certification_run import ConnectorCertificationRun
-from app.routes import graph_explain, kill_switch, cascade_restore, ttfr_metrics, investigation_mode, compliance_evidence, runtime_auth_route, jit_credentials_route, certification_route, unresolved_authority_route, authority_provenance_route
+from app.routes import graph_explain, kill_switch, cascade_restore, ttfr_metrics, investigation_mode, compliance_evidence, runtime_auth_route, jit_credentials_route, certification_route, unresolved_authority_route, authority_provenance_route, jml_route, catalog_route, access_request_route
 app.include_router(graph_explain.router)
 app.include_router(kill_switch.router)
 app.include_router(cascade_restore.router)
@@ -1379,6 +1379,9 @@ app.include_router(jit_credentials_route.router)
 app.include_router(certification_route.router)
 app.include_router(unresolved_authority_route.router)
 app.include_router(authority_provenance_route.router)
+app.include_router(jml_route.router)
+app.include_router(catalog_route.router)
+app.include_router(access_request_route.router)
 
 @app.get("/")
 def read_root():
